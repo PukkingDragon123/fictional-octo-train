@@ -265,9 +265,7 @@ export class CombatSystem implements GameSystem {
     // ---- dodge: tap Shift, or double-tap a direction (in a fight)
     if (!busy) this.dodgeInput(p);
     // ---- shove / tackle / stomp
-    if (!busy && inp.hit('shove') && this.state !== 'charge' && !G.grab?.holding) {
-      if (!G.interact?.tryVault?.(p)) this.shove(p);
-    }
+    if (!busy && inp.hit('shove') && this.state !== 'charge' && !G.grab?.holding) this.shove(p);
     // ---- moves in progress
     if (this.move) this.stepMove(p, dt);
     // ---- the attack button

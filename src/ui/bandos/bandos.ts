@@ -31,6 +31,7 @@ import { isLoading } from '../loading';
 import { purseLine } from '../../game/economy/money';
 import { researchPoints } from '../../game/research';
 import { APPS, hookMail, mailCount, type AppDef } from './apps';
+import { appInstalled, hookAppInstalls } from './installed';
 import { WIDE, TALL, wristArt, wristDial, watchBody, watchArm, type WristLayout } from './wrist3d';
 import * as THREE from 'three';
 import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera, fpBlend } from '../../fp/fp';
@@ -77,6 +78,8 @@ export class BandOS {
 
   constructor() {
     (G as any).bandos = this;
+    hookAppInstalls();
+    bus.on('bandApps', () => { if (this.open && this.icons?.length) this.syncApps(); });
     // another close-up takes the eyes (the pack, an inspection): the band goes down
     bus.on('fpLost', (name: string) => { if (name === 'watch' && this.open) this.hide(true); });
     window.addEventListener('keydown', (e) => this.onKey(e), true);
@@ -102,6 +105,7 @@ export class BandOS {
     // too frightened: a shaky half raise that drops, the screen will not wake
     if (panicLocks('watch')) { this.startFumble(); return; }
     this.open = true;
+    this.syncApps();
     this.raiseUp();
     this.toHome(true);
     this.refreshTop();
@@ -354,6 +358,7 @@ export class BandOS {
       b.addEventListener('pointerenter', () => { if (!this.cur && !this.busy) this.select(i); });
       b.addEventListener('focus', () => { if (!this.cur) this.select(i, true); });
       b.addEventListener('click', () => { this.select(i, true); this.launch(a.key); });
+      b.hidden = !appInstalled(a.key);
       this.home.append(b);
       this.icons.push({ b, ic });
     });
@@ -425,8 +430,16 @@ export class BandOS {
   }
 
   // ---------------------------------------------------------------- home, apps
+  /** round 19: only the apps on the band show (./installed.ts); the pick moves to one that is there */
+  private syncApps() {
+    this.icons.forEach((x, k) => { x.b.hidden = !appInstalled(APPS[k].key); });
+    if (!appInstalled(APPS[this.sel]?.key ?? '')) this.sel = Math.max(0, APPS.findIndex((a) => appInstalled(a.key)));
+  }
   private select(i: number, quiet = false) {
+    // round 19: skip apps that are not installed yet, in the direction the pick moved
+    const dir = i < this.sel ? -1 : 1;
     i = (i + APPS.length) % APPS.length;
+    for (let k = 0; k < APPS.length && !appInstalled(APPS[i].key); k++) i = (i + dir + APPS.length) % APPS.length;
     const was = this.sel;
     this.sel = i;
     this.icons.forEach((x, k) => { x.b.classList.toggle('sel', k === i); x.ic.hot(k === i); });
@@ -437,7 +450,7 @@ export class BandOS {
   /** the dial: on home it moves the pick; in an app it changes app */
   private turn(d: number) {
     if (this.busy) return;
-    if (this.cur) { const i = (APPS.findIndex((a) => a.key === this.cur!.app.key) + d + APPS.length) % APPS.length; this.select(i, true); this.launch(APPS[i].key); }
+    if (this.cur) { let i = APPS.findIndex((a) => a.key === this.cur!.app.key); for (let k = 0; k < APPS.length; k++) { i = (i + d + APPS.length) % APPS.length; if (appInstalled(APPS[i].key)) break; } this.select(i, true); this.launch(APPS[i].key); }
     else this.select(this.sel + d);
   }
   private enter() { if (this.cur) this.back(); else this.launch(APPS[this.sel].key); }
@@ -461,7 +474,7 @@ export class BandOS {
   launch(key: string) {
     const i = APPS.findIndex((x) => x.key === key);
     const a = APPS[i];
-    if (!a || !this.open) return;
+    if (!a || !this.open || !appInstalled(a.key)) return;
     if (this.cur?.app.key === key) return;
     this.sel = i;
     this.dial?.to(i + 1);

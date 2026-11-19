@@ -76,10 +76,10 @@ export class SocialSystem implements GameSystem {
     this.whistleCd -= dt; this.shoutCd -= dt; this.barkCd -= dt;
     const inp = g.input;
     const busy = p.body.dead || g.ui?.blocksMovement?.() || g.transitioning || !!p.inVehicle;
-    // ---- Q: tap = whistle, hold = shout
+    // ---- the whistle key (comma): tap = whistle, hold = shout
     const qDown = inp.down('whistle') || inp.down('shout');
     if ((inp.hit('whistle') || inp.hit('shout')) && !busy) { this.qT = 0; this.qShouted = false; }
-    // (Q also holds the suit scanner: a sweep it started is not a whistle or a shout, src/scan/scan.ts)
+    // (a sweep the suit scanner started is not a whistle or a shout, src/scan/scan.ts)
     if (this.qT >= 0 && (g as any).scan?.active?.hold) this.qT = -1;
     if (this.qT >= 0) {
       if (qDown) {
@@ -90,7 +90,7 @@ export class SocialSystem implements GameSystem {
         this.qT = -1;
       }
     }
-    // ---- G: the emote wheel
+    // ---- the emote wheel (period)
     if (inp.hit('emote') && !busy) {
       if (this.wheelOpen) this.closeWheel();
       else { this.openWheel(); this.wheelHeldT = 0; this.wheelMoved = false; }
@@ -100,7 +100,7 @@ export class SocialSystem implements GameSystem {
       const d = this.dialObj;
       if (busy) { this.closeWheel(); return; }
       this.wheelHeldT += dt;
-      // holding G: aim at a window with the mouse direction from the wheel's centre
+      // holding the wheel key: aim at a window with the mouse direction from the wheel's centre
       if (inp.down('emote') && !d.busy) {
         const i = d.holeToward(inp.mouseX, inp.mouseY);
         if (i >= 0) { this.wheelMoved = true; this.setHot(i); }
@@ -108,7 +108,7 @@ export class SocialSystem implements GameSystem {
       // 1-8 pick a window while it is open
       const pressed = (inp as unknown as { pressed?: Set<string> }).pressed;
       if (pressed) for (let i = 0; i < 8; i++) if (pressed.has('Digit' + (i + 1)) || pressed.has('Numpad' + (i + 1))) { this.pick({ kind: 'hole', i }); break; }
-      // hold-and-release: letting go of G on a hole dials it
+      // hold-and-release: letting go of the wheel key on a hole dials it
       if (!inp.down('emote') && this.wheelHeldT > 0.22 && this.wheelMoved && !d.busy) {
         this.wheelMoved = false;
         if (this.hot >= 0) this.pick({ kind: 'hole', i: this.hot });

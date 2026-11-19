@@ -1,10 +1,9 @@
 // Physical interaction, no popups (G.grab).
 //
-//  Right mouse, tapped   the primary verb of what is under the cursor: a box
-//                        opens (the loot view), a chair is sat on, a door
-//                        swings, a switch flips, an item is picked up, a body is
-//                        searched; on yourself it opens the backpack (or uses
-//                        what is in hand: eat, drink, read, treat...)
+//  Right mouse, tapped   round 19: the context menu of what is under the cursor
+//                        (src/interact/contextMenu.ts): plain-text options,
+//                        Info at the bottom. E does the primary verb (a box
+//                        opens, a door swings, an item is picked up...)
 //  Right mouse, held     grab it: furniture is pushed (W) and dragged (S) with
 //                        real weight, Shift is power, Space shoves it away, let
 //                        go to release; small things are lifted and carried
@@ -39,6 +38,7 @@ import { VerbTarget, Verb, verbsFor, primaryVerb, verbWord, heldItem, openLoot, 
 import { toolVerb, noteStrike, toolHit } from './toolUse';
 import { punch, pop } from '../gfx/juice';
 import { verbGlyph, glyphUrl } from './signs';
+import { openContextMenu, contextMenuOpen } from './contextMenu';
 
 const HOLD_MS = 220;      // right button held this long on something grabbable = grab
 const TAP_MS = 650;       // released sooner than this (and not consumed) = the primary verb
@@ -203,7 +203,7 @@ export class GrabSystem implements GameSystem {
     const now = performance.now();
     if (this.pending && (this.pending.started || !p.actions.list.includes(this.pending))) this.pending = null;
     if (this.edge && (this.edge.done || !p.actions.list.includes(this.edge))) this.edge = null;
-    const free = !inp.pointerOverUI && !ui?.modal && !ui?.readerEl && !ui?.menuEl && !p.body.dead && !(G as any).items?.placing && !p.inVehicle;
+    const free = !inp.pointerOverUI && !ui?.modal && !ui?.readerEl && !ui?.menuEl && !contextMenuOpen() && !p.body.dead && !(G as any).items?.placing && !p.inVehicle;
 
     // ---- right mouse
     if (inp.mousePressed[2] && free) {
@@ -220,7 +220,7 @@ export class GrabSystem implements GameSystem {
         const v = r.verbs[r.sel];
         if (v && !v.why) { v.run(); G.audio?.ui?.('click', 0.3); }
         else if (v?.why) bus.emit('think', p, cap(v.why) + '.');
-      } else if (!r.consumed && now - r.t0 < TAP_MS && !p.aiming && free) this.primary(p, r.t);
+      } else if (!r.consumed && now - r.t0 < TAP_MS && !p.aiming && free && r.t) openContextMenu(r.t, inp.mouseX, inp.mouseY);
     }
 
     // ---- the touch glove / a 'hold' key
@@ -345,14 +345,16 @@ export class GrabSystem implements GameSystem {
       if (push.mode === 'carry') html = `${seg(glyph('mouseL'), 'throw')}${seg(key('⇧', pw), 'harder')}${seg(glyph('mouseH'), 'let go: set down')}`;
       else {
         const e = Math.round(push.effort * 8) / 8;
-        html = `${seg(key('W'), 'push')}${seg(key('S'), 'pull')}${seg(key('⇧', pw), 'power')}${seg(key('␣'), 'shove')}<span class="gx-gauge" style="--e:${e}"><i></i></span>`;
+        html = `${seg(key('W'), 'push')}${seg(key('S'), 'pull')}${seg(key('⇧', pw), 'power')}${seg(key(G.input.keyName('shove')), 'shove')}<span class="gx-gauge" style="--e:${e}"><i></i></span>`;
         if (push.effort > 0.92) cls = 'strain';
       }
     } else if (this.edge?.started) {
       at = this.anchor(this.edge.tgt);
       html = this.edge.kind === 'lever' ? seg(key('S'), 'haul it down') : `${seg(key('W'), 'push')}${seg(key('S'), 'pull')}`;
     } else if (hv.t && !inp.pointerOverUI && !G.ui?.menuEl) {
-      if (hv.prim) html += seg(glyph('mouseR') + glyph(verbGlyph(hv.prim.label)), verbWord(hv.prim));
+      // E does the first verb; the right button opens the rest (no word: the menu says it)
+      if (hv.prim) html += seg(key(G.input.keyName('interact')) + glyph(verbGlyph(hv.prim.label)), verbWord(hv.prim));
+      if (hv.prim || hv.t.kind === 'self') html += `<span class="gx-seg">${glyph('mouseR')}</span>`;
       if (hv.grab) html += seg(glyph('mouseH') + glyph('hand'), 'grab');
       if (tool) html += seg(glyph('mouseL') + glyph(verbGlyph(tool)), tool);
       if (html) at = this.anchor(hv.t);

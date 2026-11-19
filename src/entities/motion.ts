@@ -9,20 +9,25 @@
 //  - tripping: sprinting through clutter, debris, loose items or water, or
 //    running on when exhausted, drunk or hurt, a foot catches: a lurching
 //    stumble it catches, or a real fall (the ragdoll) and getting back up
-//  - crawling: hold the sneak key to drop flat and crawl, under tables too;
-//    legs that cannot carry it put it on the floor whether it likes it or not
-//  - rolling: C rolls over the shoulder (stamina; a moment of nothing can touch it)
+//  - crouching (C): lower, slower, quieter; sprinting, C drops into a SLIDE (feet
+//    first along the floor, under tables, ending crouched or flat if there is no
+//    headroom)
+//  - crawling (Ctrl): down flat and crawl, under tables too (Ctrl / C / Shift up
+//    again); legs that cannot carry it put it on the floor whether it likes it or not
+//  - vaulting (Space): over a waist-high thing in front (a counter, a crate, a low
+//    wall or fence, an open window's sill) with a hand planted on it; with nothing
+//    in front, a short hop
 //  - blows: real knockback that bleeds off on friction, staggers, and big
 //    hits (or a hit on a blown, running body) knock it flat
 //  - running into a wall at full tilt: a slam and a stagger; into loose
 //    furniture: it goes flying (src/world/pushDrag.ts knock)
-// Animations: src/entities/motionAnims.ts (mo_roll, mo_stumble, mo_getup_back)
+// Animations: src/entities/motionAnims.ts (mo_vault, mo_hop, mo_slide, mo_stumble, mo_getup_back)
 // plus the animator's own 'stagger' and 'get_up'.
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import { clamp, angleDiff, wrapAngle } from '../core/math';
-import { moveCircle } from '../world/collision';
+import { moveCircle, resolve, tileSolid, objFootprint } from '../world/collision';
 import { objDef } from '../world/objects';
 import type { Zone, TileObject } from '../world/zone';
 import { floorItemsNear } from '../items/worldItems';
@@ -30,9 +35,11 @@ import { shake, punch, kick } from '../gfx/juice';
 import { noise } from '../actions/world';
 import type { Input } from '../core/input';
 import type { Player } from './player';
-import './motionAnims';
+import { setVaultHeight } from './motionAnims';
 
-type MState = 'free' | 'roll' | 'stumble' | 'fallen' | 'getup' | 'stagger';
+type MState = 'free' | 'slide' | 'vault' | 'hop' | 'stumble' | 'fallen' | 'getup' | 'stagger';
+/** a vault: from where, to where, over how high (world), and what is being cleared */
+interface VaultPlan { x0: number; z0: number; x1: number; z1: number; h: number; what: 'wall' | 'window' | 'furniture'; glass?: boolean; dir: number }
 
 declare module './player' {
   interface Player {
@@ -43,6 +50,7 @@ declare module './player' {
   }
 }
 
+const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _u = new THREE.Vector3(), _b = new THREE.Vector3();
 const say = (p: Player, s: string) => bus.emit('think', p, s);
 const audio = (k: string, x: number, z: number, v: number) => { try { G.audio?.at?.(k, x, z, v); } catch { /* no audio */ } };
@@ -51,71 +59,75 @@ export class UnitMotion {
   st: MState = 'free';
   t = 0;
   dur = 0;
-  /** roll / stumble / fall direction (world radians) */
+  /** slide / vault / stumble / fall direction (world radians) */
   dir = 0;
-  /** chose to go flat (hold the sneak key) */
+  /** chose to go flat (Ctrl) */
   prone = false;
   /** out of breath: no running until the wind comes back */
   blown = false;
   /** outside velocity (blows, slams): it bleeds off on friction */
   exVx = 0; exVz = 0;
-  /** the last trip / fall / slam / roll (dev, tests) */
+  /** the last trip / fall / slam / slide / vault (dev, tests) */
   last = '';
   /** how the last fall landed (front / back) */
   landed = '';
   private lean = 0;
   private prevSp = 0;
   private accF = 0;
-  private sneakT0 = -1;
-  private sneakUsed = false;
+  /** the vault in progress */
+  vault: VaultPlan | null = null;
+  /** slide speed at the start (it bleeds off) */
+  private slideV0 = 0;
   private tripCd = 0;
   private breathT = 0;
   private clutterT = 0;
   private clutter = 0;
-  private sloppy = false;
   private thudDone = false;
   private wasForced = false;
   private since = 0;
   private pending: { dx: number; dz: number; k: number; dmg: number; part: string; grab: boolean } | null = null;
 
-  /** no steering at all (rolling, stumbling, on the floor, getting up) */
-  get locked() { return this.st === 'roll' || this.st === 'stumble' || this.st === 'fallen' || this.st === 'getup'; }
+  /** no steering at all (sliding, vaulting, stumbling, on the floor, getting up) */
+  get locked() { return this.st === 'slide' || this.st === 'vault' || this.st === 'stumble' || this.st === 'fallen' || this.st === 'getup'; }
+  /** low to the floor right now (sliding): the controller reports a crouched stance */
+  get low() { return this.st === 'slide'; }
 
-  // ================================================================ input: roll, going prone
+  // ================================================================ input: crouch, crawl, slide, vault
   input(p: Player, inp: Input, locked: boolean) {
-    const now = G.time;
     // never stuck: a state that outlived itself by seconds (the sim paused under it, a death and a revival) lets go
     if (this.st !== 'free' && G.time - this.since > this.dur + 4) this.reset(p);
-    if (inp.down('sneak')) { if (this.sneakT0 < 0) this.sneakT0 = now; } else { this.sneakT0 = -1; this.sneakUsed = false; }
     if (locked || this.locked || p.inVehicle) return;
     const swim = p.stance === 'swim';
-    if (swim) this.prone = false;
+    if (swim) { this.prone = false; return; }
+    const crouch = inp.hit('sneak'), crawl = inp.hit('crawl'), jump = inp.hit('jump');
     if (this.prone) {
-      // up again: the sneak key (onto the knees), or Shift (straight up and away)
+      // up again: C onto the knees (crouched), Ctrl or Shift straight up
       const run = inp.hit('run');
-      if (inp.hit('sneak') || run) {
-        this.eat(inp, 'sneak');
+      if (crouch || crawl || run || jump) {
         if (!this.roomToStand(p)) { say(p, 'No room to stand under here.'); return; }
-        this.prone = false; p.sneaking = !run; this.sneakUsed = true;
+        this.prone = false; p.sneaking = crouch;
         audio('cloth', p.x, p.z, 0.5);
       }
       return;
     }
-    // hold the sneak key: drop flat
-    if (!swim && this.sneakT0 >= 0 && !this.sneakUsed && now - this.sneakT0 > 0.42) {
-      this.sneakUsed = true; this.prone = true; p.sneaking = true;
+    if (crawl) {
+      // down flat
+      this.prone = true; p.sneaking = true;
       audio('cloth', p.x, p.z, 0.6); audio('thud_soft', p.x, p.z, 0.25);
       return;
     }
-    if (inp.hit('roll')) {
-      const mv = inp.moveAxis();
-      const yaw = G.pr.yaw;
-      const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
-      this.roll(p, fx * mv.y + rx * mv.x, fz * mv.y + rz * mv.x);
+    if (crouch) {
+      // sprinting: drop into a slide; else crouch / stand
+      if (p.running && Math.hypot(p.vx, p.vz) > 2.6 && this.slide(p)) return;
+      if (p.sneaking && !this.roomToStand(p)) { say(p, 'No room to stand under here.'); return; }
+      p.sneaking = !p.sneaking;
+      audio('cloth', p.x, p.z, 0.35);
+      return;
     }
+    // (a struggle or a timing window owns Space while it is up)
+    if (jump && !G.combat?.qte?.active) this.jump(p, inp);
   }
   private enter(st: MState, dur: number) { this.st = st; this.t = 0; this.dur = dur; this.since = G.time; }
-  private eat(inp: Input, a: 'sneak') { for (const c of inp.bindings[a]) inp.pressed.delete(c); }
 
   /** is there headroom here (not under a table) */
   roomToStand(p: Player): boolean {
@@ -159,9 +171,11 @@ export class UnitMotion {
     if (this.pending) { const h = this.pending; this.pending = null; this.resolveHit(p, h); }
     // something else took the body (dead, downed, carried, a struggle): let go of whatever we were doing
     if (p.body.dead || p.body.downed || p.carriedBy) { if (this.st !== 'free') this.reset(p); }
-    const under = p.stance === 'crawl' || this.st === 'roll';
+    const under = p.stance === 'crawl' || this.st === 'slide';
     switch (this.st) {
-      case 'roll': this.stepRoll(z, p, dt); break;
+      case 'slide': this.stepSlide(z, p, dt); break;
+      case 'vault': this.stepVault(z, p, dt); break;
+      case 'hop': this.stepHop(z, p, tvx, tvz, dt); break;
       case 'stumble': this.stepStumble(z, p, dt); break;
       case 'fallen': case 'getup': this.stepDown(z, p, dt); break;
       default: this.stepFree(z, p, tvx, tvz, dt, under);
@@ -169,7 +183,7 @@ export class UnitMotion {
     // outside velocity (blows): friction takes it off
     if (this.exVx || this.exVz) {
       if (this.st !== 'fallen') moveCircle(z, p, this.exVx * dt, this.exVz * dt, { ignoreLow: false, under });
-      const f = Math.exp(-(this.st === 'roll' ? 2 : 7) * dt);
+      const f = Math.exp(-(this.st === 'slide' ? 2 : 7) * dt);
       this.exVx *= f; this.exVz *= f;
       if (Math.hypot(this.exVx, this.exVz) < 0.05) this.exVx = this.exVz = 0;
     }
@@ -374,59 +388,227 @@ export class UnitMotion {
     if (this.t >= this.dur) { this.st = 'free'; this.t = 0; if (!this.roomToStand(p)) this.prone = true; }
   }
 
-  // ================================================================ roll
-  /** C: a dodge roll toward (dx, dz) (zero: the way it faces); false when it cannot */
-  roll(p: Player, dx = 0, dz = 0): boolean {
-    if (this.st !== 'free' && this.st !== 'stagger') return false;
-    if (p.stance === 'swim' || p.stance === 'crawl' || this.prone || p.body.downed || p.body.dead || p.inVehicle || p.carriedBy || p.sleeping) return false;
+  // ================================================================ slide
+  /** sprinting + C: feet first along the floor, under tables, a burst that bleeds off; false when it cannot */
+  slide(p: Player): boolean {
+    if (this.st !== 'free') return false;
+    if (p.stance !== 'stand' || this.prone || p.body.downed || p.body.dead || p.inVehicle || p.carriedBy || p.sleeping || p.carrying) return false;
     if (G.destruct?.push?.holding) return false;
     const E = p.body.endurance;
-    if (E < 0.07) { say(p, 'No breath left to roll.'); return false; }
-    const l = Math.hypot(dx, dz);
-    this.dir = l > 0.1 ? Math.atan2(dz, dx) : p.facing;
-    const load = clamp(p.heavyLoad(), 0, 1.5);
-    this.enter('roll', 0.66 * (1 + load * 0.25));
-    this.sloppy = E < 0.2 || p.body.mods(p.heavyLoad()).limp > 0.3;
-    this.thudDone = false;
-    this.last = 'roll';
-    p.body.endurance = Math.max(0, E - 0.08 * (1 + load * 0.6));
+    if (E < 0.06) return false;
+    const s = Math.hypot(p.vx, p.vz);
+    this.dir = s > 0.5 ? Math.atan2(p.vz, p.vx) : p.facing;
+    this.slideV0 = Math.max(4.3, s * 1.12);
+    this.enter('slide', 0.82);
+    this.last = 'slide';
+    p.body.endurance = Math.max(0, E - 0.04);
     p.exertionTimer = 1;
     p.actions.clear();
     G.combat?.interrupt?.(p);
-    p.playAnim('mo_roll', this.dur);
+    p.playAnim('mo_slide', this.dur);
     p.facing = p.targetFacing = this.dir;
-    (p as any).cbIframe = G.time + this.dur * 0.62;
-    audio('whoosh', p.x, p.z, 0.55); audio('cloth', p.x, p.z, 0.6);
-    noise(p, p.x, p.z, 5, 'roll');
+    audio('cloth', p.x, p.z, 0.8); audio('whoosh', p.x, p.z, 0.35);
+    noise(p, p.x, p.z, 4, 'slide');
     return true;
   }
 
-  private stepRoll(z: Zone, p: Player, dt: number) {
+  private stepSlide(z: Zone, p: Player, dt: number) {
     const u = this.t / this.dur;
-    // a burst off the back foot, carried through the tumble, scrubbed off coming up
-    const v = u < 0.12 ? 2.2 + u / 0.12 * 2.6 : u < 0.78 ? 4.8 - (u - 0.12) * 2.4 : Math.max(0.6, 3.2 - (u - 0.78) * 11);
+    // the drop carries the sprint, friction scrubs it off, the last stretch is the body sitting up
+    const v = u < 0.1 ? this.slideV0 : u < 0.8 ? this.slideV0 * (1 - (u - 0.1) / 0.7 * 0.78) : this.slideV0 * 0.22 * (1 - (u - 0.8) / 0.2);
     p.vx = Math.cos(this.dir) * v; p.vz = Math.sin(this.dir) * v;
     p.facing = p.targetFacing = this.dir;
     const ox = p.x, oz = p.z, ix = p.vx * dt, iz = p.vz * dt;
     moveCircle(z, p, ix, iz, { ignoreLow: false, under: true });
-    if (!this.thudDone && u > 0.3) { this.thudDone = true; audio('thud_soft', p.x, p.z, 0.45); }
     const meant = Math.hypot(ix, iz), moved = Math.hypot(p.x - ox, p.z - oz);
-    if (u > 0.15 && u < 0.75 && meant > 1e-4 && moved < meant * 0.25) {
-      // rolled into something: it stops the tumble dead
+    if (u > 0.08 && u < 0.8 && meant > 1e-4 && moved < meant * 0.25) {
+      // feet first into something: it stops dead (loose furniture gets kicked along)
       const o = this.objectAhead(z, p, this.dir);
-      if (o) G.destruct?.push?.knock?.(p, o, Math.cos(this.dir) * 2.4, Math.sin(this.dir) * 2.4);
-      audio('body_thud', p.x, p.z, 0.6); shake(0.25, 0.2);
-      this.enter('stagger', 0.6); p.vx = p.vz = 0;
-      p.playAnim('stagger', 0.6);
-      return;
+      if (o) G.destruct?.push?.knock?.(p, o, Math.cos(this.dir) * 2.2, Math.sin(this.dir) * 2.2);
+      audio('body_thud', p.x, p.z, 0.5); shake(0.2, 0.18);
+      this.t = Math.max(this.t, this.dur * 0.8);
     }
     if (u >= 1) {
       this.st = 'free'; this.t = 0;
-      p.vx = Math.cos(this.dir) * 1.8; p.vz = Math.sin(this.dir) * 1.8;
+      p.vx = Math.cos(this.dir) * 0.8; p.vz = Math.sin(this.dir) * 0.8;
+      // under a table: flat; still sprinting: straight up and away; else it ends crouched
       if (!this.roomToStand(p)) { this.prone = true; p.sneaking = true; return; }
-      // spent or hurt: it comes up wrong
-      if (this.sloppy && Math.random() < 0.5) { this.tripCd = 0; this.trip(p, this.dir, 2, false); }
+      p.sneaking = !G.input?.down('run');
+      p.stopAnim();
     }
+  }
+
+  // ================================================================ vault / hop
+  /** Space: vault what is in front, else a short hop */
+  jump(p: Player, inp: Input): boolean {
+    if (this.st !== 'free') return false;
+    if (p.stance === 'swim' || p.stance === 'crawl' || this.prone || p.body.downed || p.body.dead || p.inVehicle || p.carriedBy || p.sleeping) return false;
+    if (G.destruct?.push?.holding) return false;
+    const z = G.getZone(p.zoneKey);
+    if (!z) return false;
+    // which way: where it is going, else where the stick / keys point, else where it faces
+    const mv = inp.moveAxis();
+    const yaw = G.pr.yaw;
+    const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    const mx = fx * mv.y + rx * mv.x, mz = fz * mv.y + rz * mv.x;
+    const s = Math.hypot(p.vx, p.vz);
+    const dir = s > 0.8 ? Math.atan2(p.vz, p.vx) : Math.hypot(mx, mz) > 0.1 ? Math.atan2(mz, mx) : p.facing;
+    const plan = this.vaultPlan(z, p, dir);
+    if (plan) return this.startVault(p, plan);
+    // an open or broken window right in front, out of the vault's straight line: the old climb through
+    if (G.interact?.tryVault?.(p)) return true;
+    return this.hop(p, dir, s);
+  }
+
+  /** what a vault from here toward `dir` would clear (null: nothing vaultable within reach) */
+  vaultPlan(z: Zone, p: Player, dir: number): VaultPlan | null {
+    const cx = Math.cos(dir), cz = Math.sin(dir);
+    // snap to the grid axis when nearly square on (vaulting a counter at a slant still lands square across it)
+    const ax = Math.abs(cx) > Math.abs(cz);
+    const sx = ax ? Math.sign(cx) : 0, sz = ax ? 0 : Math.sign(cz);
+    const tx = p.tileX(), ty = p.tileY();
+    // 1) a low wall, a fence or an open window on the edge just ahead
+    const ex = sx === 1 ? tx + 1 : tx, ey = sz === 1 ? ty + 1 : ty;
+    const side: 0 | 1 = sx !== 0 ? 1 : 0;
+    const toEdge = sx !== 0 ? Math.abs(ex - p.x) : Math.abs(ey - p.z);
+    if (toEdge < 0.85 && z.inb(ex, ey)) {
+      const e = z.edge(ex, ey, side);
+      const w = side === 0 ? z.wallNAt(ex, ey) : z.wallWAt(ex, ey);
+      const nx = tx + sx, ny = ty + sz;
+      const land = (): [number, number] | null => {
+        if (!z.inb(nx, ny) || tileSolid(z, nx, ny, {})) return null;
+        // land a body's width past the line, on the far tile
+        return sx !== 0 ? [ex + sx * 0.55, p.z] : [p.x, ey + sz * 0.55];
+      };
+      if (e && e.kind === 'window' && (e.open || e.glass !== 'intact') && !e.barricade) {
+        const l = land(); if (l) return { x0: p.x, z0: p.z, x1: l[0], z1: l[1], h: 0.9, what: 'window', glass: e.glass === 'broken', dir: Math.atan2(sz, sx) };
+      }
+      if (w?.low && !e) {
+        const l = land(); if (l) return { x0: p.x, z0: p.z, x1: l[0], z1: l[1], h: Math.min(1.25, w.height ?? 1.1), what: 'wall', dir: Math.atan2(sz, sx) };
+      }
+      // a wall or a door that is no vault: nothing to clear this way
+      if (w || e) return null;
+    }
+    // 2) waist-high furniture (counters, crates, desks, tables) right ahead, with somewhere to land beyond it
+    let first = -1, hMax = 0;
+    for (let d = 0.3; d <= 1.05; d += 0.05) {
+      const qx = Math.floor(p.x + cx * d), qz = Math.floor(p.z + cz * d);
+      if (!z.inb(qx, qz)) return null;
+      const sol = z.solid[z.idx(qx, qz)];
+      if (sol === 2 || sol === 3) {
+        // how high is it, and is the body actually up against it (its real footprint, not the tile)
+        for (const o of z.objectsAt(qx, qz)) {
+          const od = objDef(o.key);
+          if (!od || (od.block !== 'low' && od.block !== 'table')) continue;
+          const f = objFootprint(z, o, od);
+          const px = p.x + cx * d, pz = p.z + cz * d;
+          if (px < f.x0 - 0.05 || px > f.x1 + 0.05 || pz < f.z0 - 0.05 || pz > f.z1 + 0.05) continue;
+          hMax = Math.max(hMax, od.height);
+          if (first < 0) first = d;
+        }
+        if (first >= 0) break;
+      } else if (sol === 1) return null;
+      // a wall between here and there is not furniture to vault
+      if (d > 0.3) { const bx = Math.floor(p.x + cx * (d - 0.05)), bz = Math.floor(p.z + cz * (d - 0.05)); if ((bx !== qx || bz !== qz) && z.edgeBlocks(bx, bz, qx - bx, qz - bz, 'walk')) return null; }
+    }
+    if (first < 0 || hMax > 1.2 || hMax < 0.3) return null;
+    // across it: the first free spot beyond (no wall in between), a body's width clear
+    let px = Math.floor(p.x + cx * first), pz = Math.floor(p.z + cz * first);
+    for (let d = first + 0.1; d <= first + 2.2; d += 0.1) {
+      const qx = Math.floor(p.x + cx * d), qz = Math.floor(p.z + cz * d);
+      if (!z.inb(qx, qz)) return null;
+      if (qx !== px || qz !== pz) {
+        const ddx = Math.sign(qx - px), ddz = Math.sign(qz - pz);
+        if (ddx && ddz) { if (z.edgeBlocks(px, pz, ddx, 0, 'walk') || z.edgeBlocks(px + ddx, pz, 0, ddz, 'walk')) return null; }
+        else if (z.edgeBlocks(px, pz, ddx, ddz, 'walk')) return null;
+        px = qx; pz = qz;
+      }
+      const sol = z.solid[z.idx(qx, qz)];
+      if (sol === 1) return null;
+      if (sol === 0) {
+        const lx = p.x + cx * (d + 0.32), lz = p.z + cz * (d + 0.32);
+        const probe = { x: lx, z: lz, radius: p.radius };
+        resolve(z, probe, {});
+        if (Math.hypot(probe.x - lx, probe.z - lz) > 0.2) continue;
+        if (!z.floor[z.idx(Math.floor(probe.x), Math.floor(probe.z))]) return null;
+        return { x0: p.x, z0: p.z, x1: probe.x, z1: probe.z, h: hMax, what: 'furniture', dir };
+      }
+    }
+    return null;
+  }
+
+  private startVault(p: Player, plan: VaultPlan): boolean {
+    const E = p.body.endurance;
+    if (E < 0.05) { say(p, 'No breath left to climb.'); return false; }
+    const load = clamp(p.heavyLoad(), 0, 1.5);
+    const span = Math.hypot(plan.x1 - plan.x0, plan.z1 - plan.z0);
+    // a sprint flies over; from a standstill it is a plant-and-swing; heavy things and windows are slower
+    const fast = Math.hypot(p.vx, p.vz) > 2.6;
+    const dur = (fast ? 0.62 : 0.8) + Math.max(0, plan.h - 0.8) * 0.35 + Math.max(0, span - 1.3) * 0.18 + load * 0.15 + (plan.what === 'window' ? 0.2 : 0);
+    this.vault = plan;
+    this.dir = plan.dir;
+    this.enter('vault', dur);
+    this.last = 'vault:' + plan.what;
+    p.body.endurance = Math.max(0, E - 0.03 * (1 + load));
+    p.exertionTimer = 1;
+    p.actions.clear();
+    G.combat?.interrupt?.(p);
+    setVaultHeight(plan.h);
+    p.playAnim('mo_vault', dur);
+    p.facing = p.targetFacing = plan.dir;
+    p.vx = p.vz = 0;
+    this.thudDone = false;
+    audio(plan.what === 'window' ? 'climb' : 'cloth', p.x, p.z, 0.7);
+    noise(p, p.x, p.z, 5, 'climb');
+    return true;
+  }
+
+  private stepVault(z: Zone, p: Player, dt: number) {
+    const V = this.vault;
+    if (!V) { this.st = 'free'; return; }
+    const u = clamp(this.t / this.dur, 0, 1);
+    // the run-up step, the swing over (fast), the drop and the catch
+    const e = u < 0.22 ? 0.12 * smooth(u / 0.22) : u < 0.78 ? 0.12 + 0.84 * smooth((u - 0.22) / 0.56) : 0.96 + 0.04 * smooth((u - 0.78) / 0.22);
+    const ox = p.x, oz = p.z;
+    p.x = V.x0 + (V.x1 - V.x0) * e; p.z = V.z0 + (V.z1 - V.z0) * e;
+    p.vx = (p.x - ox) / Math.max(dt, 1e-4); p.vz = (p.z - oz) / Math.max(dt, 1e-4);
+    p.facing = p.targetFacing = V.dir;
+    if (!this.thudDone && u > 0.86) { this.thudDone = true; audio('thud_soft', p.x, p.z, 0.5); noise(p, p.x, p.z, 4, 'land'); }
+    if (u >= 1) {
+      p.x = V.x1; p.z = V.z1;
+      resolve(z, p, {});
+      this.st = 'free'; this.t = 0; this.vault = null;
+      p.vx = Math.cos(V.dir) * 1.2; p.vz = Math.sin(V.dir) * 1.2;
+      p.body.addXp?.('nimble', 2);
+      if (V.glass && Math.random() < 0.5) {
+        const part = (['thigh_l', 'thigh_r', 'farm_l', 'farm_r'] as const)[Math.floor(Math.random() * 4)];
+        p.body.addInjury(part, Math.random() < 0.4 ? 'glass' : 'laceration', 0.4, { dirty: true });
+        say(p, 'Argh! Broken glass!');
+      }
+    }
+  }
+
+  /** nothing to vault: a short hop (carries the run; clears junk on the floor) */
+  private hop(p: Player, dir: number, s: number): boolean {
+    if (p.body.endurance < 0.04) return false;
+    this.dir = dir;
+    this.enter('hop', s > 2.6 ? 0.5 : 0.44);
+    this.last = 'hop';
+    p.body.endurance = Math.max(0, p.body.endurance - 0.015);
+    p.playAnim('mo_hop', this.dur);
+    this.thudDone = false;
+    audio('cloth', p.x, p.z, 0.4);
+    return true;
+  }
+  private stepHop(z: Zone, p: Player, tvx: number, tvz: number, dt: number) {
+    const u = this.t / this.dur;
+    // steerable a little in the air, momentum mostly kept; low junk is cleared while off the floor
+    const k = 1 - Math.exp(-2.5 * dt);
+    p.vx += (tvx - p.vx) * k; p.vz += (tvz - p.vz) * k;
+    moveCircle(z, p, p.vx * dt, p.vz * dt, { ignoreLow: false });
+    if (Math.hypot(p.vx, p.vz) > 0.3) p.targetFacing = Math.atan2(p.vz, p.vx);
+    if (!this.thudDone && u > 0.78) { this.thudDone = true; audio('thud_soft', p.x, p.z, 0.35); noise(p, p.x, p.z, 4, 'land'); }
+    if (u >= 1) { this.st = 'free'; this.t = 0; }
   }
 
   private stepStumble(z: Zone, p: Player, dt: number) {
@@ -498,7 +680,7 @@ export class UnitMotion {
   reset(p: Player) {
     if ((this.st === 'fallen' || this.st === 'getup') && !p.body.dead && !p.body.downed) p.rig.stopRagdoll();
     if (this.st !== 'free') p.stopAnim();
-    this.st = 'free'; this.t = 0; this.exVx = this.exVz = 0; this.pending = null;
+    this.st = 'free'; this.t = 0; this.exVx = this.exVz = 0; this.pending = null; this.vault = null;
   }
 
   /** dev / tests */
@@ -511,3 +693,72 @@ export function motionOf(p: Player): UnitMotion { return p.motion ?? (p.motion =
 bus.on('playerHit', (p: Player, part: string, _kind: string, h: any) => {
   try { if (p?.isLocal && !p.body.dead) motionOf(p).hit(p, h, part); } catch (e) { console.error('motion hit', e); }
 });
+
+// dev / screenshots: put the local unit into a movement state and hold a frame of it
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  const pin = { t: -1, dur: 0 };
+  const loop = () => { const p = G.local; if (p && pin.t >= 0) { (p as any).visT = pin.t; p.actionT = pin.t; } requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+  (window as any).__ctrl = {
+    m: () => G.local && motionOf(G.local),
+    /** stand the unit square in front of the nearest waist-high thing it could vault (searches the zone) */
+    nearVault(maxD = 40) {
+      const p = G.local, z = G.getZone(p.zoneKey), M = motionOf(p);
+      let best: { x: number; z: number; dir: number; d: number } | null = null;
+      for (const o of z.objects.values()) {
+        const d = objDef(o.key);
+        if (!d || (d.block !== 'low' && d.block !== 'table') || d.height < 0.6 || d.height > 1.1) continue;
+        const dist = Math.hypot(o.x - p.x, o.y - p.z);
+        if (dist > maxD || (best && dist > best.d)) continue;
+        for (const [dx, dz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+          const sx = o.x + 0.5 - dx * 1.05, sz = o.y + 0.5 - dz * 1.05;
+          if (!z.inb(Math.floor(sx), Math.floor(sz)) || z.solid[z.idx(Math.floor(sx), Math.floor(sz))] || !z.floor[z.idx(Math.floor(sx), Math.floor(sz))]) continue;
+          const save = [p.x, p.z]; p.x = sx; p.z = sz;
+          const plan = M.vaultPlan(z, p, Math.atan2(dz, dx));
+          p.x = save[0]; p.z = save[1];
+          if (plan) { best = { x: sx, z: sz, dir: Math.atan2(dz, dx), d: dist }; break; }
+        }
+      }
+      if (!best) return null;
+      p.x = best.x; p.z = best.z; p.vx = p.vz = 0; p.facing = p.targetFacing = best.dir;
+      G.pr.target.set(p.x, p.y, p.z);
+      return best;
+    },
+    /** put a kitchen counter (or `key`) square across the unit's way, the unit side-on to the camera in front of it */
+    stage(key = 'counter_kitchen') {
+      const p = G.local, z = G.getZone(p.zoneKey);
+      for (const o of [...z.objects.values()]) if (o.uid >= 990000) z.removeObject(o);
+      const yaw = G.pr.yaw, rx = Math.cos(yaw), rz = -Math.sin(yaw);
+      const ax = Math.abs(rx) > Math.abs(rz), sx = ax ? Math.sign(rx) : 0, sz = ax ? 0 : Math.sign(rz);
+      const free = (x: number, y: number) => z.inb(x, y) && !!z.floor[z.idx(x, y)] && !z.solid[z.idx(x, y)] && !z.objectsAt(x, y).length;
+      for (let r = 0; r < 8; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        const x = p.tileX() + dx, y = p.tileY() + dy;
+        if (!free(x, y) || !free(x + sx, y + sz) || !free(x + 2 * sx, y + 2 * sz)) continue;
+        if (z.edgeBlocks(x, y, sx, sz) || z.edgeBlocks(x + sx, y + sz, sx, sz)) continue;
+        z.addObject({ uid: 990000 + Math.floor(Math.random() * 9000), key, x: x + sx, y: y + sz, rot: sx ? 1 : 0, state: {} } as any);
+        p.x = x + 0.5 - sx * 0.1; p.z = y + 0.5 - sz * 0.1; p.vx = p.vz = 0; p.facing = p.targetFacing = Math.atan2(sz, sx);
+        G.pr.target.set(p.x, p.y, p.z);
+        return { x, y, sx, sz };
+      }
+      return null;
+    },
+    /** start a vault / slide / hop for real; `freeze` (0..1) stops the world at that point of it */
+    act(kind: 'vault' | 'slide' | 'hop', freeze = -1) {
+      const p = G.local, z = G.getZone(p.zoneKey), M = motionOf(p) as any;
+      G.paused = false; pin.t = -1;
+      if (kind === 'vault') { const plan = M.vaultPlan(z, p, p.facing); if (!plan || !M.startVault(p, plan)) return false; }
+      else if (kind === 'slide') { p.running = true; p.vx = Math.cos(p.facing) * 4.2; p.vz = Math.sin(p.facing) * 4.2; if (!M.slide(p)) return false; }
+      else M.hop(p, p.facing, 0);
+      if (freeze >= 0) {
+        M.t = freeze * M.dur;
+        if (kind === 'vault') M.stepVault(z, p, 1e-3);
+        pin.t = freeze * M.dur; pin.dur = M.dur;
+        G.paused = true;
+      }
+      return true;
+    },
+    /** hold any named pose (or '' to let go) */
+    hold(name: string, u: number, dur = 1) { const p = G.local; if (!name) { pin.t = -1; G.paused = false; p.stopAnim(); return; } p.playAnim(name, dur); pin.t = u * dur; G.paused = true; },
+    release() { pin.t = -1; G.paused = false; },
+  };
+}

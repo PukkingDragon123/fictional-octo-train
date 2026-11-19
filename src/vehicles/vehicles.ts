@@ -358,7 +358,7 @@ export class VehicleSystem implements GameSystem {
     const inp = G.input;
     const t = v.def;
     if (inp.hit('interact')) { this.exit(p); return; }
-    if (inp.hit('reload') || inp.hit('grab')) this.tryStart(v, p); // R / G: ignition
+    if (inp.hit('grab')) this.tryStart(v, p); // G: ignition
     if (inp.hit('flashlight')) op('veh', { id: v.id, patch: { lights: !v.lights } });
     if (inp.hit('shove')) { G.audio?.at?.('horn', v.x, v.z); bus.emit('noise', { x: v.x, z: v.z, radius: 45, kind: 'horn', zone: v.zone, by: p.id }); }
     const up = inp.down('up') ? 1 : 0, down = inp.down('down') ? 1 : 0;

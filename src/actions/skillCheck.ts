@@ -113,7 +113,7 @@ export class SkillCheck {
     const cw = bw * 0.38, cm = b0 + bw / 2;
     this.core = [cm - cw / 2, cm + cw / 2];
     const G2 = G as unknown as { input?: { down(a: string): boolean; mouseDown: boolean[] } };
-    this.armed = !(G2.input?.down('interact') || G2.input?.down('shove') || G2.input?.mouseDown?.[0] || touchHeld);
+    this.armed = !(G2.input?.down('interact') || G2.input?.down('shove') || G2.input?.down('jump') || G2.input?.mouseDown?.[0] || touchHeld);
     owner = this; listen(true); taps = 0; loadGauge();
     G.audio?.ui?.('mn_tick', 0.35);
   }
@@ -133,7 +133,7 @@ export class SkillCheck {
   private press(keysOnly = false): boolean {
     const inp: any = G.input;
     let hit = false;
-    for (const a of ['interact', 'shove']) if (inp.hit(a)) { hit = true; for (const c of inp.bindings[a]) inp.pressed.delete(c); }
+    for (const a of ['interact', 'shove', 'jump']) if (inp.hit(a)) { hit = true; for (const c of inp.bindings[a]) inp.pressed.delete(c); }
     if (keysOnly) return hit;
     if (inp.mousePressed?.[0] && !inp.pointerOverUI) { hit = true; inp.mousePressed[0] = false; }
     if (taps) { hit = true; taps = 0; }
@@ -141,7 +141,7 @@ export class SkillCheck {
   }
   private holding(): boolean {
     const inp: any = G.input;
-    return !!(inp.down('interact') || inp.down('shove') || inp.mouseDown?.[0] || touchHeld);
+    return !!(inp.down('interact') || inp.down('shove') || inp.down('jump') || inp.mouseDown?.[0] || touchHeld);
   }
 
   /** the action plate over the head steps aside while the gauge holds its lane (one readout at a time) */

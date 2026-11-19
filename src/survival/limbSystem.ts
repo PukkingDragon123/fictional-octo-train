@@ -76,7 +76,7 @@ export class TornAction extends TimedAction {
     p.speed = 0;
     if (this.ripped) return;
     if (this.t < this.hold) {
-      if (G.input?.hit?.('shove')) {
+      if (G.input?.hit?.('shove') || G.input?.hit?.('jump')) {
         this.struggle++;
         const free = 0.1 + p.body.skill('strength') * 0.025 + (p.body.adrenaline > 0 ? 0.08 : 0) + this.struggle * 0.03;
         if (Math.random() < free) {

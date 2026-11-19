@@ -32,6 +32,7 @@ import { texturizeSleeves } from './pack/packTex';
 import { installHud12 } from './hotbar';
 import { hotOf, bindHot } from './hotbar/hotbar';
 import { PackSide, type SideSection, type SideTab } from './pack/packSide';
+import { installLootVerbs } from './pack/lootVerbs';
 import { itemIconFor, iconResCss, objIcon } from './icons';
 import { PackHud } from './pack/packHud';
 import { buildCover, type Cover } from './pack/packCover';
@@ -171,6 +172,7 @@ export class InventoryUI {
   private cover: Cover | null = null;
   private coverK = 0; private coverRun = 0; private coverPending = false; private coverSlideZ = 0;
   private emptyT = -1; private looted = false; private opensOf = new Set<string>();
+  private face0 = 0;
   private stowed = false; private stowT = -1; private sideT = 0; private freshSrc = '';
   private side2d = new PackSide({
     quick: (items, from) => { const c = this.cubeC(); if (c && from !== c) this.move2d(items, from, c); },
@@ -219,6 +221,7 @@ export class InventoryUI {
     const orig = ui0.blocksMovement?.bind(ui0);
     if (orig) ui0.blocksMovement = () => orig() || (this.open && !this.suspended) || !!(G as any).craft?.busy?.();
     (G as any).pack = this;
+    installLootVerbs();
     // hands-on crafting rides along with the pack (G.craft: inspect, workbench)
     try { (G as any).craft = craftSystem(); } catch (e) { console.warn('craft', e); }
     // round 12: the adaptive context buttons and the hotbar
@@ -314,7 +317,7 @@ export class InventoryUI {
       // the panel lies open to the left of the pack, the tool roll beyond it; the container on the right
       // with your pockets' pouch in front of it; loose things on the floor beyond everything
       this.rollG.position.set(-0.5, 0.002, pz - 0.44); this.rollG.rotation.set(0, Math.PI / 2 + 0.06, 0);
-      this.srcHold.position.set(0.3 + sz[0] / 2 + 0.06, 0.002, pz - 0.08); this.srcHold.rotation.set(0, -0.14, 0);
+      this.srcHold.position.set(FLAT ? 0.2 + sz[0] / 2 : 0.3 + sz[0] / 2 + 0.06, 0.002, FLAT ? pz + 0.06 : pz - 0.08); this.srcHold.rotation.set(0, -0.14, 0);
       this.pocketG.position.set(0.44, 0.002, pz + 0.3); this.pocketG.rotation.set(0, -0.08, 0);
       if (srcOn) { this.floorG.position.set(0.32, 0.002, pz - 0.5); setBin(this.binFloor, 0.9, 0.18); }
       else { this.floorG.position.set(0.56, 0.002, pz - 0.06); setBin(this.binFloor, 0.5, 0.5); }
@@ -459,6 +462,7 @@ export class InventoryUI {
     G.hudBody?.setHidden?.('pack', true);
     G.input.pointerOverUI = true;
     this.anchorM.makeRotationY(-(p.facing ?? 0) - Math.PI / 2).setPosition(p.x, p.y ?? 0, p.z);
+    this.face0 = p.facing ?? 0;
     if (!p.full && !p.sittingOn && !p.inVehicle && p.stance !== 'swim') { p.full = 'kneel'; this.kneeling = true; }
     this.scanNearby();
     this.pitch = this.pitchT = (fpCamera().aspect >= 1.2 ? 57 : 60);
@@ -940,7 +944,8 @@ export class InventoryUI {
     if (G.input.hit('toolDraw' as any) && !G.input.textFocus && !(G as any).craft?.busy?.()) this.quickDraw();
     (G as any).craft?.update?.();
     if (!this.open) return;
-    if (!this.suspended) this.hook();
+    // the unit stays turned to its pack (the eyes follow the facing; the pack does not move)
+    if (!this.suspended) { (p as any).facing = this.face0; this.hook(); }
     if (this.phase === 'waiting') {
       this.waitT += dt;
       if (eyeActive() || this.waitT > 0.9) { this.phase = 'opening'; this.layout(); this.openSeq(performance.now() - this.lastClose < 30000); }
@@ -1225,6 +1230,8 @@ export class InventoryUI {
   }
 
   private hoverAt(x: number, y: number) {
+    // over the 2D panel (it lies on top of the scene): its own hover drives the readout
+    if (FLAT && this.side2d.overPanel(x, y)) { if (this.hover) { this.hover = null; } this.gtag.hide(); return; }
     const h = this.hitAt(x, y);
     const b = h?.kind === 'body' ? h.b : null;
     if (b !== this.hover) { this.hover = b; if (b) G.audio?.ui?.('hover', 0.15); }

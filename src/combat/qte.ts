@@ -74,7 +74,10 @@ export class Struggles {
   start(o: StruggleOpts) {
     if (this.active) return false;
     // round 17 assists (Settings, Interface): slower timing gives the struggle more time and a looser grip
-    if (qteAssist().slow) o = { ...o, dur: o.dur * 1.4, grip: o.grip * 0.8 };
+    // (the time stays as given: the hold, the pin and the struggle's own action plate are all timed to it)
+    if (qteAssist().slow) o = { ...o, grip: o.grip * 0.7 };
+    // round 19 (play test: "QTE easier"): one stage per struggle (in the time meant for all of them), a looser grip
+    o = { ...o, stages: o.stages.slice(0, 1).map((st) => ({ ...st, need: st.kind === 'timed' ? Math.min(st.need, 2) : st.need })), grip: o.grip * 0.85 };
     this.cur = { ...o, t: 0, si: 0, prog: 0, misses: 0, hits: 0, want: 'L', ring: 1, pop: 0, beat: 0, done: false };
     if (!this.listening) { window.addEventListener('pointerdown', this.onTap, { capture: true, passive: true }); window.addEventListener('pointerup', this.onLift, true); this.listening = true; }
     this.holdAcc = 0; this.touchDown = false;
@@ -124,7 +127,7 @@ export class Struggles {
     const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) };
     // input this frame
     let press = 0, left = 0, right = 0;
-    if (inp.hit('shove')) press++;
+    if (inp.hit('shove') || inp.hit('jump')) press++;
     if (inp.mousePressed[0]) { press++; inp.mousePressed[0] = false; }
     if (inp.hit('left')) left++;
     if (inp.hit('right')) right++;
@@ -137,7 +140,7 @@ export class Struggles {
     if (stage.kind === 'mash') {
       c.prog = Math.max(0, c.prog - dt * 0.3 * c.grip);
       // round 17 assist: hold instead of hammering (a steady strain, about six presses' worth a second)
-      if (qteAssist().hold && (inp.down('shove') || inp.mouseDown[0] || this.touchDown)) {
+      if (qteAssist().hold && (inp.down('shove') || inp.down('jump') || inp.mouseDown[0] || this.touchDown)) {
         this.holdAcc += dt * 6.2;
         if (this.holdAcc >= 1) { this.holdAcc -= 1; press++; }
       }
@@ -155,7 +158,7 @@ export class Struggles {
       const slow = qteAssist().slow;
       const period = Math.max(0.55, 0.95 - c.si * 0.12) * c.grip ** 0.3 * (slow ? 1.5 : 1);
       c.ring -= dt / period;
-      const inBand = slow ? c.ring > 0.2 && c.ring < 0.5 : c.ring > 0.24 && c.ring < 0.46;
+      const inBand = slow ? c.ring > 0.16 && c.ring < 0.54 : c.ring > 0.2 && c.ring < 0.5;
       if (press) {
         if (inBand) { c.hits++; c.prog = c.hits / stage.need; c.pop = 1; this.feel(p, 0.3); G.audio?.ui?.('cb_good', 0.6); hitstop(40); }
         else { c.misses++; c.prog = Math.max(0, c.prog - 0.2); G.audio?.ui?.('cb_miss', 0.5); shake(0.25, 0.2); }
@@ -196,7 +199,7 @@ export class Struggles {
     marks.mark(gaugeName(fill, fill > 0.78), hx + rt.x * tremble, hy + 0.55, hz + rt.z * tremble);
     if (stage.kind === 'mash') {
       const held = qteAssist().hold;
-      words.prompt(touch ? (held ? 'Hold' : 'Tap') : kn('shove'), held ? 'hold it' : 'hammer it', hx, hy - 0.04 * c.pop, hz, hurry, pulse);
+      words.prompt(touch ? (held ? 'Hold' : 'Tap') : kn('jump'), held ? 'hold it' : 'hammer it', hx, hy - 0.04 * c.pop, hz, hurry, pulse);
     } else if (stage.kind === 'alt') {
       for (const side of ['L', 'R'] as const) {
         const s = side === 'L' ? -1 : 1, on = c.want === side;
@@ -207,7 +210,7 @@ export class Struggles {
       const inBand = c.ring > 0.24 && c.ring < 0.46;
       marks.mark('target', hx, hy, hz);
       marks.mark('hoop', hx, hy, hz, { color: inBand ? 0xfff0d0 : 0xffffff, scale: Math.max(0.1, c.ring * 1.7) });
-      words.prompt(touch ? 'Tap' : kn('shove'), 'on the mark', hx, hy - 0.62, hz, inBand ? 'go' : 'small', inBand ? 1.12 : 1);
+      words.prompt(touch ? 'Tap' : kn('jump'), 'on the mark', hx, hy - 0.62, hz, inBand ? 'go' : 'small', inBand ? 1.12 : 1);
       for (let i = 0; i < stage.need; i++) { const o = (i - (stage.need - 1) / 2) * 0.28; marks.mark(i < c.hits ? 'pip:on' : 'pip', hx + rt.x * o, hy + 0.98, hz + rt.z * o); }
     }
     // the time left is on the action plate over the head now (StruggleAction.barK), nothing on the floor

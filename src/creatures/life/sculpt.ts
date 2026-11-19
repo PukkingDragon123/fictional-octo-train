@@ -12,7 +12,7 @@ import { clamp } from './rand';
 import type { Design } from './design';
 import type { Rig } from './morph';
 import { shagCoat, mane, crest, wattle, tailFin, brushTail, sail, frill, roundEars, whiskers, tongue, throatSac, gills, ramHorns, palmAntlers, bearPaw, toes, amphSkin, scuteShell, crabShell, beetleHorns, mothWings, plumes, type SpineTs, type HeadCtx } from './parts';
-import { SkinB, Page, type Region, KIT, blade, sac, spline, chainWeights, ball, sheet, transport, hash, gauss, sub, addV, scl, norm, cross, len, lerpV, pageTexture, mixC, type V3, type Wt } from './kit';
+import { SkinB, Page, type Region, KIT, blade, sac, spline, chainWeights, ball, sheet, transport, hash, gauss, sub, addV, scl, norm, cross, len, lerpV, pageTexture, mixC, rampAt, type V3, type Wt } from './kit';
 
 const TAU = Math.PI * 2;
 export const has = (d: Design, g: string) => d.genes.includes(g);
@@ -73,7 +73,7 @@ function patternAt(d: Design, r: Region, x: number, y: number, sn: number, cn: n
       return 0;
     }
     case 'bands': return ((sn / (1.1 * ps) + n * 0.45) % 1) < 0.36 ? 1 : 0;
-    case 'mottled': return n > 0.56 - (ath > 2 ? -0.2 : 0) ? 1 : 0;
+    case 'mottled': { const tq = 0.56 - (ath > 2 ? -0.2 : 0); return Math.min(1, Math.max(0, (n - tq + 0.07) / 0.14)); } // soft-edged blotches
     case 'saddle': return ath < 1.25 + (n - 0.5) * 0.8 && Math.abs(sn % 6 - 2.6) < 1.4 + (n - 0.5) ? 1 : 0;
     case 'rings': return ((sn / (0.6 * ps)) % 1) < 0.15 ? 1 : 0;
     default: return 0;
@@ -84,19 +84,19 @@ function coverK(cover: string, r: Region, x: number, y: number, th: number, t: n
   switch (cover) {
     case 'fur': {
       const col = Math.floor(x / 2), strand = ((y + Math.floor(hash(col, seed) * 6)) % 5) / 5;
-      return strand * 1.0 - 0.5 + (hash(x, y + seed) - 0.5) * 0.5 + (r.fbm(x, y, 5, 2, seed + 9) - 0.5) * 0.9;
+      return strand * 0.8 - 0.4 + (r.fbm(x, y, 9, 2, seed + 4) - 0.5) * 0.5 + (r.fbm(x, y, 5, 2, seed + 9) - 0.5) * 0.9;
     }
     case 'scales': {
       const q = 3, row = Math.floor(y / q), lx = (((x + (row & 1) * 1.5) % q) + q) % q / q - 0.5, ly = (y % q) / q;
       const scal = ly - (0.5 - Math.sqrt(Math.max(0, 0.25 - lx * lx))) * 0.6;
-      return 0.75 - scal * 1.9 + (hash(Math.floor((x + (row & 1) * 1.5) / q), row + seed) - 0.5) * 0.6;
+      return 0.75 - scal * 1.6 + (r.fbm(x, y, 6, 2, seed + 6) - 0.5) * 0.7;
     }
     case 'chitin': {
       const pv = t * plates, seam = Math.abs(pv - Math.round(pv)) < 0.05 ? -2.4 : 0;
-      return seam + (0.5 - (pv - Math.floor(pv))) * 1.1 + Math.pow(Math.max(0, Math.cos(th - 0.5)), 8) * 2.4 + (hash(x * 3, y * 7 + seed) < 0.04 ? -1 : 0);
+      return seam + (0.5 - (pv - Math.floor(pv))) * 1.1 + Math.pow(Math.max(0, Math.cos(th - 0.5)), 8) * 2.4 + (r.fbm(x, y, 7, 2, seed + 8) - 0.5) * 0.6;
     }
-    case 'slime': return (hash(x >> 1, (y >> 1) + seed) > 0.95 ? 2.2 : 0) + (r.fbm(x, y, 4, 3, seed) - 0.5) * 1.4 + Math.pow(Math.max(0, Math.cos(th - 0.4)), 10) * 1.8;
-    default: return Math.sin(y * 1.9 + r.fbm(x, y, 3, 2, seed) * 7) * 0.22 + (hash(x, y + seed) < 0.03 ? -0.8 : 0) + (r.fbm(x, y, 5, 3, seed + 2) - 0.5) * 1.3;
+    case 'slime': return Math.max(0, r.fbm(x, y, 8, 2, seed + 3) - 0.62) * 3.5 * Math.max(0, Math.cos(th - 0.3)) + (r.fbm(x, y, 4, 3, seed) - 0.5) * 1.4 + Math.pow(Math.max(0, Math.cos(th - 0.4)), 10) * 1.8;
+    default: return Math.sin(y * 1.9 + r.fbm(x, y, 3, 2, seed) * 7) * 0.22 + (r.fbm(x, y, 5, 3, seed + 2) - 0.5) * 1.3;
   }
 }
 export interface HideOpt { L: number; rad: (t: number) => number; belly?: number; seed: number; kind?: 'body' | 'limb' | 'head' | 'jaw' | 'foot'; plates?: number; cover?: string; noPattern?: boolean; bellyAll?: boolean }
@@ -105,23 +105,29 @@ export function hide(S: Ctx, r: Region, o: HideOpt) {
   for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
     const t = (y + 0.5) / r.h, th = r.th(x), ath = Math.abs(th);
     const sn = (t * o.L) / Wn, cn = (th * o.rad(t)) / Wn;
-    const edge = (o.belly ?? 2.05) + (r.fbm(x, y, 5, 2, seed) - 0.5) * 0.8 + (hash(x, y) - 0.5) * 0.12;
-    const bel = o.bellyAll || ath > edge;
+    const edge = (o.belly ?? 2.05) + (r.fbm(x, y, 5, 2, seed) - 0.5) * 0.8;
+    // the pale belly comes in over a soft band, not a stair-stepped line
+    const wb = o.bellyAll ? 1 : clamp((ath - edge + 0.14) / 0.28, 0, 1);
+    const bel = wb > 0.5;
     let k = 3.1 + Math.cos(th) * 0.65;
     k += coverK(cover, r, x, y, th, t, seed, o.plates);
     if (o.kind === 'limb' && cover === 'fur') k -= sm(clamp((t - 0.6) / 0.4, 0, 1)) * 1.1; // darker socks
     if (o.kind === 'foot') k -= 0.5;
+    // darker creases where it folds: the ends of each body section (necks, armpits, joints)
+    if (o.kind === 'body' || o.kind === 'limb') k -= 0.45 * (1 - sm(clamp(t / 0.08, 0, 1))) + 0.45 * (1 - sm(clamp((1 - t) / 0.08, 0, 1)));
     if (cover === 'scales' && bel && o.kind !== 'limb') k += y % 3 === 0 ? -1.3 : 0.3; // ventral scutes
-    let pv = !o.noPattern && !bel ? patternAt(d, r, x, y, sn, cn, th, seed + 17) : 0;
+    let pv = !o.noPattern && wb < 1 ? patternAt(d, r, x, y, sn, cn, th, seed + 17) * (1 - wb) : 0;
     if (has(d, 'cryptic') && !bel && r.fbm(x, y, 6, 2, seed + 40) > 0.62) pv = 1;
-    const RR = pv ? P.pat : bel ? P.belly : P.base;
-    r.put(x, y, RR, k, 0.55);
+    let col = mixC(rampAt(P.base, k), rampAt(P.belly, k), wb);
+    if (pv > 0) col = mixC(col, rampAt(P.pat, k), pv);
+    r.set(x, y, col);
     if (has(d, 'chloro_skin') && !bel && r.fbm(x, y, 7, 2, seed + 5) > 0.6) r.blend(x, y, 0x3a8a3a, 0.35);
   }
   // fur partings and lit tips, wet glints, veins
   if (cover === 'fur') for (let i = 0; i < Math.max(4, r.w * r.h / 300); i++) r.crack(hash(i, seed) * r.w, hash(i + 9, seed) * r.h, 4 + Math.floor(hash(i + 3, seed) * 8), 80 + hash(i + 5, seed) * 30, P.dark[1], seed * 7 + i, 0.5, 0.1);
   if (cover === 'skin' || cover === 'slime') for (let i = 0; i < Math.max(3, r.w * r.h / 500); i++) r.crack(hash(i, seed + 2) * r.w, hash(i + 4, seed) * r.h, 6 + Math.floor(hash(i + 6, seed) * 12), hash(i + 1, seed) * 360, P.skin[2], seed * 3 + i, 0.3, 0.2);
-  if (cover === 'slime' || has(d, 'mucus')) for (let i = 0; i < r.w * r.h / 90; i++) { const gx = hash(i, seed + 40) * r.w, gy = hash(i + 2, seed + 40) * r.h; if (Math.abs(r.th(gx)) < 1.6) { r.blend(gx, gy, 0xffffff, 0.7); r.blend(gx + 1, gy, 0xffffff, 0.3); } }
+  // wet highlights: short soft streaks along the lit top (not scattered single texels)
+  if (cover === 'slime' || has(d, 'mucus')) for (let i = 0; i < r.w * r.h / 260; i++) { const gx = hash(i, seed + 40) * r.w, gy = hash(i + 2, seed + 40) * r.h; if (Math.abs(r.th(gx)) < 1.2) { r.blend(gx, gy, 0xffffff, 0.22); r.blend(gx, gy + 1, 0xffffff, 0.12); } }
   // photophores along the lateral line
   if (has(d, 'biolum') && o.kind === 'body') for (let i = 0; i < 14; i++) {
     const gx = r.X(i % 2 ? 100 : -100), gy = ((i >> 1) + 0.5) / 7 * r.h * 0.8;
@@ -130,7 +136,7 @@ export function hide(S: Ctx, r: Region, o: HideOpt) {
 }
 export function keratin(r: Region, base: number, o: { rings?: boolean; tipLight?: number } = {}) {
   const R = makeRamp(base, 6, { spread: 0.5 });
-  r.fill(R, (x, y) => 1.4 + (y / r.h) * (o.tipLight ?? 1.8) + Math.cos(r.th(x)) * 0.8 + (o.rings && y % 3 === 0 ? -0.9 : 0) + (hash(x, y) - 0.5) * 0.5);
+  r.fill(R, (x, y) => 1.4 + (y / r.h) * (o.tipLight ?? 1.8) + Math.cos(r.th(x)) * 0.8 + (o.rings && y % 3 === 0 ? -0.9 : 0) + 0 * (hash(x, y) - 0.5) * 0.5);
 }
 export function glowReg(r: Region, c: number) {
   for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) { r.set(x, y, mixC(c, 0xffffff, 0.25 + Math.cos(r.th(x)) * 0.15)); r.alpha(x, y, 190); }
@@ -703,7 +709,7 @@ function arthropod(S: Ctx) {
     for (const s of [-1, 1]) ball(S.B, E, S.gid(), addV(hd, [s * hw * 0.38, H * 0.1, hl * 0.52]), norm([s, 0.15, 0.35]), [hl * 0.27, H * 0.26, hw * 0.17], [iH, 1], { n: 14, rings: 7 });
     S.paints.push(() => {
       const R = makeRamp(mixHex(d.colors.eye, 0x101418, 0.45), 6, { spread: 0.6 });
-      E.fill(R, (x, y) => 1.6 + ((x + (y & 1)) % 2) * 0.7 + (Math.abs(E.th(x) + 0.4) < 0.7 && y > E.h * 0.5 ? 2 : 0) + y / E.h * 0.8 + (hash(x, y) - 0.5) * 0.5, undefined, 0.3);
+      E.fill(R, (x, y) => 1.6 + ((x + (y & 1)) % 2) * 0.7 + (Math.abs(E.th(x) + 0.4) < 0.7 && y > E.h * 0.5 ? 2 : 0) + y / E.h * 0.8, undefined, 0);
       E.set(E.X(-30), E.h * 0.7, 0xffffff); E.set(E.X(-25), E.h * 0.72, 0xe0e8ff);
     });
   } else {

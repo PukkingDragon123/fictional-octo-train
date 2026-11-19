@@ -6,7 +6,7 @@
 // tortoise scute shells; crab carapaces with stalked eyes, beetle horns, moth wings and plumed antennae.
 import { makeRamp, mixHex } from '../../gfx/pixel';
 import { clamp } from './rand';
-import { type Region, blade, sac, spline, ball, sheet, hash, gauss, sub, addV, scl, norm, cross, len, lerpV, mixC, transport, type V3, type Wt } from './kit';
+import { type Region, blade, sac, spline, ball, sheet, hash, gauss, sub, addV, scl, norm, cross, len, lerpV, mixC, transport, type V3, type Wt, rampAt } from './kit';
 import { type Ctx, has, hide, keratin, fuzz, interp, chordTs, furCard, sm } from './sculpt';
 
 const TAU = Math.PI * 2;
@@ -152,9 +152,10 @@ function finPaint(S: Ctx, r: Region, o: { rays?: number; accent?: number } = {})
     const u = x / r.w;
     let k = 2.6 + u * 1.3 + (r.fbm(x, y, 3, 2, 17) - 0.5) * 1.2 + (o.rays && y % o.rays === 0 ? -1.1 : 0);
     if (u > 0.88) k -= 1.6;
-    const spot = d.pattern !== 'plain' && hash(Math.floor(x / 3), Math.floor(y / 3) + 7) > 0.86 && u < 0.85;
-    r.put(x, y, spot ? Pp : R, k, 0.5);
-    if (has(d, 'amphib_skin') && u > 0.4 && hash(x, y + 3) > 0.97) r.blend(x, y, 0xffffff, 0.6);
+    // round soft spots (not a grid of squares)
+    const sp = d.pattern !== 'plain' && u < 0.85 ? Math.min(1, Math.max(0, (r.fbm(x, y, 9, 1, 23) - 0.66) / 0.08)) : 0;
+    r.set(x, y, mixHex(rampAt(R, k), rampAt(Pp, k), sp));
+    if (has(d, 'amphib_skin') && u > 0.4 && r.fbm(x, y, 11, 1, 29) > 0.8) r.blend(x, y, 0xffffff, 0.35);
   }
 }
 

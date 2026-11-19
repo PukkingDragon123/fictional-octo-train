@@ -108,7 +108,7 @@ export class ScanSystem implements GameSystem {
   /** can the local survivor scan at all (the suit scanner is built in: always, while alive) */
   canScan(): boolean { return !!G.local && !G.local.body?.dead; }
   probe() { return G.local?.findTool?.('#data_probe'); }
-  range() { return (hasUnlock('scan_deep') || hasUnlock('tool_beam') ? 18 : 10) * talentMul(G.local?.body, 'scan'); }
+  range() { return (hasUnlock('scan_deep') || hasUnlock('tool_beam') ? 18 : 10) * talentMul(G?.local?.body, 'scan'); }
   /** how many times this thing has been scanned (persistent) */
   count(kind: ScanKind, key: string) { return stat(`scan_n:${kind}:${key}`); }
   known(kind: ScanKind, key: string) { return isUnlocked(`scan:${kind}:${key}`); }

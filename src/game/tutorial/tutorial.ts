@@ -47,6 +47,7 @@ import { rigNumber } from '../../content/items/prisoner';
 import { calderHolo, type CalderHolo } from '../../ui/holo/calderHolo';
 import { askCalder, cancelAsk } from '../../ui/holo/calderReplies';
 import { TUT } from './state';
+import { startFirstRun, firstRunRunning } from './firstRun';
 
 interface PushApi {
   holding?: unknown; mode?: string; st?: { o?: TileObject } | null;
@@ -70,7 +71,7 @@ const SKIP = Symbol('tutorial skipped');
 const PICK: Record<HudPart, string[]> = { heart: ['bag'], brain: ['brain'], jar: ['jar'], lung: ['lung', 'gauge'], balloon: ['balloon'], pack: ['pack'] };
 
 let running: Tutorial | null = null;
-export function tutorialRunning(): boolean { return !!running; }
+export function tutorialRunning(): boolean { return !!running || firstRunRunning(); }
 
 /** should a contract run get the staged tutorial now */
 export function tutorialWanted(g: Game = G as unknown as Game): boolean {
@@ -84,7 +85,15 @@ export function tutorialWanted(g: Game = G as unknown as Game): boolean {
   return !!g.local;
 }
 
-export function startTutorial(g: Game = G as unknown as Game): Tutorial | null {
+/**
+ * Round 19: a new run's tutorial is the first run (./firstRun.ts): Dr. Calder comes down in person and the screen
+ * darkens round one thing at a time. The holographic lesson script below stays for reference (startHoloTutorial).
+ */
+export function startTutorial(g: Game = G as unknown as Game): unknown {
+  if (running || firstRunRunning() || !tutorialWanted(g)) return null;
+  return startFirstRun(g);
+}
+export function startHoloTutorial(g: Game = G as unknown as Game): Tutorial | null {
   if (running || !tutorialWanted(g)) return null;
   const t = new Tutorial(g);
   g.addSystem(t);

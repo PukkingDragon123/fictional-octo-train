@@ -94,7 +94,7 @@ function grotesque(S: Ctx, page: Page) {
   for (const s of [-1, 1]) ball(S.B, S.fixed('GW_EYE', 6, 6), S.gid(), [H0[0] + s * hw * 0.26, H0[1] + hh * 0.2, H0[2] + hl * 0.42], [0, 0, 1], [hw * 0.07, hw * 0.06, hw * 0.05], [iH, 1], { n: 8, rings: 5 });
   // ---- paint
   const BN = makeRamp(0xd8c8a8, 6, { spread: 0.45 }), RW = makeRamp(0x8a2420, 7, { hueShift: 0.05, spread: 0.65 });
-  BONE.fill(BN, (x, y) => 2.6 + Math.cos(BONE.th(x)) * 1.0 - (hash(x, y) < 0.12 ? 1.4 : 0) - (y / BONE.h) * 0.6);
+  BONE.fill(BN, (x, y) => 2.6 + Math.cos(BONE.th(x)) * 1.0 - (BONE.fbm(x, y, 7, 1, 3) > 0.7 ? 1.2 : 0) - (y / BONE.h) * 0.6);
   for (let y = 0; y < BONE.h; y += 4) for (let x = 0; x < BONE.w; x++) BONE.blend(x, y, 0x5a3020, 0.35);
   RAW.fill(RW, (x, y) => 3 + Math.sin(y * 1.6 + x * 0.4) * 1.1 + (hash(x, y) - 0.5) * 0.8);
   for (let y = 0; y < TOOTH.h; y++) for (let x = 0; x < TOOTH.w; x++) TOOTH.set(x, y, mixHex(0xe8d8a8, 0x6a4a20, y / TOOTH.h * 0.6 + hash(x, y) * 0.2));
@@ -108,10 +108,10 @@ function grotesque(S: Ctx, page: Page) {
       // raw flank (left side is +u: positive angle)
       const d = Math.hypot((th - 1.35) / 0.55, (v - 0.42) / 0.16) + (body.fbm(x, y, 3, 2, 21) - 0.5) * 0.5;
       if (d < 1) body.put(x, y, RW, 2.6 + Math.sin(y * 1.5 + x * 0.3) * 1.0 - d * 1.4 + (hash(x, y) - 0.5) * 0.6, 0.5);
-      else if (d < 1.2) body.set(x, y, mixHex(0x3a2420, 0x6a2a20, hash(x, y)));
+      else if (d < 1.2) body.set(x, y, mixHex(0x3a2420, 0x6a2a20, body.fbm(x, y, 9, 1, 15)));
       // mange: bald grey-pink patches with scabs
       const m = body.fbm(x, y, 5, 2, 33);
-      if (m > 0.66 && d > 1.2) body.set(x, y, hash(x, y * 3) < 0.25 ? 0x5a1810 : mixHex(0x8a6a64, 0xa88078, hash(x * 7, y)));
+      if (m > 0.66 && d > 1.2) body.blend(x, y, body.fbm(x, y, 11, 1, 16) > 0.66 ? 0x5a1810 : mixHex(0x8a6a64, 0xa88078, body.fbm(x, y, 9, 1, 17)), Math.min(1, (m - 0.66) * 12));
       // dark matted clumps and grime
       if (m < 0.22) body.blend(x, y, 0x161210, 0.45);
     }

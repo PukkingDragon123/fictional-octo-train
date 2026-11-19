@@ -740,7 +740,7 @@ export class TalentBench {
     if (this.mode === 'card') {
       const P = this.standP;
       // the marble on its stand in front, the readout behind it and to the right
-      return port ? { pos: new THREE.Vector3(P.x + 0.36, P.y + 0.16, P.z - 0.05), look: new THREE.Vector3(P.x - 0.06, P.y + 0.04, P.z - 0.05), fov: 46 }
+      return port ? { pos: new THREE.Vector3(P.x + 0.22, P.y + 0.13, P.z - 0.05), look: new THREE.Vector3(P.x - 0.06, P.y + 0.045, P.z - 0.05), fov: 50 }
         : { pos: new THREE.Vector3(P.x + 0.27, P.y + 0.1, P.z - 0.05), look: new THREE.Vector3(P.x - 0.06, P.y + 0.035, P.z - 0.05), fov: 36 };
     }
     const mode = this.mode;

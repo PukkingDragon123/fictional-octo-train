@@ -9,6 +9,9 @@
 // done. No floating UI: the body HUD steps aside while you eat (the bites still
 // reach the stomach). Drinking tilts the bottle up for gulps. Leave it alone and
 // you keep eating slowly; move or press Esc to stop.
+// Round 19: a bag of chips (crisps, pretzels, popcorn) is eaten from the bag: both hands tear it open, the right
+// one dips in, comes out with a chip and brings it up; Esc folds the top over and puts the bag back (what is left
+// stays in it); the last chip crumples the empty bag and drops it.
 import * as THREE from 'three';
 import { fring } from '../touch/facet';
 import { G } from '../../game/G';
@@ -92,6 +95,9 @@ const _t = new THREE.Vector3(), _d = new THREE.Vector3(), _z = new THREE.Vector3
 /** long foods are held by the far end */
 const LONG = new Set<Kind>(['bar', 'long', 'meat', 'fish', 'loaf', 'sandwich']);
 const _c = new THREE.Color();
+/** eaten piece by piece out of the bag */
+const BAGGED = /chips|crisps|pretzel|popcorn|nuts\b|trail mix/;
+const _bm = new THREE.Vector3(), _mo = new THREE.Vector3();
 
 export class EatFp {
   static hints = 0;
@@ -122,6 +128,12 @@ export class EatFp {
   private debris: Debris[] = [];
   private item: Item | null = null;
   private key = (e: KeyboardEvent) => this.onKey(e);
+  // the bag of chips
+  private bagMode = false;
+  private bag: THREE.Group | null = null;
+  private bagMouth: THREE.Group | null = null;
+  private chip: THREE.Mesh | null = null;
+  private bagOpen = 0; private dip = -1; private dipBy = false;
 
   constructor(private hud: BodyHud) {
     bus.on('fpLost', (name: string) => { if (name === 'eat' && this.active) this.finish(true); });
@@ -140,8 +152,10 @@ export class EatFp {
     this.buildFood(it);
     this.item = it;
     this.openDom();
+    this.bagMode = BAGGED.test((it.key + ' ' + d.name).toLowerCase().replace(/_/g, ' '));
+    this.setupBag(it);
     // a wrapped thing: the torn-off end of the wrapper drops to the floor
-    if (this.rec.kind === 'bar') setTimeout(() => { if (this.active && this.mode === 'eat') this.drop('wrapper', 0.6); }, 450);
+    if (this.rec.kind === 'bar' && !this.bagMode) setTimeout(() => { if (this.active && this.mode === 'eat') this.drop('wrapper', 0.6); }, 450);
     if (this.rec.bad === 'rotten') bus.emit('think', a.p, ['It smells wrong.', 'Is that... fuzz?', 'Don\'t look at it. Just eat.'][Math.floor(Math.random() * 3)]);
     G.audio?.ui?.('bh_wrap', 0.4);
     return true;
@@ -152,6 +166,7 @@ export class EatFp {
     if (!fpClaim('eat', 5, { cinematic: 'full' })) return false;
     this.ensure();
     this.mode = 'drink'; this.act = a; this.rec = null;
+    this.bagMode = false; this.setupBag(null);
     this.fluidType = it.fluid.type; this.fluidC = FLUID[it.fluid.type] ?? 0x8ac8f0;
     this.begin();
     this.buildDrink(it);
@@ -351,14 +366,60 @@ export class EatFp {
   }
   private onKey(e: KeyboardEvent) {
     if (!this.active) return;
-    if (e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); this.stopByUser(); }
+    if (e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); if (this.bagMode && this.lowerT < 0 && this.left > 0) { G.audio?.ui?.('bh_wrap', 0.4); this.lowerFinish(); } else this.stopByUser(); }
     else if ((e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyE') && !e.repeat) { e.preventDefault(); e.stopImmediatePropagation(); this.click(); }
   }
   private stopByUser() { const a = this.act; if (a?.p) a.p.actions.clear(); else this.finish(false); }
 
   private click() {
     if (!this.active || this.lowerT >= 0 || this.raise < 0.6) return;
-    if (this.mode === 'drink') this.gulp(true); else this.bite(true);
+    if (this.mode === 'drink') this.gulp(true); else if (this.bagMode) this.startDip(true); else this.bite(true);
+  }
+  /** a hand into the bag for the next chip */
+  private startDip(byClick: boolean) {
+    if (this.dip >= 0 || this.bagOpen < 0.95 || this.lowerT >= 0) return;
+    if (!this.hud.canEat()) { this.bite(byClick); return; }
+    this.dip = 0; this.dipBy = byClick; this.idle = 0;
+    G.audio?.ui?.('bh_wrap', 0.18);
+  }
+  /** the bag: crinkled foil, torn open along the top, chips showing at the mouth */
+  private setupBag(it: Item | null) {
+    if (!this.bagMode || !it) { if (this.bag) this.bag.visible = false; if (this.chip) this.chip.visible = false; return; }
+    if (!this.bag) {
+      const g = this.bag = new THREE.Group();
+      const d = itemDef(it.key);
+      const tint = d.tint ?? 0xd8402e;
+      const cv = document.createElement('canvas'); cv.width = 64; cv.height = 80;
+      const c = cv.getContext('2d')!;
+      // printed foil: the brand colour, a sunburst oval with chips on it, crinkle highlights
+      c.fillStyle = '#' + tint.toString(16).padStart(6, '0'); c.fillRect(0, 0, 64, 80);
+      for (let y = 0; y < 80; y += 2) { c.fillStyle = `rgba(255,255,255,${0.04 + 0.05 * Math.abs(Math.sin(y * 0.37))})`; c.fillRect(0, y, 64, 1); }
+      c.fillStyle = '#f2c840'; c.beginPath(); c.ellipse(32, 42, 22, 15, -0.2, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#c8721a'; c.beginPath(); c.ellipse(32, 42, 22, 15, -0.2, 0, Math.PI * 2); c.lineWidth = 2; c.strokeStyle = '#a8501a'; c.stroke();
+      for (const [x, y, r] of [[25, 44, 7], [36, 40, 8], [31, 50, 6]] as [number, number, number][]) { c.fillStyle = '#f0c060'; c.beginPath(); c.ellipse(x, y, r, r * 0.7, 0.4, 0, Math.PI * 2); c.fill(); c.fillStyle = 'rgba(160,90,20,.5)'; c.fillRect(x - 2, y - 1, 2, 1); c.fillRect(x + 1, y + 1, 2, 1); }
+      c.fillStyle = '#fff3c8'; c.font = 'bold 11px Alagard, monospace'; c.textAlign = 'center'; c.fillText(labelWord(d.name) || 'CHIPS', 32, 22);
+      for (let i = 0; i < 40; i++) { c.fillStyle = `rgba(255,255,255,${Math.random() * 0.35})`; c.fillRect(Math.random() * 64, Math.random() * 80, 1 + Math.random() * 4, 1); }
+      c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, 74, 64, 6); c.fillRect(0, 0, 64, 4);
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.NearestFilter;
+      const foil = new THREE.MeshLambertMaterial({ map: tex, flatShading: true });
+      const body = new THREE.Mesh(jitter(fbox(0.12, 0.16, 0.05, 0.25), 0.004, 7), foil);
+      g.add(body);
+      // the torn mouth: a crinkled rim round a dark inside, chips showing
+      const mouth = this.bagMouth = new THREE.Group(); mouth.position.y = 0.08; g.add(mouth);
+      const inside = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.004, 0.04), new THREE.MeshLambertMaterial({ color: 0x1a1008 }));
+      mouth.add(inside);
+      const rimM = new THREE.MeshLambertMaterial({ color: 0xc8c8c0, flatShading: true });
+      for (const s2 of [-1, 1]) { const r = new THREE.Mesh(jitter(fbox(0.122, 0.018, 0.006, 0.3), 0.003, 5), s2 > 0 ? rimM : foil); r.position.set(0, 0.006, s2 * 0.024); mouth.add(r); }
+      const chipM = new THREE.MeshLambertMaterial({ color: 0xe8b048, flatShading: true });
+      const chipG = jitter(new THREE.SphereGeometry(0.016, 7, 3), 0.002, 9);
+      for (let i = 0; i < 5; i++) { const m = new THREE.Mesh(chipG, chipM); m.scale.set(1, 0.22, 0.8); m.position.set(-0.04 + i * 0.02, 0.004 + (i % 2) * 0.006, (i % 3 - 1) * 0.008); m.rotation.set(0.6 + i, i * 1.3, 0.4); mouth.add(m); }
+      const chip = this.chip = new THREE.Mesh(chipG, chipM); chip.scale.set(1.15, 0.24, 0.9); chip.visible = false;
+      this.root!.add(g, chip);
+    }
+    this.bag.visible = true; this.chip!.visible = false;
+    this.bagOpen = 0; this.dip = -1;
+    if (this.model) this.model.group.visible = false;
+    this.bagMouth!.scale.set(1, 1, 0.2);
   }
 
   private bite(byClick: boolean) {
@@ -383,7 +444,7 @@ export class EatFp {
     const m = this.model;
     const portionLeft = Math.max(0, (a.portion ?? 1) - (a.bitten ?? 0));
     let amt = Math.min(0.125 * (fast ? 1.3 : 1), portionLeft, this.left);
-    if (m) {
+    if (m && !this.bagMode) {
       const moved = m.bite(this.mouthFor(m), fast ? 1.15 : 1, this.crumbFrom(m));
       if (!moved) amt = this.left;
     }
@@ -429,7 +490,8 @@ export class EatFp {
       G.audio?.ui?.('bh_wrap', 0.35); G.audio?.flat?.('bh_swallow', 'voice', 0.45);
       // what is left over drops to the floor: a core, a bone, the crumpled wrapper, a crust
       const k = this.rec?.kind;
-      if (k === 'fruit') this.drop('core', 0); else if (k === 'bar') this.drop('crumple', 0); else if (k === 'meat' && /bone|leg|rib|drumstick|chop/i.test(this.rec?.label ?? '')) this.drop('bone', 0);
+      if (this.bagMode) { this.drop('crumple', 0); if (this.bag) this.bag.visible = false; }
+      else if (k === 'fruit') this.drop('core', 0); else if (k === 'bar') this.drop('crumple', 0); else if (k === 'meat' && /bone|leg|rib|drumstick|chop/i.test(this.rec?.label ?? '')) this.drop('bone', 0);
       else if (k === 'loaf' || k === 'sandwich') this.drop('crust', 0);
     }
   }
@@ -481,7 +543,18 @@ export class EatFp {
     }
     // lazy eating: no click for a while takes a slow bite anyway
     this.idle += dt;
-    if (this.lowerT < 0 && this.raise >= 1 && this.idle > (this.mode === 'drink' ? AUTO_GULP : AUTO_BITE)) { if (this.mode === 'drink') this.gulp(false); else this.bite(false); this.idle = 0; }
+    if (this.lowerT < 0 && this.raise >= 1 && this.idle > (this.mode === 'drink' ? AUTO_GULP : AUTO_BITE)) { if (this.mode === 'drink') this.gulp(false); else if (this.bagMode) this.startDip(false); else this.bite(false); this.idle = 0; }
+    if (this.bagMode) {
+      // the hands tear the top open once it is up; then each dip brings one chip to the mouth
+      if (this.raise > 0.6 && this.bagOpen < 1) { const was = this.bagOpen; this.bagOpen = Math.min(1, this.bagOpen + dt / 0.45); if (was < 0.4 && this.bagOpen >= 0.4) { G.audio?.ui?.('bh_wrap', 0.5); punch(0.01, 0.12); } }
+      if (this.dip >= 0) {
+        const was = this.dip;
+        this.dip += dt / 0.78;
+        if (was < 0.36 && this.dip >= 0.36) G.audio?.ui?.('bh_wrap', 0.22);
+        if (was < 0.8 && this.dip >= 0.8) this.bite(this.dipBy);
+        if (this.dip >= 1) this.dip = -1;
+      }
+    }
     if (this.lunge >= 0) { this.lunge += dt / 0.16; if (this.lunge >= 1) this.lunge = -1; }
     if (this.chew >= 0) {
       const prev = this.chew;
@@ -536,6 +609,39 @@ export class EatFp {
       }
       this.holdAt('right', 'grip', this.food, 0, -0.035, 0.0, [0.22, -0.34, -0.12], [-0.8, 0.2, 0.6]);
       this.rest('left', yOff);
+      return;
+    }
+    if (this.bagMode && this.bag) {
+      // left hand holds the bag low, its mouth tipped toward you; the right goes in and out
+      const fold = this.lowerT >= 0 && this.left > 0 ? this.lowerT : 0;
+      this.bag.position.set(-0.035 + sway, -0.115 + bob + yOff, -0.36);
+      this.bag.rotation.set(0.75, 0.25, 0.08);
+      const op = this.bagOpen * (1 - fold);
+      this.bagMouth!.scale.set(1 + op * 0.12, 1, 0.2 + op * 1.2);
+      this.bagMouth!.rotation.x = fold * 1.2;
+      this.root!.updateMatrixWorld(true);
+      this.bagMouth!.getWorldPosition(_bm);
+      _mo.set(0.0, -0.035, -0.2);
+      const k = this.dip;
+      const chip = this.chip!;
+      if (k >= 0) {
+        // into the mouth of the bag (0 .. .36), a pinch (.36 .. .44), up to the mouth (.44 .. .8)
+        const a = k < 0.36 ? k / 0.36 : 1, b = k < 0.44 ? 0 : Math.min(1, (k - 0.44) / 0.36);
+        const e1 = a * a * (3 - 2 * a), e2 = b * b * (3 - 2 * b);
+        const rest = _t.set(0.12, -0.2 + yOff, -0.36);
+        const pos = _w.copy(rest).lerp(_v.copy(_bm).add(_s.set(0, -0.01, 0)), e1).lerp(_mo, e2);
+        if (k >= 0.8) pos.lerp(rest, Math.min(1, (k - 0.8) / 0.2));
+        chip.visible = k >= 0.4 && k < 0.8;
+        chip.position.copy(pos).add(_s.set(-0.012, 0.012, -0.004));
+        chip.rotation.set(0.8, k * 3, 0.3);
+        const arm = this.arms!.right;
+        arm.pose(k > 0.3 && k < 0.82 ? 'pinch' : 'open');
+        this.holdAt('right', k > 0.3 && k < 0.82 ? 'pinch' : 'open', chip.parent!, pos.x, pos.y, pos.z, [0.24, -0.36, -0.1], [-0.6, 0.35, 0.6]);
+      } else {
+        chip.visible = false;
+        this.holdAt('right', 'relaxed', this.root!, 0.11, -0.19 + yOff, -0.36, [0.26, -0.4, -0.1], [-0.6, 0.35, 0.6]);
+      }
+      this.holdAt('left', 'grip', this.bag, -0.05, -0.03, 0.0, [-0.2, -0.4, -0.16], [0.5, 0.6, 0.5]);
       return;
     }
     const cont = r && (r.kind === 'can' || r.kind === 'bowl');

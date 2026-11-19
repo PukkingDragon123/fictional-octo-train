@@ -275,7 +275,9 @@ export class Guide {
       twoShot: (on) => { this.close = on; this.checkT = 99; if (this.room) { const s = on ? this.closeSpot(this.room) : this.spot(this.room); if (s) { this.goal.copy(s); this.walking = true; } } },
       head: () => {
         if (!this.rig || !this.room) return null;
-        const p = this.rig.head(this.w).project(this.room.camera);
+        // her head from where she stands (room space), through the room's own transform, as seen() does
+        this.room.camera.updateMatrixWorld();
+        const p = this.room.deco.localToWorld(new THREE.Vector3(this.pos.x, this.pos.y + 1.62, this.pos.z)).project(this.room.camera);
         if (p.z > 1) return null;
         const r = this.host.rect();
         return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height };

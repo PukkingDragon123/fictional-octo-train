@@ -352,7 +352,8 @@ export class Game {
     const mods = p.body.mods(p.heavyLoad());
     const cur = p.actions.current;
     const locked = (cur && cur.started && cur.locks) || p.body.downed || this.transitioning || p.sleeping || p.carriedBy || p.inVehicle;
-    // the body in motion (src/entities/motion.ts): roll (C), hold the sneak key to go prone; rolling / stumbling / on the floor steer nothing
+    // the body in motion (src/entities/motion.ts): C crouch (sprinting: slide), Ctrl crawl, Space vault / hop;
+    // sliding / vaulting / stumbling / on the floor steer nothing
     const M = motionOf(p);
     M.input(p, inp, !!locked || !!this.ui?.blocksMovement?.());
     const mlock = M.locked;
@@ -370,11 +371,10 @@ export class Game {
     if (ml > 0) { mx /= ml; mz /= ml; }
     const moving = ml > 0;
     if (moving && cur && !cur.canMove) p.actions.clear();
-    if (!locked && !mlock && inp.hit('sneak')) p.sneaking = !p.sneaking;
     const f = z.floorAt(p.tileX(), p.tileY());
     const deep = f?.water === 'deep';
     // no legs to stand on (limb loss, src/survival/limbs.ts), legs too hurt to carry it, or chose to go flat: crawl
-    p.stance = p.body.downed || mods.crawl ? 'crawl' : deep ? 'swim' : M.crawling(p, mods.limp) ? 'crawl' : p.sneaking ? 'sneak' : 'stand';
+    p.stance = p.body.downed || mods.crawl ? 'crawl' : deep ? 'swim' : M.crawling(p, mods.limp) ? 'crawl' : p.sneaking || M.low ? 'sneak' : 'stand';
     // run: Shift, the touch run latch, or the stick pushed to its rim; a latched run also speeds up tap-to-walk
     const autoWalk = !!(cur && cur.started && cur.name === 'Walk');
     const wantRun = inp.down('run') || inp.runLatch || (analog && mag >= 0.92);

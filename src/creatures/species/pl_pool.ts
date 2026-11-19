@@ -394,7 +394,7 @@ function gPaint(p: KPage, x: BuildCtx) {
     const a = (B.deg(xx) * Math.PI) / 180, top = Math.cos(a);
     const m = B.fbm(xx, yy, 5, 3, 3 + v);
     return 4.6 + top * 1.2 + (m - 0.5) * 2.4 - (m < 0.4 ? 1.4 : 0) - (yy % 9 === 0 ? 0.6 : 0);
-  }, undefined, 0.45);
+  }, undefined, -1);
   for (let yy = 0; yy < B.h; yy++) for (let xx = 0; xx < B.w; xx++) {
     const a = (B.deg(xx) * Math.PI) / 180, m = B.fbm(xx + 40, yy, 4, 3, 7 + v);
     if (m < 0.5) B.blend(xx, yy, 0x4a5a42, 0.55 * (0.5 - m) / 0.5 + 0.3);
@@ -416,36 +416,36 @@ function gPaint(p: KPage, x: BuildCtx) {
   for (let i = 0; i < 40; i++) B.blend(hash(i, 41) * B.w, hash(i, 42) * B.h, 0xffffff, 0.7); // wet glints
   // the head: same skin, more warts, pink round the lips
   const H = p.R('HEAD');
-  H.fill(RB, (xx, yy) => 4.4 + Math.cos((H.deg(xx) * Math.PI) / 180) * 1.1 + (H.fbm(xx, yy, 4, 3, 13) - 0.5) * 2.4, undefined, 0.45);
+  H.fill(RB, (xx, yy) => 4.4 + Math.cos((H.deg(xx) * Math.PI) / 180) * 1.1 + (H.fbm(xx, yy, 4, 3, 13) - 0.5) * 2.4, undefined, -1);
   for (let yy = 0; yy < H.h; yy++) for (let xx = 0; xx < H.w; xx++) { const m = H.fbm(xx, yy, 4, 3, 17); if (m < 0.44) H.blend(xx, yy, 0x56664e, 0.5); if (Math.cos((H.deg(xx) * Math.PI) / 180) < -0.2) H.blend(xx, yy, 0xe0a0a0, 0.4); }
   for (let i = 0; i < 90; i++) { const xx = hash(i, 51) * H.w, yy = hash(i, 52) * H.h; H.ellipse(xx, yy, 1.2, 1, 0x6a6a5c, 0.5); H.set(xx, yy, 0xf4f4ea); }
   for (let i = 0; i < 14; i++) H.crack(hash(i, 61) * H.w, hash(i, 62) * H.h, 8 + hash(i, 63) * 10, hash(i, 64) * 360, 0x3c4a72, 70 + i, 0.6, 0.3);
   for (let i = 0; i < 24; i++) H.blend(hash(i, 65) * H.w, hash(i, 66) * H.h, 0xffffff, 0.7);
   const J = p.R('JAW');
-  J.fill(RB, (xx, yy) => 4 + Math.cos((J.deg(xx) * Math.PI) / 180) * 0.8 + (J.fbm(xx, yy, 4, 2, 23) - 0.5) * 2, undefined, 0.45);
+  J.fill(RB, (xx, yy) => 4 + Math.cos((J.deg(xx) * Math.PI) / 180) * 0.8 + (J.fbm(xx, yy, 4, 2, 23) - 0.5) * 2, undefined, -1);
   for (let yy = 0; yy < J.h; yy++) for (let xx = 0; xx < J.w; xx++) if (Math.cos((J.deg(xx) * Math.PI) / 180) > 0.2) J.blend(xx, yy, 0xe8b8b0, 0.5);
   for (let i = 0; i < 60; i++) { const xx = hash(i, 71) * J.w, yy = hash(i, 72) * J.h; J.ellipse(xx, yy, 1, 1, 0x6a6a5c, 0.4); J.set(xx, yy, 0xf0f0e6); }
   // the folds: waxy, with blue veins and pink flesh showing at the thin edges
   const F = p.R('FOLD');
-  F.fill(makeRamp(0x96968a, 8, { spread: 0.7 }), (xx, yy) => 4 + Math.sin(xx * 0.9) * 1.6 + (F.fbm(xx, yy, 4, 2, 31) - 0.5) * 1.6 - (yy / F.h) * 1.2, undefined, 0.4);
+  F.fill(makeRamp(0x96968a, 8, { spread: 0.7 }), (xx, yy) => 4 + Math.sin(xx * 0.9) * 1.6 + (F.fbm(xx, yy, 4, 2, 31) - 0.5) * 1.6 - (yy / F.h) * 1.2, undefined, -1);
   for (let yy = 0; yy < F.h; yy++) for (let xx = 0; xx < F.w; xx++) if (yy > F.h * 0.6) F.blend(xx, yy, 0xd88888, 0.45 * (yy / F.h - 0.6) / 0.4);
   for (let i = 0; i < 12; i++) F.crack(hash(i, 81) * F.w, hash(i, 82) * F.h, 10, 90 + (hash(i, 83) - 0.5) * 60, 0x3c4a72, 90 + i, 0.7, 0.25);
   for (let i = 0; i < 20; i++) F.blend(hash(i, 84) * F.w, hash(i, 85) * F.h, 0xffffff, 0.75);
   // the mouth: pink-red and wet, pale gums at the rims
   const M = p.R('MOUTH');
-  M.fill(makeRamp(0xc84858, 8, { spread: 0.6 }), (xx, yy) => 3.6 + Math.sin(yy * 0.9) * 0.9 + (M.fbm(xx, yy, 3, 2, 41) - 0.5) * 1.8 - Math.abs(xx / M.w - 0.5) * 3, undefined, 0.45);
+  M.fill(makeRamp(0xc84858, 8, { spread: 0.6 }), (xx, yy) => 3.6 + Math.sin(yy * 0.9) * 0.9 + (M.fbm(xx, yy, 3, 2, 41) - 0.5) * 1.8 - Math.abs(xx / M.w - 0.5) * 3, undefined, -1);
   for (let i = 0; i < 6; i++) M.crack(hash(i, 91) * M.w, hash(i, 92) * M.h, 8, hash(i, 93) * 360, 0x7a1424, 100 + i, 0.6, 0.3);
   for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < M.w; xx++) M.blend(xx, yy, 0xf0d0d0, 0.6);
   for (let i = 0; i < 18; i++) M.blend(hash(i, 94) * M.w, hash(i, 95) * M.h, 0xffffff, 0.8);
   const D = p.R('DEW');
-  D.fill(makeRamp(0x949084, 8, { spread: 0.7 }), (xx, yy) => 4 + Math.sin(xx * 1.3 + yy * 0.2) * 1.1 + (D.fbm(xx, yy, 4, 2, 51) - 0.5) * 2, undefined, 0.45);
+  D.fill(makeRamp(0x949084, 8, { spread: 0.7 }), (xx, yy) => 4 + Math.sin(xx * 1.3 + yy * 0.2) * 1.1 + (D.fbm(xx, yy, 4, 2, 51) - 0.5) * 2, undefined, -1);
   for (let yy = 0; yy < D.h; yy++) for (let xx = 0; xx < D.w; xx++) if (yy > D.h * 0.45) D.blend(xx, yy, 0xd89a9a, 0.4 * (yy / D.h - 0.45));
   for (let i = 0; i < 8; i++) D.crack(hash(i, 101) * D.w, hash(i, 102) * D.h, 10, hash(i, 103) * 360, 0x3c4a72, 110 + i, 0.7, 0.3);
   const L = p.R('LIMB');
-  L.fill(RB, (xx, yy) => 4 + Math.cos((L.deg(xx) * Math.PI) / 180) * 1 + (L.fbm(xx, yy, 3, 2, 61) - 0.5) * 2 - (yy % 6 === 0 ? 0.8 : 0), undefined, 0.45);
+  L.fill(RB, (xx, yy) => 4 + Math.cos((L.deg(xx) * Math.PI) / 180) * 1 + (L.fbm(xx, yy, 3, 2, 61) - 0.5) * 2 - (yy % 6 === 0 ? 0.8 : 0), undefined, -1);
   for (let yy = 0; yy < L.h; yy++) for (let xx = 0; xx < L.w; xx++) { if (L.fbm(xx, yy, 3, 2, 62) < 0.44) L.blend(xx, yy, 0x56664e, 0.5); if (yy > L.h * 0.75) L.blend(xx, yy, 0xd89090, 0.4); }
   const Fi = p.R('FIN');
-  Fi.fill(makeRamp(0xb0b0a2, 7, { spread: 0.6 }), (xx, yy) => 3.6 + (Fi.fbm(xx, yy, 4, 2, 71) - 0.5) * 2 - (yy / Fi.h) * 1.4, undefined, 0.4);
+  Fi.fill(makeRamp(0xb0b0a2, 7, { spread: 0.6 }), (xx, yy) => 3.6 + (Fi.fbm(xx, yy, 4, 2, 71) - 0.5) * 2 - (yy / Fi.h) * 1.4, undefined, -1);
   for (let yy = 0; yy < Fi.h; yy++) for (let xx = 0; xx < Fi.w; xx++) if (yy > Fi.h * 0.5) Fi.blend(xx, yy, 0xd88a8a, 0.4);
   p.R('TOOTH').fill(makeRamp(0xf0ece0, 5, { spread: 0.4 }), (xx, yy) => 3 - yy * 0.2, undefined, 0.3);
   // the blind eye: milky blue-white with a cloud where the pupil was; the good one tiny, pink and wet
@@ -457,29 +457,29 @@ function gPaint(p: KPage, x: BuildCtx) {
   EW.set(2, 2, 0xffffff); EW.set(3, 2, 0xffe0e0);
   // leeches: black-green, glossy, ringed
   const LE = p.R('LEECH');
-  LE.fill([0x060806, 0x101810, 0x1a2a1a, 0x2a3a26, 0x4a5a40], (xx, yy) => 1.4 + Math.cos((LE.deg(xx) * Math.PI) / 180) * 1.3 + (yy % 3 === 0 ? -0.8 : 0), undefined, 0.4);
+  LE.fill([0x060806, 0x101810, 0x1a2a1a, 0x2a3a26, 0x4a5a40], (xx, yy) => 1.4 + Math.cos((LE.deg(xx) * Math.PI) / 180) * 1.3 + (yy % 3 === 0 ? -0.8 : 0), undefined, -1);
   for (let yy = 1; yy < LE.h; yy += 4) LE.set(LE.X(0), yy, 0xb0c0a0);
   const LU = p.R('LUMP');
-  LU.fill(RB, (xx, yy) => 4.6 + (LU.fbm(xx, yy, 2, 2, 81) - 0.5) * 3, undefined, 0.45);
+  LU.fill(RB, (xx, yy) => 4.6 + (LU.fbm(xx, yy, 2, 2, 81) - 0.5) * 3, undefined, -1);
   paintCap(p.R('CAP'), 0xd8d8cc, 0xd88a8a, 0x8a2a2a);
   // the tongue: fleshy pink, wet, with a darker groove and taste-bud stipple
   const TG = p.R('TONG');
-  TG.fill(makeRamp(0xe07884, 8, { spread: 0.55 }), (xx, yy) => 4.4 + (TG.fbm(xx, yy, 3, 2, 131) - 0.5) * 1.6 - Math.exp(-((xx / TG.w - 0.5) ** 2) / 0.004) * 2.4, undefined, 0.4);
+  TG.fill(makeRamp(0xe07884, 8, { spread: 0.55 }), (xx, yy) => 4.4 + (TG.fbm(xx, yy, 3, 2, 131) - 0.5) * 1.6 - Math.exp(-((xx / TG.w - 0.5) ** 2) / 0.004) * 2.4, undefined, -1);
   for (let i = 0; i < 50; i++) TG.set(hash(i, 132) * TG.w, hash(i, 133) * TG.h, 0xf0a8b0);
   for (let i = 0; i < 14; i++) TG.blend(hash(i, 134) * TG.w, hash(i, 135) * TG.h, 0xffffff, 0.85);
   // gums: swollen, pale pink, raw at the tooth line
   const GU = p.R('GUM');
-  GU.fill(makeRamp(0xeab0b0, 6, { spread: 0.5 }), (xx, yy) => 3.6 + (GU.fbm(xx, yy, 3, 2, 141) - 0.5) * 1.4 - (yy > GU.h * 0.6 ? 1.2 : 0), undefined, 0.4);
+  GU.fill(makeRamp(0xeab0b0, 6, { spread: 0.5 }), (xx, yy) => 3.6 + (GU.fbm(xx, yy, 3, 2, 141) - 0.5) * 1.4 - (yy > GU.h * 0.6 ? 1.2 : 0), undefined, -1);
   for (let xx = 0; xx < GU.w; xx += 2) GU.blend(xx, GU.h - 1, 0x9a2a3a, 0.6);
   for (let i = 0; i < 10; i++) GU.blend(hash(i, 142) * GU.w, hash(i, 143) * GU.h, 0xffffff, 0.8);
   // warts: pale crowns with darker grey-green rims and a wet glint
   const WA = p.R('WART');
-  WA.fill(RB, (xx, yy) => 5.2 + Math.cos((WA.deg(xx) * Math.PI) / 180) * 1.6 - (yy / WA.h) * 1.5 + (WA.fbm(xx, yy, 2, 2, 151) - 0.5), undefined, 0.4);
+  WA.fill(RB, (xx, yy) => 5.2 + Math.cos((WA.deg(xx) * Math.PI) / 180) * 1.6 - (yy / WA.h) * 1.5 + (WA.fbm(xx, yy, 2, 2, 151) - 0.5), undefined, -1);
   for (let yy = Math.floor(WA.h * 0.6); yy < WA.h; yy++) for (let xx = 0; xx < WA.w; xx++) WA.blend(xx, yy, 0x4a5a42, 0.45);
   for (let i = 0; i < 6; i++) WA.blend(hash(i, 152) * WA.w, hash(i, 153) * WA.h * 0.4, 0xffffff, 0.8);
   // the lids and eye folds: wrinkled, grey-green in the creases, raw pink at the rims
   const LI = p.R('LID');
-  LI.fill(RB, (xx, yy) => 4.2 + Math.sin(xx * 1.4) * 1.5 + (LI.fbm(xx, yy, 3, 2, 161) - 0.5) * 1.6, undefined, 0.45);
+  LI.fill(RB, (xx, yy) => 4.2 + Math.sin(xx * 1.4) * 1.5 + (LI.fbm(xx, yy, 3, 2, 161) - 0.5) * 1.6, undefined, -1);
   for (let xx = 0; xx < LI.w; xx++) { if (xx % 3 === 0) for (let yy = 0; yy < LI.h; yy++) LI.blend(xx, yy, 0x3e4a38, 0.45); LI.blend(xx, LI.h - 1, 0xc86a72, 0.7); LI.blend(xx, LI.h - 2, 0xd8888c, 0.4); }
   for (let i = 0; i < 12; i++) LI.blend(hash(i, 162) * LI.w, hash(i, 163) * LI.h, 0xffffff, 0.75);
   // cysts: yellowish lumps under the skin with an angry pink ring and a dark pore

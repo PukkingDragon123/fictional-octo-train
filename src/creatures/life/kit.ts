@@ -5,7 +5,7 @@
 // field (folds, ribs, plates, fuzz), weights blend across joints so bodies bend like flesh, and the page is
 // painted with ramps, light baked by angle, fbm and strands.
 import * as THREE from 'three';
-import { PixelCanvas, bayer } from '../../gfx/pixel';
+import { PixelCanvas, mixHex } from '../../gfx/pixel';
 import { tileFbm } from '../../core/rng';
 
 export type V3 = number[];
@@ -16,6 +16,13 @@ export const KPAD = 2;
 /** global loft style: superellipse squareness (2 = round, higher = boxier) and a multiplier on sides around */
 export const KIT = { sq: 2, nMul: 1 };
 const NOISE = new Map<string, Float32Array>();
+/** a ramp sampled at a fractional index: the colour between its two steps */
+export function rampAt(R: number[], v: number): number {
+  if (!(v > 0)) return R[0];
+  if (v >= R.length - 1) return R[R.length - 1];
+  const i = Math.floor(v), f = v - i;
+  return f < 0.02 ? R[i] : mixHex(R[i], R[i + 1], f);
+}
 export const hash = (a: number, b = 0) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
 
 /** a rectangle of the page; u wraps (tubes), v clamps */
@@ -36,14 +43,30 @@ export class Region {
   get(x: number, y: number) { const [p, q] = this.ix(x, y); return this.page.pc.get(p, q); }
   alpha(x: number, y: number, a: number) { if (!this.inside(Math.floor(y))) return; const [p, q] = this.ix(x, y); this.page.pc.data[(q * this.page.W + p) * 4 + 3] = a; }
   blend(x: number, y: number, c: number, t: number) { if (!this.inside(Math.floor(y))) return; const [p, q] = this.ix(x, y); this.page.pc.blend(p, q, c, t); }
-  /** dithered write of a fractional ramp index */
+  /** write of a fractional ramp index: the colour between the two ramp steps (round 19: smooth shading that
+   *  follows the form, no dither checker; `dither` is kept for callers and ignored) */
   put(x: number, y: number, R: number[], v: number, dither = 0.5) {
-    let i = Math.floor(v);
-    if (v - i > 0.5 + (bayer(Math.floor(x), Math.floor(y)) - 0.5) * dither) i++;
-    this.set(x, y, R[i < 0 ? 0 : i >= R.length ? R.length - 1 : i]);
+    this.set(x, y, rampAt(R, v)); void dither;
   }
+  /** fill from a value field; the field is smoothed (a 3x3 tent) first, so per-texel jitter in a painter's
+   *  formula comes out as soft variation instead of a mosaic of random squares. dither 0: crisp (facets, rings) */
   fill(R: number[], fn: (x: number, y: number) => number, mask?: (x: number, y: number) => boolean, dither = 0.5) {
-    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) { if (mask && !mask(x, y)) continue; this.put(x, y, R, fn(x, y), dither); }
+    const w = this.w, h = this.h, f = new Float32Array(w * h), m = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { if (mask && !mask(x, y)) continue; m[y * w + x] = 1; f[y * w + x] = fn(x, y); }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x; if (!m[i]) continue;
+      let v = f[i];
+      if (dither > 0) {
+        let s = 0, n = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const yy = y + dy; if (yy < 0 || yy >= h) continue;
+          const j = yy * w + (((x + dx) % w) + w) % w; if (!m[j]) continue;
+          const k = (dx ? 1 : 2) * (dy ? 1 : 2); s += f[j] * k; n += k;
+        }
+        v = s / n;
+      }
+      this.set(x, y, rampAt(R, v));
+    }
   }
   line(x0: number, y0: number, x1: number, y1: number, c: number, t = 1) {
     x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
@@ -68,7 +91,7 @@ export class Region {
     for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
       const dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry;
       const d = Math.sqrt(dx * dx + dy * dy);
-      if (d <= 1 && (1 - d) * strength > bayer(x & 1023, y & 1023)) this.set(x, y, c);
+      if (d <= 1) this.blend(x, y, c, Math.min(1, (1 - d) * strength * 1.6));
     }
   }
   glow(cx: number, cy: number, rx: number, ry: number, c: number, t: number) {

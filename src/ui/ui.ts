@@ -30,6 +30,8 @@ export interface MenuOption {
   sub?: MenuOption[];
   danger?: boolean;
   icon?: string;
+  /** round 19: a note shown on the right-click menu's foot line while this row is under the pointer (src/interact/contextMenu.ts) */
+  info?: string;
 }
 
 interface Bubble { el: HTMLDivElement; target: Player | { x: number; y: number; z: number }; until: number; born: number; rise: number; kind: string; }

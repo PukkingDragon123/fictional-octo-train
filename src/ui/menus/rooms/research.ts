@@ -47,6 +47,10 @@ import { Dresser } from './dress';
 import { Vault, blob, frostCard } from './vault';
 import { Pokes } from './pokes';
 import { TalentBench } from './talentBench';
+import { built, can, station, onLab, type StationKey } from '../lab/stations';
+import { buildSite, startRise, stepRise, type Rise } from '../lab/site';
+/** is o inside g (or g itself) */
+const isUnder = (o: THREE.Object3D, g: THREE.Object3D) => { for (let x: THREE.Object3D | null = o; x; x = x.parent) if (x === g) return true; return false; };
 import type { Sample } from '../../../game/codex';
 
 const W = 3.6, BACK = -3.0, FRONT = 3.3, H = 3.05;
@@ -100,7 +104,6 @@ export class ResearchLab implements StageRoom {
   floor = { minX: -W + 1.2, maxX: W - 1.0, minZ: 0.4, maxZ: 2.4, y: 0 };
   surfaces = [{ minX: SCOPE.x - 0.25, maxX: SCOPE.x + 0.25, minZ: SCOPE.z - 0.75, maxZ: SCOPE.z + 0.75, y: 0.92 }, { minX: CENTRI.x - 0.3, maxX: CENTRI.x + 0.3, minZ: CENTRI.z - 0.8, maxZ: CENTRI.z + 0.8, y: 0.92 }];
   guideSpot = { pos: new THREE.Vector3(-1.75, 0, 1.45), look: new THREE.Vector3(0.15, 1.6, BACK) };
-  actions: { key: string; label: string; run: () => void }[] = [];
   /** the room wants a panel (title.ts opens research/panel.ts) */
   onPanel?: (w: 'tree' | 'codex' | 'fridge' | 'req' | 'file' | 'entry', key?: string) => void;
   /** the benches started / finished (title.ts hides its HUD while the hands are up) */
@@ -170,11 +173,14 @@ export class ResearchLab implements StageRoom {
     const S = this.scene;
     S.background = new THREE.Color(0x000000);
     S.add(this.pokes.group);
-    S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter(), this.chamber(), this.dressing());
+    // round 19: the stations are kept by name so an unbuilt one can stand as a build site (src/ui/menus/lab)
+    const cw = this.codexWall(), fr = this.fridge(), hood = this.hood(), scope = this.scopeBench(), peg = this.pegboard();
+    S.add(this.shell(), this.fixtures(), cw, fr, hood, scope, this.table(), this.centrifuge(), this.sequencer(), peg, this.clutter(), this.chamber(), this.dressing());
     S.add(this.chamL, this.chamL.target, this.chamRed, this.redL);
     this.talent = new TalentBench(this.mats, this.hots, { wallX: -W, z0: 1.53, z1: 3.15, top: 0.9 });
     this.talent.rayAt = (x, y) => this.rayAt?.(x, y) ?? null;
     S.add(this.talent.group);
+    this.stationG = { lattice: [cw], fridge: [fr, hood, scope], talent: [this.talent.group], req: [peg] };
     // round 18: the guided tour's look at the bench, from wherever it stands (into the room from it, a little above)
     { const tb = new THREE.Box3().setFromObject(this.talent.group), c = tb.getCenter(new THREE.Vector3());
       if (!tb.isEmpty()) POSES.talent = P([c.x + 2.1, c.y + 0.75, c.z - 0.7], [c.x, c.y - 0.05, c.z], 52); }
@@ -187,7 +193,7 @@ export class ResearchLab implements StageRoom {
     this.deco.name = 'deco';
     this.feedCam.position.set(W - 0.35, H - 0.3, FRONT - 0.4); this.feedCam.lookAt(-0.6, 0.9, -1.4);
     this.cam.position.copy(this.camP); this.cam.lookAt(this.camL);
-    this.actions = [
+    this.allActions = [
       { key: 'tree', label: 'Research tree', run: () => this.focus('codex', () => this.onPanel?.('tree')) },
       { key: 'talent', label: 'Talent bench', run: () => { void this.talent.open(); } },
       { key: 'process', label: 'Process a sample', run: () => this.focus('fridge', () => this.onPanel?.('fridge')) },
@@ -199,6 +205,63 @@ export class ResearchLab implements StageRoom {
     onFile(() => { this.dirty = true; });
     bus.on('research', () => { this.dirty = true; });
     this.refresh();
+    this.applyLab();
+    onLab(() => this.applyLab());
+  }
+
+  // ================================================================== round 19: the lab from zero (src/ui/menus/lab)
+  private stationG: Partial<Record<StationKey, THREE.Object3D[]>> = {};
+  private sites = new Map<StationKey, { g: THREE.Group; hot: Hot }>();
+  private rises: { k: StationKey; r: Rise }[] = [];
+  private allActions: { key: string; label: string; run: () => void }[] = [];
+  /** a build site was pressed (the title room shows the fund tag) */
+  onSite?: (k: StationKey, at: THREE.Vector3) => void;
+  private static ACT: Record<string, StationKey> = { tree: 'lattice', talent: 'talent', process: 'fridge', req: 'req' };
+  /** the room's words: only the stations that are built */
+  get actions() { return this.allActions.filter((a) => { const k = ResearchLab.ACT[a.key]; return !k || built(k); }); }
+  set actions(v) { this.allActions = v; }
+  /** where a station stands (its footprint on the floor), measured from its own model */
+  private siteOf(groups: THREE.Object3D[]): { x: number; z: number; w: number; d: number } {
+    const b = new THREE.Box3();
+    for (const o of groups) { const vis = o.visible; o.visible = true; b.expandByObject(o); o.visible = vis; }
+    const c = b.getCenter(new THREE.Vector3()), sz = b.getSize(new THREE.Vector3());
+    return { x: c.x, z: c.z, w: Math.max(1.2, Math.min(2.6, sz.x)), d: Math.max(1, Math.min(2.2, sz.z)) };
+  }
+  private dropSite(k: StationKey) {
+    const s = this.sites.get(k);
+    if (!s) return;
+    s.g.removeFromParent();
+    const i = this.hots.indexOf(s.hot);
+    if (i >= 0) this.hots.splice(i, 1);
+    this.sites.delete(k);
+  }
+  /** built stations stand; the others are a taped square of crates under a lamp, pressable to fund */
+  applyLab() {
+    (Object.keys(this.stationG) as StationKey[]).forEach((k, i) => {
+      const gs = this.stationG[k]!, on = built(k);
+      if (this.rises.some((r) => r.k === k)) return;
+      for (const o of gs) o.visible = on;
+      for (const h of this.hots) if (h.objs.some((o) => gs.some((g) => isUnder(o, g)))) h.off = !on;
+      if (on) { this.dropSite(k); return; }
+      if (this.sites.has(k)) return;
+      const f = this.siteOf(gs);
+      const g = buildSite(this.mats, f.x, f.z, f.w, f.d, i + 1);
+      this.scene.add(g);
+      const def = station(k);
+      const hot: Hot = { key: 'site:' + k, objs: [g], label: def.name, press: () => this.onSite?.(k, new THREE.Vector3(f.x, 1.0, f.z)) };
+      Object.defineProperty(hot, 'sub', { get: () => { const w = can(k); return w === '' ? `$${def.cost} · build it` : w.startsWith('$') ? `${w} · not enough dollars` : w; } });
+      this.hots.push(hot);
+      this.sites.set(k, { g, hot });
+    });
+  }
+  /** the build moment: the crates go, the station rises out of the floor in a puff of dust */
+  playBuild(k: StationKey) {
+    const gs = this.stationG[k];
+    if (!gs) return;
+    this.dropSite(k);
+    const r = startRise(gs);
+    this.rises.push({ k, r });
+    uiSound('clamp', 0.8);
   }
 
   /** re-read the Meridian file: the wall, the fridge, the pegboard, the readouts */
@@ -913,6 +976,7 @@ export class ResearchLab implements StageRoom {
 
   update(dt: number, t: number, full: boolean) {
     this.t = t;
+    for (const x of [...this.rises]) if (!stepRise(x.r, dt)) { this.rises.splice(this.rises.indexOf(x), 1); this.applyLab(); }
     if (this.dirty) this.refresh();
     // ---- light: the tubes hum and now and then one stutters
     for (const tb of this.tubes) {

@@ -152,16 +152,17 @@ function grotesque(S: Ctx, page: Page) {
     for (let y = 0; y < body.h; y++) for (let x = 0; x < body.w; x++) {
       const th = body.th(x), v = y / body.h, side = Math.abs(th);
       // the organs: dark shapes seen through the belly and flanks (gut coils, the liver, the egg sacs)
-      const gut = Math.sin(v * 38 + Math.sin(th * 3) * 2) > 0.55 && v > 0.25 && v < 0.62 && side > 1.4;
+      const gut = Math.sin(v * 38 + Math.sin(th * 3) * 2) > 0.7 && v > 0.25 && v < 0.62 && side > 1.4;
       const liver = Math.hypot((v - 0.68) / 0.1, (side - 2.3) / 0.5) < 1;
-      const eggs = v > 0.18 && v < 0.4 && side > 1.0 && side < 2.2 && hash(Math.floor(x / 2), Math.floor(y / 2)) < 0.35;
-      if (liver) body.blend(x, y, 0x5a1a2a, 0.55);
-      else if (gut) body.blend(x, y, 0x8a4050, 0.4);
-      else if (eggs) body.blend(x, y, 0xf0e0a0, 0.45);
+      const eggs = v > 0.18 && v < 0.4 && side > 1.0 && side < 2.2 ? Math.min(1, Math.max(0, (body.fbm(x, y, 12, 1, 31) - 0.55) / 0.12)) : 0;
+      // (soft-edged: organs seen through skin have no hard outlines)
+      if (liver) body.blend(x, y, 0x5a1a2a, 0.45);
+      else if (gut) body.blend(x, y, 0x8a4050, 0.28);
+      else if (eggs > 0) body.blend(x, y, 0xf0e0a0, 0.35 * eggs);
       // veins: blue-violet threads
       if (Math.abs(Math.sin(x * 0.7 + body.fbm(x, y, 3, 2, 7) * 9)) < 0.06) body.blend(x, y, 0x6a6aa8, 0.5);
     }
-    for (let i = 0; i < 30; i++) body.blend(hash(i, 11) * body.w, hash(i, 12) * body.h, 0xffffff, 0.75);
+    for (let i = 0; i < 12; i++) { const gx = hash(i, 11) * body.w, gy = hash(i, 12) * body.h; if (Math.abs(body.th(gx)) < 1) { body.blend(gx, gy, 0xffffff, 0.4); body.blend(gx, gy + 1, 0xffffff, 0.25); } }
     // burrow scars: pale ridged lines where it has forced itself through things
     for (let i = 0; i < 9; i++) { const x0 = hash(i, 61) * body.w, y0 = hash(i, 62) * body.h; body.line(x0, y0, x0 + (hash(i, 63) - 0.5) * body.w * 0.3, y0 + hash(i, 64) * body.h * 0.15, 0xf6dcd8, 0.7); }
   }

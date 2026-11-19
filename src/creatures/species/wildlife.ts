@@ -147,9 +147,9 @@ function rot(w: WildInfo) {
 }
 function paintRot(R: Region, cover: Cover, seed: number) {
   for (let y = 0; y < R.h; y++) for (let x = 0; x < R.w; x++) {
-    const m = R.fbm(x, y, 5, 2, seed), h = hash(x * 3 + seed, y * 7);
+    const m = R.fbm(x, y, 5, 2, seed), h = R.fbm(x, y, 11, 1, seed + 1) > 0.78 ? 0.01 : R.fbm(x, y, 9, 1, seed + 2);
     if (cover === 'fur') {
-      if (m > 0.74) R.set(x, y, h < 0.22 ? 0x5a1a14 : mixHex(0xb08a84, 0xd0a8a0, hash(x * 5, y))); // mange, scabs
+      if (m > 0.74) R.blend(x, y, h < 0.3 ? 0x5a1a14 : mixHex(0xb08a84, 0xd0a8a0, h), Math.min(1, (m - 0.74) * 12)); // mange, scabs
       else if (m < 0.17) R.blend(x, y, 0x1e1812, 0.5); // matted, filthy
     } else if (cover === 'scales' || cover === 'chitin') {
       if (m > 0.78) R.set(x, y, h < 0.3 ? 0x2a1a10 : h < 0.5 ? 0xb89a3a : 0xc88a80); // cracked plates, weeping, raw under

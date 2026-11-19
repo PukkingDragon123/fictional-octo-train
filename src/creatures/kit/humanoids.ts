@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { worldMaterial } from '../../gfx/materials';
 import { patchFacet, markFaceted } from './horror';
-import { PixelCanvas, bayer } from '../../gfx/pixel';
+import { PixelCanvas, bayer, mixHex } from '../../gfx/pixel';
 import { tileFbm } from '../../core/rng';
 import { G } from '../../game/G';
 import type { Rig } from '../species';
@@ -52,6 +52,8 @@ export class Region {
   dither(x: number, y: number, c: number, t: number) { if (t > bayer(Math.floor(x), Math.floor(y))) this.set(x, y, c); }
   /** dithered write of a fractional ramp index */
   put(x: number, y: number, R: number[], v: number, dither = 0.5) {
+    // dither < 0: smooth (the colour between the two ramp steps, no dither checker: skin, flesh)
+    if (dither < 0) { const j = Math.max(0, Math.min(R.length - 1, Math.floor(v))), f = Math.max(0, Math.min(1, v - j)); this.set(x, y, j >= R.length - 1 ? R[R.length - 1] : mixHex(R[j], R[j + 1], f)); return; }
     let i = Math.floor(v);
     if (v - i > 0.5 + (bayer(Math.floor(x), Math.floor(y)) - 0.5) * dither) i++;
     this.set(x, y, R[i < 0 ? 0 : i >= R.length ? R.length - 1 : i]);

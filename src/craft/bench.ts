@@ -501,7 +501,7 @@ export class Bench {
 
   /** hold your hands on the work until it comes together */
   private assemble(r: Recipe) {
-    const speed = (hasUnlock('rc_bench') ? 0.65 : 1) / craftSpeed(G.local) * talentMul(G.local?.body, 'craft');
+    const speed = (hasUnlock('rc_bench') ? 0.65 : 1) / craftSpeed(G.local) * talentMul(G?.local?.body, 'craft');
     const dur = Math.max(0.9, Math.min(5, r.time * 0.12 * speed));
     this.hold = { r, t: 0, dur, down: false, tick: 0 };
     this.drawSlate();

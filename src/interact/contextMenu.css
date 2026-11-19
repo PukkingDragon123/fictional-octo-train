@@ -1,0 +1,42 @@
+/* The right-click strip (src/interact/contextMenu.ts): Alagard type on a worn olive terminal plate painted by
+   the machine kit (a canvas behind the rows), square chamfered corners, no flat colour, no icons. */
+.cm {
+  position: fixed; z-index: 130; min-width: 150px; max-width: 300px; padding: 9px 14px 9px 12px; box-sizing: border-box;
+  font-family: var(--font-new, 'Alagard', monospace); font-size: 16px; line-height: 1; color: #e9e3c4; user-select: none;
+  pointer-events: auto; transform-origin: 20% 0; animation: cm-in 0.12s cubic-bezier(.2, 1.4, .5, 1);
+  filter: drop-shadow(2px 3px 0 rgba(4, 5, 2, 0.55));
+}
+.cm.out { animation: cm-out 0.09s ease-in forwards; }
+.cm > canvas.cm-plate { position: absolute; left: 0; top: 0; z-index: -1; image-rendering: pixelated; pointer-events: none; }
+.cm-sub { min-width: 120px; animation-duration: 0.09s; }
+.cm-title {
+  padding: 1px 2px 6px; margin-bottom: 4px; font-size: 15px; letter-spacing: 0.04em; color: #f2c54a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 1px 1px 0 #0b0c06, 0 0 6px rgba(242, 180, 40, 0.35);
+  /* a stamped rule under the name: two pixel lines, lit and shaded */
+  background: linear-gradient(#0a0c06, #0a0c06) 0 calc(100% - 1px) / 100% 1px no-repeat, linear-gradient(#5d6a3c, #5d6a3c) 0 100% / 100% 1px no-repeat;
+}
+.cm-row {
+  position: relative; padding: 4px 18px 4px 4px; white-space: nowrap; cursor: var(--cur-hand, pointer);
+  text-shadow: 1px 1px 0 #070805; transition: transform 0.06s, color 0.06s;
+}
+/* under the pointer: amber phosphor, the row leans in, a dotted scan rule beneath it */
+.cm-row.hot { color: #ffd65a; transform: translateX(3px); text-shadow: 1px 1px 0 #070805, 0 0 7px rgba(255, 196, 56, 0.6);
+  background: repeating-linear-gradient(90deg, rgba(255, 200, 70, 0.75) 0 2px, transparent 2px 4px) 4px calc(100% - 1px) / calc(100% - 8px) 1px no-repeat; }
+.cm-row.dis { color: #7c8266; }
+.cm-row.dis.hot { color: #a3a588; text-shadow: 1px 1px 0 #070805; background: none; }
+.cm-row.danger { color: #f0a080; }
+.cm-row.danger.hot { color: #ffb48c; text-shadow: 1px 1px 0 #070805, 0 0 7px rgba(255, 110, 60, 0.55); }
+.cm-row.nope { animation: cm-nope 0.24s steps(4); }
+/* the last row ("Info") sits under a weld seam */
+.cm-row.cm-inforow { margin-top: 5px; padding-top: 7px; color: #b9c08f; background: linear-gradient(#0a0c06, #0a0c06) 0 0 / 100% 1px no-repeat, linear-gradient(#5d6a3c, #5d6a3c) 0 1px / 100% 1px no-repeat; }
+.cm-row.cm-inforow.hot { color: #ffd65a; }
+.cm-info { margin: 6px 2px 2px; padding-top: 6px; max-width: 270px; white-space: normal; font-size: 13px; line-height: 1.25; color: #cfd2ae; text-shadow: 1px 1px 0 #070805;
+  background: linear-gradient(#5d6a3c, #5d6a3c) 0 0 / 100% 1px no-repeat; }
+.cm-info > div + div { margin-top: 3px; }
+.cm-info > div:first-child { color: #f2c54a; }
+.cm-foot { display: none; margin-top: 5px; padding: 0 2px; max-width: 260px; white-space: normal; font-size: 12px; line-height: 1.2; color: #e0846a; text-shadow: 1px 1px 0 #070805; }
+@keyframes cm-in { from { transform: translateY(-4px) scaleY(0.82); opacity: 0.2; } }
+@keyframes cm-out { to { transform: translateY(-3px) scaleY(0.9); opacity: 0; } }
+@keyframes cm-nope { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+html.nc-touch .cm { font-size: 18px; }
+html.nc-touch .cm-row { padding-top: 8px; padding-bottom: 8px; }

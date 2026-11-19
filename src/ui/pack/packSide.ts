@@ -70,7 +70,7 @@ export class PackSide {
     this.el.style.setProperty('--ps-sock', `url(${socketUrl(false)})`);
     this.el.style.setProperty('--ps-sock-hot', `url(${socketUrl(true)})`);
     const st = document.createElement('style');
-    st.textContent = `.pside{position:fixed;z-index:31;right:16px;top:calc(7vh + 12px);width:236px;max-height:calc(86vh - 130px);display:flex;flex-direction:column;padding:10px 12px;font-family:var(--font-new);user-select:none;opacity:0;transform:translateX(30px);transition:opacity .2s ease,transform .32s cubic-bezier(.3,1.4,.5,1);pointer-events:none}
+    st.textContent = `.pside{position:fixed;z-index:62;right:16px;top:calc(7vh + 12px);width:236px;max-height:calc(86vh - 130px);display:flex;flex-direction:column;padding:10px 12px;font-family:var(--font-new);user-select:none;opacity:0;transform:translateX(30px);transition:opacity .2s ease,transform .32s cubic-bezier(.3,1.4,.5,1);pointer-events:none}
 .pside,.pside *{border-radius:0!important}
 .pside.on{opacity:1;transform:none;pointer-events:auto}
 .pside-tabs{position:relative;display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px}
@@ -106,9 +106,11 @@ export class PackSide {
     // a thing on the hotbar dragged into the pack (the hotbar's own handler sits under this one while the pack is up)
     window.addEventListener('pointerdown', (e) => {
       if (!this.shown || e.button !== 0) return;
-      const t = (e.target as Element)?.closest?.('#hot12 .hb-slot');
-      if (!t) return;
-      const i = [...document.querySelectorAll('#hot12 .hb-slot')].indexOf(t);
+      // (the pack's pointer layer lies over the hotbar: find the slot by where the pointer is)
+      const bar = document.getElementById('hot12');
+      if (!bar?.classList.contains('on')) return;
+      const slots = [...bar.querySelectorAll<HTMLElement>('.hb-slot')];
+      const i = slots.findIndex((q) => { const r = q.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; });
       const p = G.local; if (!p || i < 0) return;
       const it = p.allItems().find((q) => ((q.data as any)?.hot ?? 0) === i + 1);
       const from = it ? p.containerOf(it) : null;

@@ -515,7 +515,7 @@ export class CookView {
     // leave
     if (inp.hit('pause') || inp.hit('interact')) { consume('pause', 'interact'); this.close(); return; }
     if (inp.mouseReleased[2] && !this.drag) { this.close(); return; }
-    if (inp.hit('shove')) this.toss();
+    if (inp.hit('shove') || inp.hit('jump')) this.toss();
     const H = this.stationHeat();
     // slide the rig into place, pan kick
     // the stove rises into view with the cut-in

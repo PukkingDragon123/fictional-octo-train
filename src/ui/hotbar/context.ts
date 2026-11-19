@@ -14,8 +14,8 @@
 // that target is in the world (anchor); src/ui/worldPrompt.ts floats "[E] Search: Filing
 // Cabinet" over it (tappable on touch). Actions with no anchor (Lamp, Swim, Strike) are
 // keybind-only on desktop (listed in the Controls menu) and live on the small chamfered
-// touch pad (src/ui/touch/actpad.ts). Keys: E the primary, G carry / grip / drop, R turn,
-// Space throw / shove, U the second E-thing, F the suit lamp, Q (hold) scan. Every label and pad button
+// touch pad (src/ui/touch/actpad.ts). Keys (round 19, src/core/input.ts): E the primary, G carry / grip / drop,
+// R turn, V throw / shove, U the second E-thing, F the suit lamp, Q (hold) scan. Every label and pad button
 // runs the same calls as the keys, so the game systems keep one path.
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -132,7 +132,7 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
     }
     out.push({ id: 'place', label: 'Place', icon: 'place', key: ci.nearPress ? '' : 'E', run: () => { push.setDown(); grab?.letGo?.(); }, tgt: ct, name: ci.name, head: 'Place', anchor: at });
     out.push({ id: 'drop', label: 'Drop', icon: 'drop', key: 'G', run: () => push.drop(), tgt: ct, name: ci.name, anchor: at });
-    if (ci.canThrow) out.push({ id: 'throw', label: 'Throw', icon: 'throw', key: 'Space', run: () => push.throw(p), tgt: ct, name: ci.name, anchor: at });
+    if (ci.canThrow) out.push({ id: 'throw', label: 'Throw', icon: 'throw', key: 'V', run: () => push.throw(p), tgt: ct, name: ci.name, anchor: at });
     else out.push({ id: 'turn', label: 'Turn', icon: 'turn', key: 'R', run: () => push.turn(p), tgt: ct, name: ci.name, anchor: at });
     if (ci.canThrow && out.length < 4) out.push({ id: 'turn', label: 'Turn', icon: 'turn', key: 'R', run: () => push.turn(p), tgt: ct, name: ci.name, anchor: at });
     return out.slice(0, 4);
@@ -144,7 +144,7 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
     const at = o ? () => { const st = push.st; if (!st || st.o !== o) return null; return { x: st.cx, y: groundAt(p, st.cx, st.cz) + Math.min(2.2, st.h ?? 1) + 0.25, z: st.cz }; } : overUnit(p);
     out.push({ id: 'letgo', label: 'Let go', icon: 'letgo', key: 'E', run: () => grab.letGo(), tgt: 'held', name: nm, head: 'Let go', anchor: at });
     if (push?.holding && push.mode === 'push') {
-      out.push({ id: 'shove', label: 'Shove', icon: 'push', key: 'Space', run: () => push.shove(p), tgt: 'held', anchor: at });
+      out.push({ id: 'shove', label: 'Shove', icon: 'push', key: 'V', run: () => push.shove(p), tgt: 'held', anchor: at });
       if (o && push.liftable(p, o, true)) out.push({ id: 'lift', label: 'Lift', icon: 'carry', key: 'G', run: () => { grab.letGo(); setTimeout(() => grab.grab(p, { kind: 'object', obj: o, point: _p.set(o.x + 0.5, 0.5, o.y + 0.5) }, 'virtual'), 60); }, tgt: 'held', anchor: at });
     }
     return out;
@@ -312,7 +312,8 @@ export class ContextBar {
 
   private onKey(e: KeyboardEvent) {
     if (e.repeat || G.input?.textFocus || !ctxAllowed()) return;
-    const want = e.code === 'KeyG' ? 'G' : e.code === 'KeyR' ? 'R' : e.code === 'KeyU' ? 'U' : '';
+    const b = G.input?.bindings;
+    const want = b?.grab?.includes(e.code) ? 'G' : b?.rotate?.includes(e.code) ? 'R' : e.code === 'KeyU' ? 'U' : '';
     if (!want) return;
     const a = this.list.find((q) => q.key === want && q.run && !q.why);
     if (!a) return;

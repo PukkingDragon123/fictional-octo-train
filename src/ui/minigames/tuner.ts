@@ -163,7 +163,7 @@ class ScanLock {
     // enough of them it finds the signature by itself from anywhere)
     {
       const ef0 = Math.abs(this.df - this.tf) / this.tol, eg0 = Math.abs(this.dg - this.tg) / this.tol;
-      const reach = E >= 1.9 ? 99 : 2.6 + (E - 1) * 3;
+      const reach = E >= 1.9 ? 99 : 1.8 + Math.max(0, E - 1) * 3;
       const k = Math.min(1, dt * (1.6 + (E - 1) * 2.5));
       if (ef0 < reach) this.df += (this.tf - this.df) * k;
       if (eg0 < reach) this.dg += (this.tg - this.dg) * k;

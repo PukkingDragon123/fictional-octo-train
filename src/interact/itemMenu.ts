@@ -44,13 +44,14 @@ export function itemMenuOptions(p: Player, it: Item, c: Container, group: Item[]
     else o.push({ label: d.bag ? 'Wear on back' : 'Wear', action: pre(() => p.actions.add(new WearAction(p, it))), disabled: d.bag && d.bag.slot === 'hand' ? 'carry in hand' : false });
   }
   if (d.weapon || d.light || (d.tags || []).length || d.bag?.slot === 'hand' || d.heavy || d.radio) {
-    if (p.handR === it || p.handL === it) o.push({ label: 'Unequip', action: () => p.actions.add(new EquipAction(p, null, p.handR === it ? 'R' : 'L')) });
-    else {
-      if (d.weapon?.twoHanded) o.push({ label: 'Equip two-handed', action: pre(() => p.actions.add(new EquipAction(p, it, 'R'))) });
-      else {
-        o.push({ label: 'Equip primary', action: pre(() => p.actions.add(new EquipAction(p, it, 'R'))) });
-        o.push({ label: 'Equip secondary', action: pre(() => p.actions.add(new EquipAction(p, it, 'L'))) });
-      }
+    // round 19: no primary / secondary hand. A thing is held (both hands when it needs them) or put away;
+    // what is used is chosen on the hotbar
+    if (p.handR === it || p.handL === it) o.push({ label: 'Put away', action: () => p.actions.add(new EquipAction(p, null, p.handR === it ? 'R' : 'L')) });
+    else o.push({ label: d.weapon?.twoHanded || d.heavy ? 'Hold (both hands)' : 'Hold', action: pre(() => p.actions.add(new EquipAction(p, it, 'R'))) });
+    if (mine && !((it.data as { hot?: number } | undefined)?.hot)) {
+      const used = new Set(p.allItems().map((q) => (q.data as { hot?: number } | undefined)?.hot).filter(Boolean));
+      const free = [1, 2, 3, 4, 5, 6].find((n) => !used.has(n));
+      o.push({ label: 'Put on the hotbar', disabled: free ? false : 'the hotbar is full', action: () => { if (!free) return; it.data = { ...(it.data || {}), hot: free } as any; bus.emit('inventoryChanged', p); G.audio?.ui?.('bag_place', 0.35); } });
     }
   }
   if (d.light) {
@@ -191,7 +192,7 @@ const PRIMARY: RegExp[] = [
   /^Open$/, /^(Eat|Take)( \(.*\))?(: All)?$/, /^Drink: Gulp/,
   /^(Apply bandage|Disinfect|Stitch|Apply splint|Remove shard): (?!.* — )/, /^Read$/,
   /^Wear( on back)?$/, /^Turn (on|off)$/, /^Reload$/, /^Place$/, /^Plant$/, /^(Use|Play solitaire)$/, /^Use: /,
-  /^Radio/, /^Equip (primary|two-handed)$/, /^Study/,
+  /^Radio/, /^Hold( \(both hands\))?$/, /^Study/,
 ];
 function flat(opts: MenuOption[], prefix = ''): { label: string; action?: () => void; disabled?: string | boolean }[] {
   const out: { label: string; action?: () => void; disabled?: string | boolean }[] = [];

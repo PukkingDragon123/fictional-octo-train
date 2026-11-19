@@ -75,6 +75,7 @@ export class GrabCut {
   private hookFn: ((dt: number) => void) | null = null;
   private knelt = false;
   private released = false;
+  private face0 = 0;
 
   constructor(ui?: unknown) {
     (G as any).grabCut = this;
@@ -106,6 +107,7 @@ export class GrabCut {
     const d = Math.hypot(j.x - p.x, j.z - p.z);
     const pitch = Math.max(38, Math.min(74, Math.atan2(1.05, Math.max(0.2, d - 0.05)) / DEG));
     if (d > 0.15) p.facing = Math.atan2(j.z - p.z, j.x - p.x);
+    this.face0 = p.facing ?? 0;
     if (!fpClaim('grab', 1, { cinematic: 'full', eyePitch: pitch })) { for (const q of this.q) this.flyFrom(q.it, q.x, q.y, q.z); this.q.length = 0; return; }
     this.active = true; this.released = false;
     this.waitT = 0; this.job = null;
@@ -151,6 +153,7 @@ export class GrabCut {
     const vf = (asp >= 1.2 ? base : Math.min(104 * DEG, 2 * Math.atan(Math.tan(base / 2) * 1.2 / asp))) / DEG;
     if (Math.abs(cam.fov - vf) > 0.01) { cam.fov = vf; cam.updateProjectionMatrix(); }
     if (fpOwner() !== 'grab') { this.end(); return; }
+    (G.local as any).facing = this.face0;
     if (!eyeActive()) { this.waitT += dt; if (this.waitT > 1.2) this.end(); return; }
     if ((G.pr as unknown as { eyeFov: number }).eyeFov !== GRAB_FOV) eyeEnter({ pitchDeg: this.pitchFor(), fov: GRAB_FOV });
     const e = eyeCamera(); e.updateMatrixWorld();

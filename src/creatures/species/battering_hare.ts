@@ -113,11 +113,11 @@ function grotesque(S: Ctx, page: Page) {
   const coat = makeRamp(0x6a5a48, 6, { spread: 0.45 });
   FAT.fill(coat, (x, y) => 2.1 + Math.cos(FAT.th(x)) * 0.9 + (FAT.fbm(x, y, 4, 2, 5) - 0.5) * 1.6 + (hash(x, y) - 0.5) * 0.9);
   for (let y = 0; y < FAT.h; y++) for (let x = 0; x < FAT.w; x++) {
-    const m = FAT.fbm(x, y, 5, 2, 33), h = hash(x * 7, y * 3);
+    const m = FAT.fbm(x, y, 5, 2, 33), h = 1 - FAT.fbm(x, y, 11, 1, 34);
     if (Math.cos(FAT.th(x)) < -0.6) FAT.blend(x, y, 0xb0a088, 0.35); // the paler underside
-    if (m > 0.72) FAT.set(x, y, h < 0.25 ? 0x5a1a14 : mixHex(0xb88a84, 0xd8a8a0, hash(x * 5, y))); // mange, scabs, stretch-raw skin
+    if (m > 0.72) FAT.blend(x, y, h < 0.3 ? 0x5a1a14 : mixHex(0xb88a84, 0xd8a8a0, FAT.fbm(x, y, 9, 1, 35)), Math.min(1, (m - 0.72) * 12)); // mange, scabs, stretch-raw skin
     else if (m < 0.2) FAT.blend(x, y, 0x241c16, 0.55); // matted, filthy
-    if ((x + y * 3) % 7 === 0 && h < 0.4) FAT.blend(x, y, 0x3a2e24, 0.4); // the lie of the hair
+    if ((x + y * 3) % 7 === 0) FAT.blend(x, y, 0x3a2e24, 0.18); // the lie of the hair
   }
   for (let y = 0; y < TOOTH.h; y++) for (let x = 0; x < TOOTH.w; x++) TOOTH.set(x, y, mixHex(0xe8d088, 0x8a5a20, y / TOOTH.h * 0.7 + hash(x, y) * 0.15));
   SKIN.fill(makeRamp(0x9a8a76, 6, { spread: 0.4 }), (x, y) => 2.8 + Math.cos(SKIN.th(x)) * 0.8 + (hash(x, y) - 0.5));
@@ -128,7 +128,7 @@ function grotesque(S: Ctx, page: Page) {
   for (let x = 0; x < EAR.w; x++) if (Math.abs(EAR.th(x)) > 1.6) for (let y = 0; y < EAR.h; y++) EAR.blend(x, y, 0x6a5a4a, 0.7); // furred backs
   SCAR.fill(makeRamp(0xc88a8a, 6, { spread: 0.55 }), (x, y) => 2.6 + Math.sin(x * 1.3 + y * 0.7) * 1.2 + (hash(x, y) - 0.5));
   for (let i = 0; i < 8; i++) SCAR.line(hash(i, 5) * SCAR.w, hash(i, 6) * SCAR.h, hash(i, 7) * SCAR.w, hash(i, 8) * SCAR.h, 0xe8c8b8, 0.7);
-  for (let y = 0; y < TAILR.h; y++) for (let x = 0; x < TAILR.w; x++) TAILR.set(x, y, hash(x * 3, y) < 0.2 ? 0x6a5a46 : mixHex(0xe0d8c8, 0xa89880, hash(x, y * 5)));
+  for (let y = 0; y < TAILR.h; y++) for (let x = 0; x < TAILR.w; x++) TAILR.set(x, y, mixHex(0xe0d8c8, 0x7a6a56, TAILR.fbm(x, y, 5, 2, 9) * 0.8));
   BOSS.fill(makeRamp(0x8a7a60, 6, { spread: 0.5 }), (x, y) => 2.6 + Math.cos(BOSS.th(x)) * 1.1 + ((y % 3) === 0 ? -1 : 0) + (hash(x, y) - 0.5) * 0.8);
   for (let y = 0; y < EYE.h; y++) for (let x = 0; x < EYE.w; x++) { const r = Math.hypot(EYE.th(x), (y / EYE.h - 0.5) * 3); EYE.set(x, y, r < 0.9 ? mixHex(0x0e0808, 0x2a1810, r) : r < 1.3 ? 0x8a2a2a : mixHex(0xc89090, 0x8a5050, hash(x, y) * 0.5)); }
   EYE.set(Math.floor(EYE.w * 0.45), Math.floor(EYE.h * 0.35), 0xffffff);
@@ -136,7 +136,7 @@ function grotesque(S: Ctx, page: Page) {
     const r = page.regs.get(name); if (!r) continue;
     for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
       const m = r.fbm(x, y, 5, 2, 71);
-      if (m > 0.7) r.set(x, y, hash(x, y * 3) < 0.25 ? 0x5a1a14 : mixHex(0xb88a84, 0xd8a8a0, hash(x * 5, y))); // mange and scabs
+      if (m > 0.7) r.blend(x, y, r.fbm(x, y, 11, 1, 72) > 0.66 ? 0x5a1a14 : mixHex(0xb88a84, 0xd8a8a0, r.fbm(x, y, 9, 1, 73)), Math.min(1, (m - 0.7) * 12)); // mange and scabs
       else if (m < 0.2) r.blend(x, y, 0x241c16, 0.5); // matted, filthy
     }
   }

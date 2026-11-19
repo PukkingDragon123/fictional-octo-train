@@ -52,7 +52,7 @@ export function radioLine(who: string, text: string, secs = 5) {
   // a voice with no body in the scene: low in the picture, like a film subtitle
   playLine(text, voiceForStyle('radio', who), null, { vol: 0.75 });
   G.audio?.ui?.('static_burst', 0.12);
-  const p = G.local;
+  const p = G?.local;
   if (!subStrip() && p) { cineSay('radio', text, overHead(p, 2.45), { secs, name: who || 'RADIO', tone: 'radio', times: letterTimes(text).t }); return; }
   offscreen(floatText(text, { kind: 'radio', name: who || 'RADIO', life: secs }), secs);
 }
@@ -148,7 +148,7 @@ export function initSubtitles(ui: UiLike) {
         else if (calder && calderHas(text)) calderSay(text, { vol: 0.95 });
         else playLine(text, voiceForStyle(isGuard ? 'guard' : 'voss', who), target ? { x: target.x, z: target.z } : null, { vol: isGuard ? 1 : 0.28 });
         if (!target && !isGuard && G.holo?.visible && G.holo.showLine) { G.holo.showLine(text, secs, 'voss', who || 'CALDER'); return; }
-        if (!target && !isGuard && G.local) target = overHead(G.local, 2.5);
+        if (!target && !isGuard && G?.local) target = overHead(G.local, 2.5);
         if (!target) { offscreen(el, secs); return; }
         push(el, target, isGuard ? 'guard' : 'voss');
       }

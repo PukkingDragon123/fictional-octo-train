@@ -55,6 +55,8 @@ const INST = 4;
 q({
   key: 'first_haul', main: true, auto: true, voice: 'handler', title: 'First Haul', giver: CALDER, category: 'contract',
   requires: ['flag:contract:intake'],
+  // round 19: on a first run, Dr. Calder's own first mission comes first (src/game/tutorial/firstRun.ts)
+  when: (m) => !m.flags.has('fr:on') || m.flags.has('fr:done'),
   desc: 'The unit owes, and the Institute collects in furniture. Get hold of a piece, carry it whole to a press and feed it in: next to the striped plate, E (or FEED) lays it on and throws the lever. Things down here are built to last: carrying is quicker than breaking.',
   intro: 'Your first job, unit. Pick up a piece of furniture. Carry it to the press. Feed it in. Slowly. The body is new to you.',
   objectives: [

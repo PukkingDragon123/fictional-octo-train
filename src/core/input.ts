@@ -6,31 +6,41 @@ export type Action =
   | 'up' | 'down' | 'left' | 'right' | 'run' | 'sneak' | 'shove' | 'interact' | 'flashlight'
   | 'scanner' | 'inventory' | 'map' | 'reload' | 'shout' | 'camLeft' | 'camRight' | 'talk' | 'chat'
   | 'pause' | 'hot1' | 'hot2' | 'hot3' | 'hot4' | 'hot5' | 'rotate' | 'grab' | 'walkToggle' | 'craft' | 'sleep'
-  // the physical overhaul (additive): Shift = power, H = lung pump, Q = whistle (hold = shout), B = build mode,
-  // G = emote wheel; 'watch' / 'scanner' / 'map' are retired (round 14: no wrist watch) and unbound;
+  // the physical overhaul (additive): power (Shift's push), H = lung pump, whistle (hold = shout), build mode,
+  // the emote wheel; 'watch' / 'scanner' / 'map' are retired (round 14: no wrist watch) and unbound;
   // 'hold' / 'primary' have no keys (touch props press them; rebindable)
   | 'power' | 'breathe' | 'whistle' | 'build' | 'emote' | 'watch' | 'hold' | 'primary'
   // the iron cube (additive): draw / holster the tool in the tool roll's quick-draw holster
   | 'toolDraw'
-  // tribes / domination / scanning (additive): hold Q (or N) = the suit scanner, K = order your thralls.
-  // Q is shared with whistle / shout: it scans only when an inhabitant, anomaly or stranger is in front (src/scan/scan.ts)
+  // tribes / domination / scanning (additive): hold Q = the suit scanner, K = order your thralls
   | 'scan' | 'command'
-  // round 15 motion: C = dodge roll (hold the sneak key to drop prone and crawl)
-  | 'roll';
+  // round 19 movement: C = crouch (sprinting: slide), Ctrl = crawl (down flat / up again), Space = vault / jump.
+  // The old C dodge roll is gone ('roll' stays as an unbound name so old saves and props still type-check)
+  | 'roll' | 'crawl' | 'jump';
 
+/**
+ * One key per action, no key on two actions (round 19 audit). Rarely used things sit on odd keys:
+ * the whistle (tap; hold = shout) on comma, the emote wheel on period. Keys that only work inside their own
+ * screen (build mode's brackets / U / Delete, the backpack scene, photo mode) are listed on the Controls page
+ * and never clash with these because those screens take the keyboard while they are open.
+ */
 export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
-  run: ['ShiftLeft', 'ShiftRight'], sneak: ['ControlLeft'], shove: ['Space'], interact: ['KeyE'],
-  flashlight: ['KeyF'], scanner: [], inventory: ['KeyI'], map: [], reload: ['KeyR'], shout: ['KeyQ'],
-  camLeft: ['KeyZ'], camRight: ['KeyX'], talk: ['KeyV'], chat: ['Enter', 'KeyT'], pause: ['Escape'],
+  run: ['ShiftLeft', 'ShiftRight'], sneak: ['KeyC'], crawl: ['ControlLeft', 'ControlRight'], jump: ['Space'],
+  shove: ['KeyV'], interact: ['KeyE'], inventory: ['KeyB', 'KeyI'],
+  flashlight: ['KeyF'], scanner: [], map: [], reload: [], shout: [],
+  camLeft: ['KeyZ'], camRight: ['KeyX'], talk: ['KeyT'], chat: ['Enter'], pause: ['Escape'],
   hot1: ['Digit1'], hot2: ['Digit2'], hot3: ['Digit3'], hot4: ['Digit4'], hot5: ['Digit5'],
-  rotate: ['KeyR'], grab: ['KeyG'], walkToggle: ['CapsLock'], craft: [], sleep: ['KeyZ'],
-  power: ['ShiftLeft', 'ShiftRight'], breathe: ['KeyH'], whistle: ['KeyQ'], build: [], emote: ['KeyG'], watch: [],
+  rotate: ['KeyR'], grab: ['KeyG'], walkToggle: ['CapsLock'], craft: [], sleep: [],
+  // power is the same push as sprinting (every reader checks run too): no key of its own
+  power: [], breathe: ['KeyH'], whistle: ['Comma'], build: [], emote: ['Period'], watch: [],
   hold: [], primary: [],
   toolDraw: ['Backquote', 'KeyY'],
-  scan: ['KeyQ', 'KeyN'], command: ['KeyK'],
-  roll: ['KeyC'],
+  scan: ['KeyQ'], command: ['KeyK'],
+  roll: [],
 };
+/** bump when the defaults move: saved bindings from an older layout are dropped (round 19 moved most keys) */
+const BINDINGS_VERSION = 19;
 
 /** combined movement input: unit direction (x right, y forward) plus strength 0..1 */
 export interface MoveAxis { x: number; y: number; mag: number; analog: boolean }
@@ -98,12 +108,13 @@ export class Input {
     el.addEventListener('wheel', (e) => { this.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
     try {
       const saved = localStorage.getItem('noclip.bindings');
-      if (saved) Object.assign(this.bindings, JSON.parse(saved));
+      const ver = Number(localStorage.getItem('noclip.bindings.v') || 0);
+      if (saved && ver >= BINDINGS_VERSION) Object.assign(this.bindings, JSON.parse(saved));
       for (const k of Object.keys(DEFAULT_BINDINGS) as Action[]) if (!Array.isArray(this.bindings[k])) this.bindings[k] = [...DEFAULT_BINDINGS[k]];
     } catch { /* storage unavailable */ }
   }
 
-  saveBindings() { try { localStorage.setItem('noclip.bindings', JSON.stringify(this.bindings)); } catch { /* ignore */ } }
+  saveBindings() { try { localStorage.setItem('noclip.bindings', JSON.stringify(this.bindings)); localStorage.setItem('noclip.bindings.v', String(BINDINGS_VERSION)); } catch { /* ignore */ } }
 
   down(a: Action): boolean {
     if (this.textFocus) return false;
@@ -170,6 +181,13 @@ export class Input {
 
   keyName(a: Action): string {
     const c = this.bindings[a][0] || '?';
-    return c.replace('Key', '').replace('Digit', '').replace('Left', '').replace('Right', '');
+    return keyLabel(c);
   }
+}
+
+/** a key code as printed on the cap ('KeyB' -> 'B', 'ControlLeft' -> 'Ctrl', 'Comma' -> ',') */
+export function keyLabel(code: string): string {
+  const named: Record<string, string> = { Space: 'Space', Comma: ',', Period: '.', Backquote: '`', Enter: 'Enter', Escape: 'Esc', CapsLock: 'Caps', Tab: 'Tab' };
+  if (named[code]) return named[code];
+  return code.replace('Key', '').replace('Digit', '').replace('Control', 'Ctrl').replace('Left', '').replace('Right', '');
 }

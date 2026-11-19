@@ -180,6 +180,8 @@ export function startSession(o: SessionOpts): Game {
   new PauseMenu();
   // round 18: the core keys, each shown once on a first run (src/ui/keyHints.ts)
   import('../ui/keyHints').then((m) => m.installKeyHints()).catch((e) => console.warn('key hints', e));
+  // round 19: the tracked job and its clock, small at the top of the screen
+  import('../ui/questTracker').then((m) => m.installQuestTracker()).catch((e) => console.warn('quest tracker', e));
   // round 17: Tab and the phone's MENU key raise the wrist terminal (src/ui/bandos); Esc is the pause
   import('../ui/bandos/bandos').then((m) => m.installBandOS()).catch((e) => console.warn('band os', e));
 
