@@ -260,7 +260,7 @@ export class HealthView {
     if (!fpClaim('health', 4, { cinematic: 'none' })) return;
     this.open = true; this.closing = false; this.show = 0; this.t = 0;
     this.outfitSig = ''; this.sel = null; this.hoverMark = null; this.hoverTool = -1;
-    this.yaw = 0.35; this.yawV = 1.4; this.yawGoal = null;
+    this.yaw = 0.35; this.yawV = 1.4; this.yawGoal = null; this.zk = 0; this.zoom = 1; this.present = 0;
     for (const s of this.splats) s.visible = false;
     this.drops.length = 0;
     this.setTools(null);
@@ -316,7 +316,7 @@ export class HealthView {
   private buildBay(): THREE.Object3D {
     const mb = new ModelBuilder(), glow = new ModelBuilder();
     // floor and walls
-    mb.box(0, -0.02, 0.6, 12, 0.02, 4.4, 'hv_lino', { ao: false, bevel: false });
+    mb.box(0, -0.02, 2.6, 12, 0.02, 8.4, 'hv_lino', { ao: false, bevel: false });
     mb.box(0, 1.08, BAY_Z - 0.06, 12, 4.6, 0.1, 'hv_tile', { ao: false, bevel: false, uvScale: 1.6 });
     mb.box(0, 0, BAY_Z + 0.0, 12, 0.98, 0.06, 'hv_olive', { ao: false, bevel: false });
     mb.box(0, 0.98, BAY_Z + 0.02, 12, 0.08, 0.06, 'hv_haz', { ao: false, bevel: false, fit: { south: true } as any });
