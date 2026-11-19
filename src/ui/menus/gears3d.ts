@@ -17,6 +17,12 @@ import { kitScale } from './btnKit';
 import { sfx } from './sfx';
 import { calm } from './settings';
 import './kit.css';
+import { mxIconAnim, type IconKind } from '../machine/decor';
+import { mxOk } from '../machine/core';
+import './labIcons';
+
+/** the settings pages' models (round 21) */
+const PAGE_ICON: Record<string, IconKind> = { sound: 'radio', picture: 'crt', interface: 'joystick', game: 'clipboard' };
 
 /** the gears' pixel: about two thirds of the kit's art pixel, a whole number of device pixels (more facets read) */
 export function fineScale(): number {
@@ -246,11 +252,24 @@ export function gearCluster(pages: string[], onPick: (i: number) => void, start 
   for (const g of gears) rig.add(g.group);
   rig.rotation.set(-0.3, 0.32, 0);
   st.scene.add(rig);
+  const icons: ({ hot(on: boolean): void } | null)[] = [];
   const btns = pages.map((p, i) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'gc-b';
     b.innerHTML = `<span>${p}</span>`;
     b.setAttribute('role', 'tab');
+    b.setAttribute('aria-label', p);
+    // round 21: each page is a little model beside its gear (a radio, a CRT, a joystick, a clipboard); the word
+    // floats out only while the gear is hot
+    const kind = PAGE_ICON[p.toLowerCase()];
+    const ic = kind && mxOk() ? mxIconAnim(kind, 34) : null;
+    icons.push(ic);
+    if (ic) {
+      const w = document.createElement('i'); w.className = 'gc-i'; w.append(ic.cv); b.prepend(w); b.classList.add('has-i');
+      const hot = () => ic.hot(b.matches(':hover') || b.matches(':focus-visible') || b.classList.contains('on'));
+      for (const ev of ['pointerenter', 'pointerleave', 'focus', 'blur']) b.addEventListener(ev, () => requestAnimationFrame(hot));
+      b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') sfx('tick', 0.35); });
+    }
     b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && document.activeElement !== b) b.focus({ preventScroll: true }); });
     b.addEventListener('click', () => select(i, true));
     el.append(b);
@@ -326,7 +345,7 @@ export function gearCluster(pages: string[], onPick: (i: number) => void, start 
       return true;
     },
   };
-  const paintBtns = () => { const on = pending >= 0 ? pending : cur; btns.forEach((b, i) => { b.classList.toggle('on', i === on); b.setAttribute('aria-selected', String(i === on)); }); };
+  const paintBtns = () => { const on = pending >= 0 ? pending : cur; btns.forEach((b, i) => { b.classList.toggle('on', i === on); b.setAttribute('aria-selected', String(i === on)); icons[i]?.hot(i === on || b.matches(':hover')); }); };
   const select = (i: number, animate = true) => {
     i = ((i % n) + n) % n;
     if (i === cur && pending < 0) return;

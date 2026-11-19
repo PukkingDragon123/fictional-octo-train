@@ -9,6 +9,7 @@
 import { G } from '../game/G';
 import type { QuestRuntime } from '../missions/questRuntime';
 import { mxIconAnim, type IconKind } from './machine/decor';
+import { creditSlot } from './creditIcon';
 
 // round 21: the icons lead: a little 3D model of what the step asks for (a crate to carry, a lens to search, the press,
 // a boot to go somewhere...) turns in front of the line, and sways when the step changes
@@ -25,6 +26,8 @@ function leadIcon(k: IconKind) { if (!icCache.has(k)) icCache.set(k, mxIconAnim(
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 const clean = (s: string) => s.replace(/\s*\([^)]*\)/g, '').split(/\s*[:;]\s*/)[0].trim();
+/** round 21: an amount of credits in a line becomes the spinning credit coin and the number */
+const coins = (html: string) => html.replace(/([\d][\d,]*)\s*(?:credits|cr)\b/gi, (_m, n: string) => creditSlot(Number(n.replace(/,/g, '')), 14));
 let deadline: number | null = null;
 export function setTrackerTimer(t: number | null) { deadline = t; }
 export function trackerTimeLeft(): number | null { return deadline === null ? null : Math.max(0, deadline - (G.time ?? 0)); }
@@ -95,7 +98,7 @@ export function installQuestTracker() {
       if (s === sig) return;
       sig = s;
       el!.className = 'qtk lp-track flash t-' + (flash.tone ?? 'up') + (busy ? '' : ' on');
-      el!.innerHTML = `<span class="qtk-i"></span><img class="qtk-l" src="${flash.tone === 'ok' ? LAMP_G : LAMP}" alt=""><b>${esc(flash.title)}</b>${flash.step ? `<em>${esc(clean(flash.step))}</em>` : ''}`;
+      el!.innerHTML = `<span class="qtk-i"></span><img class="qtk-l" src="${flash.tone === 'ok' ? LAMP_G : LAMP}" alt=""><b>${esc(flash.title)}</b>${flash.step ? `<em>${coins(esc(clean(flash.step)))}</em>` : ''}`;
       lead(flash.step ? stepIcon(flash.step) : flash.tone === 'ok' ? 'key' : 'clipboard');
       return;
     }
@@ -110,7 +113,7 @@ export function installQuestTracker() {
     const s = [v.title, step?.text ?? '', mm, left !== null && left < 120 ? 1 : 0].join('|');
     if (s === sig) return;
     sig = s;
-    el!.innerHTML = `<span class="qtk-i"></span><b>${esc(v.title)}</b>${step ? `<em>${esc(clean(step.text))}</em>` : ''}${mm ? `<span class="qtk-t${left! < 120 ? ' late' : ''}"><img src="${WATCH}" alt="">${mm}</span>` : ''}`;
+    el!.innerHTML = `<span class="qtk-i"></span><b>${esc(v.title)}</b>${step ? `<em>${coins(esc(clean(step.text)))}</em>` : ''}${mm ? `<span class="qtk-t${left! < 120 ? ' late' : ''}"><img src="${WATCH}" alt="">${mm}</span>` : ''}`;
     lead(stepIcon(step?.text ?? v.title));
   } });
 }

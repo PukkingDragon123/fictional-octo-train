@@ -20,10 +20,12 @@ import { bodyCanvas, moodleIcon, BODY_W, BODY_H } from '../moodles';
 import { lossSummary } from '../../survival/limbs';
 import { gearCluster, type GearCluster } from './gears3d';
 import { terminal, type Terminal } from './terminal';
-import { pxButton, pxBanner, pxAccessLog, pxSerialEl, nodeId, type PxButton } from '../pxKit';
+import { pxButton, pxAccessLog, pxSerialEl, nodeId } from '../pxKit';
 import { mxFrame, panelSpec, mxGauge, mxArrive } from '../machine/kit';
 import { mxOk } from '../machine/core';
-import { mxMount, type IconKind } from '../machine/decor';
+import { mxMount, mxIcon, type IconKind } from '../machine/decor';
+import { iconKey, iconBanner } from './iconKey';
+import { creditAmount } from '../creditIcon';
 import './diegetic.css';
 import './noir.css';
 import './pause.css';
@@ -52,39 +54,47 @@ export class PauseMenu {
     const num = p ? suitNumber((p.rig as any)?.seed ?? 0) : 'D-____';
     const z0 = p ? zoneSpec(p.zoneKey) : null;
     const top = h('div', 'ps2-bar top', `<div class="ps2-title"><b>${solo ? 'Time held' : 'Time does not stop'}</b><small>${esc(time)}${z0?.name ? ' · ' + esc(z0.name) : ''}</small></div><div class="ps2-id">${esc(num)}</div>`);
-    const bot = h('div', 'ps2-bar bot', `<span class="ps2-hint"></span><span class="ps2-hint">Esc resume · Q E pages</span>`);
+    const bot = h('div', 'ps2-bar bot');
     top.querySelector('.ps2-id')?.replaceChildren(pxSerialEl('UNIT ' + num));
-    top.prepend(pxBanner());
-    bot.replaceChildren(pxAccessLog(nodeId(3)), h('span', 'ps2-hint', 'Esc resume · Q E pages'));
+    // round 21: the banner is the crest and the clearance lamps (names on hover), the foot only the access log
+    top.prepend(iconBanner());
+    bot.replaceChildren(pxAccessLog(nodeId(3)));
     const col = h('nav', 'ps2-col');
     const pages: Page[] = ['main', 'options', 'controls', ...(G.net ? ['coop' as Page] : [])];
     let cur = Math.max(0, pages.indexOf(page));
     const right = h('div', 'ps-right ps2-right');
-    const t: Terminal = terminal({ title: `Bailiff · ${num}`, sub: NAMES[pages[cur]][0], cls: 'ps-term', model: 'Bailiff · Band link' });
+    const t: Terminal = terminal({ title: num, sub: '', cls: 'ps-term', model: 'Bailiff · Band link' });
     const gearSlot = h('div', 'ps-gears');
     right.append(gearSlot, t.el);
-    const pageBtns = new Map<Page, PxButton>();
+    const pageBtns = new Map<Page, { setOn(on: boolean): void }>();
     const pt = window.innerHeight > window.innerWidth * 1.05 || window.innerWidth < 720;
-    const bw = pt ? 150 : 244, bh = pt ? 30 : 36;
-    const plate = (label: string, fn: () => void, o: Parameters<typeof pxButton>[2] = {}) => {
-      const b = pxButton(label, fn, { w: bw, h: bh, sound: o.lamp === 'red' ? 'lever' : 'plate', ...o });
-      col.append(b);
-      return b;
+    // round 21: the column's plates are icon keys in pairs (a model on each cap; the name floats while hot)
+    const kw = pt ? 58 : 84, kh = pt ? 48 : 62;
+    let pair: HTMLElement | null = null;
+    const plate = (label: string, fn: () => void, o: { tone?: 'olive' | 'yellow' | 'red'; lamp?: 'amber' | 'green' | 'red'; icon: IconKind; cls?: string; hint?: string }) => {
+      const b = mxOk()
+        ? iconKey(o.icon, label, fn, { w: kw, h: kh, tone: o.tone ?? 'olive', lamp: o.lamp ?? 'amber', sound: o.lamp === 'red' ? 'lever' : 'plate', cls: 'pxb ps2-ik' + (pt ? ' ik-sm' : '') + (o.cls ? ' ' + o.cls : ''), nameAt: pt ? 'bottom' : 'right', hint: o.hint, seed: 80 + col.childElementCount })
+        : pxButton(label, fn, { w: 150, h: 30, lamp: o.lamp, icon: o.icon, cls: o.cls });
+      if (!pair || pair.childElementCount >= 2) { pair = h('div', 'ps2-pair'); col.append(pair); }
+      pair.append(b);
+      return b as unknown as { setOn(on: boolean): void };
     };
-    plate('Resume', () => this.close(), { tone: 'olive', lamp: 'green', icon: 'play' });
-    if (G.role !== 'client') plate(pt ? 'Save' : 'Save tape', async () => { const ok = await saveGame(); G.ui?.toast?.(ok ? 'TAPE SAVED' : 'COULD NOT SAVE', ok ? 'progress written to this browser' : '', 2); this.close(); }, { icon: 'tape' });
-    col.append(h('i', 'ps2-gap'));
-    const PAGE_ICON: Record<Page, IconKind> = { main: 'clipboard', options: 'gear', controls: 'key', coop: 'radio' };
-    for (const pg of pages) pageBtns.set(pg, plate(NAMES[pg][0], () => select(pages.indexOf(pg)), { icon: PAGE_ICON[pg] }));
+    const gap = () => { pair = null; col.append(h('i', 'ps2-gap')); };
+    plate('Resume', () => this.close(), { tone: 'yellow', lamp: 'green', icon: 'play', hint: 'Esc' });
+    if (G.role !== 'client') plate('Save tape', async () => { const ok = await saveGame(); G.ui?.toast?.(ok ? 'TAPE SAVED' : 'COULD NOT SAVE', ok ? 'progress written to this browser' : '', 2); this.close(); }, { icon: 'tape' });
+    gap();
+    const PAGE_ICON: Record<Page, IconKind> = { main: 'clipboard', options: 'gear', controls: 'joystick', coop: 'walkie' };
+    for (const pg of pages) pageBtns.set(pg, plate(NAMES[pg][0], () => select(pages.indexOf(pg)), { icon: PAGE_ICON[pg], hint: 'Q E' }));
     // round 17: the emote jukebox (buy emotes for dollars, fill the wheel)
-    plate(pt ? 'Emotes' : 'Emote jukebox', () => { void import('../../social/emotes/shop').then((m) => m.openEmoteShop()); }, { icon: 'coin' });
-    col.append(h('i', 'ps2-gap'));
-    plate(pt ? 'To the lab' : 'Back to the lab', async () => {
+    plate('Emote jukebox', () => { void import('../../social/emotes/shop').then((m) => m.openEmoteShop()); }, { icon: 'reel' });
+    gap();
+    plate('Back to the lab', async () => {
       const ok = await confirmDialog({ title: 'Back to the lab', body: G.role === 'client' ? 'Leave the room and go back to the lab?' : 'Saved first. The link drops and you are back in the lab.', ok: 'Go back', cancel: 'Stay', danger: true });
       if (!ok) return;
       if (G.role !== 'client') await saveGame();
       location.reload();
     }, { tone: 'red', lamp: 'red', cls: 'danger', icon: 'door' });
+    pair = null;
 
     let tabFn: ((d: -1 | 1) => void) | null = null;
     const render = (dir: 1 | -1 | 0) => {
@@ -111,7 +121,7 @@ export class PauseMenu {
       }
       else if (pg === 'controls') frag.append(controlsPanel());
       else if (pg === 'coop') frag.append(...this.coopPage());
-      t.setHead(`Bailiff · ${num}`, NAMES[pg][0] + ' · ' + NAMES[pg][1]);
+      t.setHead(num, '');
       // the settings open the tube's switch deck: knobs, bat toggles and latching keys on dark enamel
       if (mxOk()) t.screen.classList.toggle('ct-deck', pg === 'options');
       for (const [k, b] of pageBtns) b.setOn(k === pg);
@@ -132,9 +142,8 @@ export class PauseMenu {
       const foot = h('div', 'ps2-foot');
       const g = mxGauge(50, solo ? 0 : 0.55, 'TIME');
       if (g) foot.append(g);
-      foot.append(h('span', 'ps2-foot-l', solo ? 'Time held' : 'Time running'));
       col.append(foot);
-      mxFrame(col, (w, hh) => { const s = panelSpec(w, hh, { title: 'OPERATOR CONTROL', seed: 23, lamps: ['green', 'amber'], glands: 2, hazard: true, top: 40, bot: 18 }); return s; }, { pad: 16 });
+      mxFrame(col, (w, hh) => { const s = panelSpec(w, hh, { seed: 23, lamps: ['green', 'amber'], glands: 2, hazard: true, top: 40, bot: 18 }); return s; }, { pad: 16 });
       // the little things round the console: a spanner on its peg, the specimen jar in the gap (it watches the
       // pointer), a beacon on the terminal's hood that turns when something is wrong (debt overdue, the unit down)
       if (!pt) {
@@ -158,7 +167,7 @@ export class PauseMenu {
       onBack: () => (cur === 0 ? this.close() : select(0)),
       // Q/E switch the option sub-pages while on SETTINGS, the file's pages elsewhere
       onTab: (d) => (tabFn && pages[cur] === 'options' ? tabFn(d) : select(cur + d)),
-      autofocus: col.querySelector('.pxb') as HTMLElement,
+      autofocus: col.querySelector('.pxb, .ik') as HTMLElement,
     });
     el.addEventListener('pointerdown', (e) => { if (e.target === el) this.close(); });
   }
@@ -189,24 +198,33 @@ export function statusPage(solo: boolean): HTMLElement[] {
   if (p) {
     const st = h('div', 'ps-grid');
     const d = G.debt as any;
-    const rows: [string, string, boolean?][] = [
-      ['Debtor', p.name],
-      ['Programme', occupationByKey(p.occupation).name],
+    // round 21: each row's name is a little model (the name on hover); credits are the spinning coin
+    type V = string | (string | HTMLElement)[];
+    const rows: [string, IconKind, V, boolean?][] = [
+      ['Debtor', 'dossier', p.name],
+      ['Programme', 'clipboard', occupationByKey(p.occupation).name],
       // the talent marbles weighed on the bench (survival/talents.ts)
-      ['Talent', talentLine(p.body)],
-      ['Location', z?.name || p.zoneKey],
-      ['Condition', p.body.dead ? 'DELETED' : p.body.downed ? 'DOWN' : 'ALIVE', p.body.downed],
+      ['Talent', 'scale', talentLine(p.body)],
+      ['Location', 'map', z?.name || p.zoneKey],
+      ['Condition', 'eye', p.body.dead ? 'DELETED' : p.body.downed ? 'DOWN' : 'ALIVE', p.body.downed],
     ];
     if (d?.on) {
       // numbers, not sentences
-      rows.push(['Debt', `-${(d.remaining ?? 0).toLocaleString('en')} CR · ${(d.paid ?? 0).toLocaleString('en')} paid`]);
-      rows.push(['Purse', purseLine(d.cleared ? (d.surplus ?? 0) : null)]);
-      if (!d.cleared) rows.push(['Installment', `${d.installment ?? '?'}/${d.count ?? '?'} · ${(d.due ?? 0).toLocaleString('en')} CR · ${Math.floor(d.hoursLeft ?? 0)} h`, (d.hoursLeft ?? 99) < 12]);
-      else rows.push(['Debt', 'CLEARED']);
+      rows.push(['Debt', 'credit', [creditAmount(-(d.remaining ?? 0), 16), ' · ', creditAmount(d.paid ?? 0, 16), ' paid']]);
+      rows.push(['Purse', 'ledger', d.cleared ? [creditAmount(d.surplus ?? 0, 16), ' · ', purseLine(null)] : purseLine(null)]);
+      if (!d.cleared) rows.push(['Installment', 'phone', [`${d.installment ?? '?'}/${d.count ?? '?'} · `, creditAmount(d.due ?? 0, 16), ` · ${Math.floor(d.hoursLeft ?? 0)} h`], (d.hoursLeft ?? 99) < 12]);
+      else rows.push(['Debt', 'credit', 'CLEARED']);
     }
     const lost = (p.body as any).severed?.length ? lossSummary((p.body as any).severed) : '';
-    if (lost) rows.push(['Lost', lost, true]);
-    for (const [k, v, warn] of rows) st.append(h('span', '', esc(k)), h('b', warn ? 'ct-warn' : '', esc(v)));
+    if (lost) rows.push(['Lost', 'skull', lost, true]);
+    for (const [k, ic, v, warn] of rows) {
+      const lab = h('span', 'ps-ic');
+      const cv = mxOk() ? mxIcon(ic, 20) : null;
+      if (cv) { lab.append(cv); lab.title = k; lab.setAttribute('aria-label', k); } else lab.textContent = k;
+      const val = h('b', warn ? 'ct-warn' : '');
+      if (typeof v === 'string') val.textContent = v; else val.append(...v);
+      st.append(lab, val);
+    }
     out.push(st);
     // the body map and every status that is up, worst first
     const cond = h('div', 'ps-cond');

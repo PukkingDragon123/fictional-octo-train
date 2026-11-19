@@ -16,7 +16,6 @@
 // for the creator (intake.ts). SETTINGS sits beside a real 3D steel gear
 // (gears3d.ts); CONTROLS, ABOUT, CO-OP and the CASE FILES open on a green
 // phosphor terminal (terminal.ts).
-import { pxBanner, CLEARANCE } from '../pxKit';
 import { Game } from '../../game/game';
 import { randomAppearance } from '../../entities/humanRig';
 import { randomLooks } from '../../entities/humanLooks';
@@ -58,10 +57,17 @@ import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePa
 import * as THREE from 'three';
 import { mxOk } from '../machine/core';
 import { mxFrame, mxSkinKey, panelSpec, type MxFrame } from '../machine/kit';
-import { mxIconAnim, mxMount, type MxDecor } from '../machine/decor';
+import { mxIconAnim, mxMount, type MxDecor, type IconKind } from '../machine/decor';
+import { iconKey, iconBanner } from './iconKey';
 
 // round 18: the keys' icons are detailed 2D pixel art (deco/pixIcons.ts), bigger, the hot frame lit under the pointer
 const TITLE_ICON: Record<string, PixKind> = { continue: 'play', new: 'plug', free: 'reel', coop: 'radio', load: 'clipboard', controls: 'joystick', about: 'dossier' };
+// round 21: the rooms' keys (labIcons.ts adds the lattice, the balance, the flask, the spool, the CRT and the cabinet)
+const ACT_ICON: Record<string, IconKind> = {
+  tree: 'lattice', talent: 'scale', process: 'flask', req: 'ledger', press: 'credit', fab: 'spool', file: 'dossier',
+  inhabitants: 'jar', items: 'wrench', places: 'map', anomalies: 'siren', research: 'clipboard', new: 'plug',
+};
+const ROOM_ICON: Record<FeedKey, IconKind> = { archive: 'cabinet', research: 'crt', subject: 'plug' };
 
 export function showTitle() {
   const canvas = document.getElementById('view') as HTMLCanvasElement;
@@ -103,7 +109,7 @@ class TitleRoom {
   hotcap = h('div', 'mr-hotcap');
   feedNav = h('div', 'mr-feeds');
   // the Institute banner across the top of the booth (the UI kit, round 15c)
-  hud = (() => { const d = h('div', 'mr-hud'); const bn = pxBanner(CLEARANCE, 'OBSERVATION BOOTH 4'); bn.classList.add('mr-banner'); d.append(bn); return d; })();
+  hud = (() => { const d = h('div', 'mr-hud'); const bn = iconBanner({ booth: 4 }); bn.classList.add('mr-banner'); d.append(bn); return d; })();
   foot = h('div', 'tt3-foot kf', '<span>arrows · enter · esc · 1 2 3 feeds</span><span>Observation · Meridian Institute of Liminality</span>');
   over = h('div', 'nx-over');
   room: SubjectRoom;
@@ -349,7 +355,22 @@ class TitleRoom {
     this.menu.classList.add('ft-menu');
     if (!mxOk()) this.menu.append(this.cap);
     this.btns.clear();
+    // round 21: the way in stays a worded key; the rest are square keys three to a row, each with its little
+    // model turning on the cap and its name floating beside it only while hot
+    let row: HTMLElement | null = null;
+    const TITLE_3D: Record<string, IconKind> = { free: 'reel', coop: 'walkie', load: 'clipboard', controls: 'joystick', about: 'dossier' };
     items.forEach((it, i) => {
+      if (mxOk() && TITLE_3D[it.key]) {
+        const k = iconKey(TITLE_3D[it.key], it.label, () => this.activate(it), { w: pt ? 72 : 76, h: pt ? 56 : 60, tone: 'olive', lamp: 'amber', sound: 'key', seed: 40 + i, nameAt: pt ? 'top' : 'right', cls: 'ft-item tt-ik' + (pt ? ' ik-sm' : ''), aria: `${it.label} — ${it.sub}` });
+        k.dataset.k = it.key;
+        k.style.setProperty('--ft-i', String(i));
+        k.addEventListener('focus', () => { this.lastKey = it.key; this.beacon?.alert(false); });
+        if (!row || row.childElementCount >= 3) { row = h('div', 'tt-ikrow'); this.menu.append(row); }
+        row.append(k);
+        k.style.setProperty('--ik-push', (2 - (row.childElementCount - 1)) * ((pt ? 72 : 76) + 8) + 'px');
+        this.btns.set(it.key, k);
+        return;
+      }
       const b = h('button', `ft-item ft-${it.size ?? 'md'}`, `<span class="ft-ptr" aria-hidden="true"></span><span class="ft-lab">${esc(it.label)}</span>`) as HTMLButtonElement;
       b.type = 'button';
       b.dataset.k = it.key;
@@ -480,7 +501,9 @@ class TitleRoom {
   }
   private showHotcap(label: string, sub: string | undefined, x: number, y: number, center = false) {
     const c = this.hotcap;
-    c.innerHTML = `<b>${esc(label)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}`;
+    // round 21: only the name, as raised letters (the sentence under it is gone; the thing speaks for itself)
+    void sub;
+    c.innerHTML = `<b>${esc(label)}</b>`;
     c.classList.add('on');
     c.classList.toggle('mid', center);
     const W = window.innerWidth, H = window.innerHeight;
@@ -632,18 +655,20 @@ class TitleRoom {
     if (this.view === 'monitor') { this.feedNav.hidden = false; return; }
     this.feedNav.hidden = true;
     const k = this.view, i = ORDER.indexOf(k), f = FEEDS[i];
-    const cam = h('div', 'mr-cam', `<b>${esc(f.cam)}</b><span class="nm">${esc(f.name)}</span><span class="rec">REC</span><span class="tc"></span>`);
+    // the camera's own overlay: its number, the record lamp, the clock (the room's name is on the hover of its key)
+    const cam = h('div', 'mr-cam', `<b>${esc(f.cam)}</b><span class="rec" aria-label="recording"></span><span class="tc"></span>`);
+    cam.setAttribute('aria-label', f.name);
     hud.append(cam);
     this.hudCam = cam;
     this.tcT = 0;
-    const acts = h('div', 'mr-acts');
-    const bar = h('div', 'mr-bar');
-    const word = (label: string, cls: string, fn: () => void, aria?: string, short?: string) => {
-      const lab = short ? `<span class="long">${esc(label)}</span><span class="short">${esc(short)}</span>` : esc(label);
-      const b = h('button', 'mr-word ' + cls, `<span class="ft-ptr" aria-hidden="true"></span><span class="lab">${lab}</span>`) as HTMLButtonElement;
-      b.type = 'button'; if (aria) b.setAttribute('aria-label', aria);
-      b.addEventListener('pointerenter', () => { if (document.activeElement !== b) { b.focus({ preventScroll: true }); sfx('tick', 0.4); } });
-      b.addEventListener('click', () => { if (!this.moving) fn(); });
+    // round 21: the room's words are keys now, each with its little model; the name floats only while hot
+    const acts = h('div', 'mr-acts ik-row');
+    const bar = h('div', 'mr-bar ik-row');
+    const pt = this.portrait();
+    const KW = pt ? 58 : 76, KH = pt ? 48 : 60;
+    const key = (kind: IconKind, label: string, cls: string, fn: () => void, o: { hint?: string; tone?: 'olive' | 'yellow' | 'dark'; at?: 'top' | 'bottom' } = {}) => {
+      const b = iconKey(kind, label, () => { if (!this.moving) fn(); }, { w: KW, h: KH, cls: 'mr-ik ' + cls + (pt ? ' ik-sm' : ''), hint: o.hint, tone: o.tone, nameAt: o.at, lamp: o.tone === 'yellow' ? 'green' : 'amber', seed: 60 + bar.childElementCount + acts.childElementCount });
+      b.style.setProperty('--ik-i', String(acts.childElementCount + bar.childElementCount));
       return b;
     };
     const roomActs: { key: string; label: string; run: () => void }[] = k === 'subject'
@@ -652,12 +677,16 @@ class TitleRoom {
         { key: 'face', label: this.subject.face ? 'Whole room' : 'The face', run: () => { this.subject.faceZoom(!this.subject.face); sfx('servo', 0.5); this.buildHud(); } },
       ]
       : ((this.roomOf(k) as Acting | null)?.actions ?? []);
-    for (const a of roomActs) acts.append(word(a.label, 'act', () => { sfx('click', 0.8); a.run(); }));
+    for (const a of roomActs) {
+      const kind = a.key === 'face' ? (this.subject.face ? 'door' : 'lens') : ACT_ICON[a.key] ?? 'gear';
+      acts.append(key(kind, a.label, 'act', () => { sfx('click', 0.8); a.run(); }, { tone: a.key === 'new' ? 'yellow' : 'olive' }));
+    }
     const prev = ORDER[(i + ORDER.length - 1) % ORDER.length], next = ORDER[(i + 1) % ORDER.length];
     const pf = FEEDS.find((q) => q.key === prev)!, nf = FEEDS.find((q) => q.key === next)!;
-    if (prev !== next) bar.append(word('‹ ' + pf.label, 'prev', () => void this.go(prev), `Previous feed: ${pf.label} (Q)`, '‹ ' + pf.cam));
-    bar.append(word('Monitors', 'home', () => void this.back(), 'Back to the monitors (Esc)'));
-    bar.append(word(nf.label + ' ›', 'next', () => void this.go(next), `Next feed: ${nf.label} (E)`, nf.cam + ' ›'));
+    const arrow = (b: HTMLElement, d: 'l' | 'r') => { b.append(h('span', 'ik-arr ' + d)); return b; };
+    if (prev !== next) bar.append(arrow(key(ROOM_ICON[prev], pf.label, 'prev', () => void this.go(prev), { hint: 'Q', tone: 'dark', at: 'bottom' }), 'l'));
+    bar.append(key('eye', 'Monitors', 'home', () => void this.back(), { hint: 'Esc', tone: 'yellow', at: 'bottom' }));
+    bar.append(arrow(key(ROOM_ICON[next], nf.label, 'next', () => void this.go(next), { hint: 'E', tone: 'dark', at: 'bottom' }), 'r'));
     hud.append(acts, bar);
     requestAnimationFrame(() => (acts.querySelector('button') as HTMLElement | null ?? bar.querySelector('.home') as HTMLElement | null)?.focus({ preventScroll: true }));
   }
@@ -678,7 +707,7 @@ class TitleRoom {
     this.over.className = 'nx-over on' + (side ? ' with-side' : '');
     const t = terminal({ title, sub, cls: 'tt3-term' });
     t.body.append(el);
-    const back = plateBtn('Back', () => this.closeOver(), { finish: 'cream', size: 'md', shape: 'arrowL', lamp: false, sound: 'back', aria: 'Back (Esc)' });
+    const back = mxOk() ? iconKey('door', 'Back', () => this.closeOver(), { w: 76, h: 56, tone: 'olive', lamp: 'amber', sound: 'back', hint: 'Esc', nameAt: 'top' }) : plateBtn('Back', () => this.closeOver(), { finish: 'cream', size: 'md', shape: 'arrowL', lamp: false, sound: 'back', aria: 'Back (Esc)' });
     t.keys.append(back);
     if (side) this.over.append(side);
     this.over.append(t.el);
@@ -709,18 +738,18 @@ class TitleRoom {
     a?.onChange((i) => { if (cl.index !== i) cl.select(i, true); });
     const side = document.createElement('div'); side.className = 'tt4-gears';
     side.append(cl.el);
-    this.openOver(panel, 'Settings', 'turn a gear · Q / E', (d) => cl.turn(d), side);
+    this.openOver(panel, 'Settings', '', (d) => cl.turn(d), side);
     this.cluster = cl;
     requestAnimationFrame(() => cl.layout(this.portrait() ? 'h' : 'v'));
   }
-  controls() { this.openOver(controlsPanel(), 'Controls', 'keys · touch · menus'); }
+  controls() { this.openOver(controlsPanel(), 'Controls', ''); }
   about() {
     const note = h('div', 'tt3-about', `
 <p>A survival sandbox. You are an operator at the Meridian Institute of Liminality. In the chair beside the link rig sits a unit: a debtor whose body you take over, with a shock, and walk through a wall that turns to liquid, into rooms that never end.</p>
 <p>A band on the unit's wrist counts what it owes. Dr. Iris Calder talks you through the job: carry the furniture to the presses, find the data, scan the inhabitants. Pay the debt, buy a way out. Or don't.</p>
 <p>This booth watches three rooms. The codex archive, where every file is pulled and projected. The control room, where the main computer holds the research tree and the benches process the samples you bring back. Unit room 4, where the next unit is shaped, dressed and fitted with chips and limbs. Click a monitor, or press 1, 2 or 3.</p>
 <p class="ct-dim">Inspired by the systemic survival of <i>Project Zomboid</i>, the 2019 "noclip" creepypasta, liminal-space photography and VHS-era found footage. All names, places, creatures and story here are original. Built with three.js. Type: Alagard (SIL Open Font License). Every texture, model, sound and pixel is generated in code.</p>`);
-    this.openOver(note, 'About', 'the file in the drawer');
+    this.openOver(note, 'About', '');
   }
 
   private play(s: SaveMeta) {
@@ -771,9 +800,9 @@ class TitleRoom {
         const d = new Date(s.savedAt);
         const f = h('div', 'tt3-case', `<span class="n">${String(i + 1).padStart(3, '0')}</span><span class="t"><b>${esc(s.character)}</b><small>day ${Math.floor(s.hours / 24) + 1} · ${esc(s.zone)} · ${d.toLocaleDateString()} ${d.toLocaleTimeString().slice(0, 5)}</small></span>`);
         const acts = h('span', 'a');
-        acts.append(crtAct('Resume', () => { sfx('confirm'); f.classList.add('go'); setTimeout(() => setLaunch({ mode: 'load', id: s.id }), 450); }));
+        acts.append(crtAct('Resume', () => { sfx('confirm'); f.classList.add('go'); setTimeout(() => setLaunch({ mode: 'load', id: s.id }), 450); }, { icon: 'play' }));
         // round 15: the last checkpoint held on this world -> a new file on the old world (src/game/checkpoint.ts)
-        if (s.cp) { const cp = s.cp; acts.append(crtAct('Re-enter', () => { sfx('confirm'); f.classList.add('go'); setTimeout(() => setLaunch({ mode: 'reenter', cp: cp.id }), 450); })); }
+        if (s.cp) { const cp = s.cp; acts.append(crtAct('Re-enter', () => { sfx('confirm'); f.classList.add('go'); setTimeout(() => setLaunch({ mode: 'reenter', cp: cp.id }), 450); }, { icon: 'tape' })); }
         acts.append(crtAct('Delete', async () => {
           const ok = await confirmDialog({ title: 'Delete case file', body: `Delete ${s.character}'s file? This world and everything in it will be gone for good.`, ok: 'Delete', cancel: 'Keep', danger: true });
           if (!ok) return;
@@ -781,13 +810,13 @@ class TitleRoom {
           this.saves = this.saves.filter((q) => q !== s);
           f.classList.add('gone');
           setTimeout(() => { draw(); this.build(); (list.querySelector('button') as HTMLElement | null)?.focus(); }, 380);
-        }, { danger: true }));
+        }, { danger: true, icon: 'skull' }));
         f.append(acts);
         list.append(f);
       });
     };
     draw();
-    this.openOver(list, 'Case files', `${this.saves.length} unit${this.saves.length === 1 ? '' : 's'} on file`);
+    this.openOver(list, 'Case files', String(this.saves.length));
   }
 
   /** the handset: host a room or dial into one */
@@ -814,12 +843,12 @@ class TitleRoom {
       const r = await this.runIntake({ title: 'UNIT INTAKE · HOST' });
       if (!r) return;
       setLaunch({ mode: 'host', server, roomName: roomName || r.name, public: !pass, pass, ...r, traits: [...r.traits, ...talentTraits(talentLoadout())] });
-    }));
+    }, { icon: 'radio' }));
     if (this.saves.length) hostBox.append(crtAct('Host a saved world', () => {
       remember();
       const s = this.saves[0];
       setLaunch({ mode: 'host', server: srv.value.trim(), roomName: rn.value.trim() || s.character, public: !pw.value, pass: pw.value, saveId: s.id, name: s.character, app: null as any, occupation: '', traits: [], sandbox: {}, seed: 0, directives: true });
-    }, { sub: this.saves[0].character }));
+    }, { sub: this.saves[0].character, icon: 'tape' }));
     const joinBox = h('div', 'tt3-col', '<h4>Dial in · join</h4>');
     const code = field('CODE', 'Room code'); code.maxLength = 5; code.classList.add('tt3-code');
     const jpw = field('password (if any)', 'Password');
@@ -833,7 +862,7 @@ class TitleRoom {
       const r = await this.runIntake({ title: 'UNIT INTAKE · JOIN', sandbox: false, submit: 'JOIN TEAM' });
       if (!r) return;
       setLaunch({ mode: 'join', server, room, pass, name: r.name, app: r.app, occupation: r.occupation, traits: [...r.traits, ...talentTraits(talentLoadout())] });
-    }));
+    }, { icon: 'walkie' }));
     joinBox.append(crtAct('List open lines', async () => {
       rooms.textContent = 'ringing…';
       try {
@@ -843,12 +872,12 @@ class TitleRoom {
         rooms.innerHTML = list.length ? '' : 'No open lines.';
         for (const r of list) rooms.append(crtAct(`${r.room} · ${r.name} · ${r.players}/${r.max}${r.locked ? ' · locked' : ''}`, () => { code.value = r.room; }));
       } catch { rooms.textContent = 'Nobody picked up (could not reach the relay).'; }
-    }));
+    }, { icon: 'phone' }));
     joinBox.append(rooms);
     cols.append(hostBox, joinBox);
     box.append(cols);
     for (const i of [srv, rn, pw, code, jpw]) { i.addEventListener('focus', () => { if (this.g.input) this.g.input.textFocus = true; }); i.addEventListener('blur', () => { if (this.g.input) this.g.input.textFocus = false; }); }
-    this.openOver(box, 'Co-op', 'host a world or dial into one');
+    this.openOver(box, 'Co-op', '');
   }
 }
 export type { RoomCam };

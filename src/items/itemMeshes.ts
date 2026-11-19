@@ -3,6 +3,9 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { itemDef } from './item';
 import { DETAIL } from './detailModels';
+import { DETAIL3 } from './detailModels3';
+// the art pass's models (wave 3) take over from the older entries for the same items
+Object.assign(DETAIL, DETAIL3);
 import { bakeLook } from './itemLook';
 
 const geo = new Map<string, THREE.BufferGeometry | null>();

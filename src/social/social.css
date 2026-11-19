@@ -48,11 +48,18 @@
 .w-bubble.ft.offscreen .ft-body { animation: none; }
 .w-bubble.ft.out { opacity: 0; filter: blur(1px); }
 body.noclip-cine .ft-subs { bottom: 14vh; }
-body.noclip-cine .w-bubble.ft-note { display: none; }
-
-/* whistle notes rising off the whistler */
-.w-bubble.ft-note { font-family: var(--font-speech); font-size: calc(var(--px, 2px) * 9 + 4px); color: #fff0c4; text-shadow: var(--text-halo); animation: ft-note 1.6s ease-out forwards; }
-@keyframes ft-note { 0% { opacity: 0; scale: 0.4; rotate: -20deg; } 20% { opacity: 1; scale: 1.2; } 100% { opacity: 0; scale: 1; rotate: 18deg; translate: var(--nx, 10px) -8px; } }
+body.noclip-cine /* whistle notes rising off the whistler: pixel-art sprites (src/gfx/pixelFx.ts) that move in whole frames */
+.w-bubble.ft-note { line-height: 0; animation: ft-note 1.6s steps(12, end) forwards; }
+.w-bubble.ft-note canvas { display: block; width: calc(var(--px, 2px) * 11 * 1.5); height: calc(var(--px, 2px) * 12 * 1.5); image-rendering: pixelated; }
+@keyframes ft-note {
+  0% { opacity: 0; translate: 0 6px; }
+  12% { opacity: 1; translate: calc(var(--nx, 10px) * 0.2) 0; }
+  40% { scale: 1 1; }
+  45% { scale: -1 1; }
+  75% { opacity: 1; scale: -1 1; }
+  80% { scale: 1 1; }
+  100% { opacity: 0; translate: var(--nx, 10px) -8px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ft i { animation: ft-drift 0.2s ease-out var(--d) forwards; }

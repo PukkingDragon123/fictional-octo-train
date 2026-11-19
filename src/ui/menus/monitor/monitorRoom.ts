@@ -27,6 +27,28 @@ import { crestTex, pageTex } from '../rooms/vaultTex';
 import { Pokes, type PokeNote } from '../rooms/pokes';
 import { Dresser } from '../rooms/dress';
 import { eyeJar, type EyeJar } from './eyeJar';
+import { mxIcon, type IconKind } from '../../machine/decor';
+import { mxOk } from '../../machine/core';
+import '../labIcons';
+
+/** an annunciator legend: the model's silhouette in dark ink (a little of its own shading kept) over the tile's glass */
+function inkPictogram(mat: THREE.MeshBasicMaterial, ic: HTMLCanvasElement) {
+  const tex = mat.map as THREE.CanvasTexture | null;
+  const cv = tex?.image as HTMLCanvasElement | undefined;
+  if (!tex || !cv?.getContext) return;
+  const c = cv.getContext('2d')!;
+  const ink = document.createElement('canvas'); ink.width = ic.width; ink.height = ic.height;
+  const k = ink.getContext('2d')!;
+  k.drawImage(ic, 0, 0);
+  k.globalCompositeOperation = 'source-in';
+  k.fillStyle = 'rgba(10,16,8,0.86)'; k.fillRect(0, 0, ink.width, ink.height);
+  const s = Math.min(1, (cv.height - 4) / ic.height);
+  const w = Math.round(ic.width * s), h = Math.round(ic.height * s);
+  c.imageSmoothingEnabled = false;
+  c.drawImage(ink, Math.round((cv.width - w) / 2), Math.round((cv.height - h) / 2), w, h);
+  c.globalAlpha = 0.22; c.drawImage(ic, Math.round((cv.width - w) / 2), Math.round((cv.height - h) / 2), w, h); c.globalAlpha = 1;
+  tex.needsUpdate = true;
+}
 
 // internal keys: 'research' is the control room (it grew out of the research lab), 'subject' the unit room
 // (saved decorations are filed under these keys, so they stay)
@@ -348,9 +370,14 @@ export class MonitorRoom implements StageRoom {
       this.aux.push(aux);
     });
     // annunciator tiles
+    // round 21: each tile's legend is a pictogram (the archive's cabinet, the lattice, the link plug, the credit, a
+    // bolt, the siren) in dark ink on the lit glass, taken from the machine kit's models; words only without it
     const tiles = ['A-1', 'C-1', 'UNIT 4', 'PRESS', 'POWER', 'ALARM'];
+    const TILE_ICON: IconKind[] = ['cabinet', 'lattice', 'plug', 'credit', 'bolt', 'siren'];
     tiles.forEach((tx, i) => {
-      const t = plate(this.mats, [tx], 0.3, 0.12, { bg: [0x8ac070, 0x8ac070, 0x8ac070, 0xd0a040, 0x8ac070, 0xd04030][i], ink: 0x0a1008, px: 300, emissive: true });
+      const ic = mxOk() ? mxIcon(TILE_ICON[i], 24) : null;
+      const t = plate(this.mats, [ic ? '' : tx], 0.3, 0.12, { bg: [0x8ac070, 0x8ac070, 0x8ac070, 0xd0a040, 0x8ac070, 0xd04030][i], ink: 0x0a1008, px: 300, emissive: true });
+      if (ic) inkPictogram((t.children[1] as THREE.Mesh).material as THREE.MeshBasicMaterial, ic);
       t.position.set(-1.5 + i * 0.6, 2.27, RZ + 0.505);
       g.add(t);
       const m = t.children[1] as THREE.Mesh;

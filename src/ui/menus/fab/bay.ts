@@ -9,7 +9,7 @@ import type { FMats } from '../scene/pixtex';
 import type { Hot } from '../monitor/stage';
 import { FacetBuilder, at, cbox, prism, tube, C, gameSound, roomAudio } from '../monitor/props';
 import { FocusNav } from '../nav';
-import { mxButton } from '../../machine/kit';
+import { iconKey } from '../iconKey';
 import { dispatch } from '../../../game/economy/matter';
 import { FilamentMaker } from './filament';
 import { Printer3D } from './printer';
@@ -93,7 +93,7 @@ export class FabBay {
   private opened() {
     if (this.nav) return;
     document.body.append(this.layer);
-    if (matchMedia('(pointer: coarse)').matches && !this.layer.firstChild) this.layer.append(mxButton('Back', () => this.back(), { tone: 'yellow', w: 92, h: 40, cls: 'tb-back' }));
+    if (matchMedia('(pointer: coarse)').matches && !this.layer.firstChild) this.layer.append(iconKey('door', 'Back', () => this.back(), { tone: 'yellow', lamp: 'green', w: 76, h: 56, cls: 'tb-back', hint: 'Esc', nameAt: 'top' }));
     (document.activeElement as HTMLElement | null)?.blur?.();
     this.nav = new FocusNav(this.layer, { onBack: () => this.back(), onArrow: () => true });
     this.onFocus?.(true);

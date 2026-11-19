@@ -25,7 +25,7 @@ import { MARBLES, MARBLE, CANS, weigh, balanced, effectsOf, type Marble } from '
 import { statMask } from './statIcons';
 import { crtScreen, phosphorText, type CrtScreen } from '../../../gfx/crt';
 import { crtSet } from '../monitor/props';
-import { mxButton } from '../../machine/kit';
+import { iconKey } from '../iconKey';
 import { marbleOwned, unlockHint, loadout, setLoadout, freshMarbles, markSeen } from '../../../game/talentFile';
 import { buildMarble, type Marble3D } from './marble3d';
 import { FocusNav } from '../nav';
@@ -459,7 +459,7 @@ export class TalentBench {
       this.fresh = freshMarbles();
       document.body.append(this.layer);
       this.layer.classList.toggle('intake', !!o.intake);
-      if (matchMedia('(pointer: coarse)').matches && !this.backKey) { const k = mxButton('Back', () => { uiSound('back', 0.4); this.back(); }, { tone: 'yellow', w: 92, h: 40, cls: 'tb-back' }); this.backKey = k; this.layer.append(k); }
+      if (matchMedia('(pointer: coarse)').matches && !this.backKey) { const k = iconKey('door', 'Back', () => { uiSound('back', 0.4); this.back(); }, { tone: 'yellow', lamp: 'green', w: 76, h: 56, cls: 'tb-back', hint: 'Esc', nameAt: 'top' }); this.backKey = k; this.layer.append(k); }
       this.nav = new FocusNav(this.layer, { onBack: () => this.back(), onTab: (d) => this.stepCan(d), onArrow: (dx, dy) => this.arrow(dx, dy) });
       window.addEventListener('keydown', this.onKey, true);
       this.onFocus?.(true);

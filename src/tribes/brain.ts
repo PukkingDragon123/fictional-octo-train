@@ -320,10 +320,10 @@ function routine(S: TribeSystem, c: Creature, z: Zone, camp: Camp | null, role: 
   const post = (m.post as [number, number]) || [c.x, c.z];
   const base = night ? (role === 'guard' && m.slot === 1 ? 'watch' : 'sleep') : meal && role !== 'guard' && role !== 'scavenger' ? 'meal' : role;
   // round 21: their own day on top of the camp's clock (eat, rest, shore up, trade, search; src/tribes/life.ts)
-  const tag = lifeTag(c, z, camp, role, base);
+  let tag = lifeTag(c, z, camp, role, base);
   if (m.jobTag !== tag || !m.job || G.time > m.jobT) {
     // the job that just ended: what it did for them (a full belly, a rest, a haul for the cloth)
-    if (m.jobTag && m.job && (G.time > m.jobT || m.jobTag !== tag)) lifeDone(c, m.jobTag, camp);
+    if (m.jobTag && m.job && G.time > m.jobT) { lifeDone(c, m.jobTag, camp); tag = lifeTag(c, z, camp, role, base); }
     if (m.jobTag !== tag && m.jobTag === 'scavenger' && tag !== 'scavenger') sayAs(c, line(SAY.scavBack));
     m.jobTag = tag;
     m.job = lifeJob(z, c, camp, tag, post, pointNear) ?? pickJob(z, c, camp, tag, post);

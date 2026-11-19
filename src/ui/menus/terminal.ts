@@ -11,6 +11,8 @@ import { uiSettings, calm } from './settings';
 import { sfx } from './sfx';
 import { mxOk } from '../machine/core';
 import { mxFrame } from '../machine/kit';
+import { mxIconSpin, type IconKind } from '../machine/decor';
+import './labIcons';
 import type { HousingSpec } from '../machine/parts';
 import './kit.css';
 
@@ -417,13 +419,21 @@ export function teletype(el: HTMLElement, text: string, cps = 70): () => void {
 }
 
 /** an action line on the glass: "> LABEL" that brightens with a block cursor when focused */
-export function crtAct(label: string, onClick: () => void, o: { danger?: boolean; sub?: string; cls?: string } = {}): HTMLButtonElement {
+export function crtAct(label: string, onClick: () => void, o: { danger?: boolean; sub?: string; cls?: string; /** round 21: a little model in phosphor instead of the word (the word on hover) */ icon?: IconKind } = {}): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'ct-act' + (o.danger ? ' danger' : '') + (o.cls ? ' ' + o.cls : '');
   b.innerHTML = `<span class="ct-act-l"></span>${o.sub ? '<small></small>' : ''}`;
   (b.querySelector('.ct-act-l') as HTMLElement).textContent = label;
   if (o.sub) (b.querySelector('small') as HTMLElement).textContent = o.sub;
+  const spin = o.icon && mxOk() ? mxIconSpin(o.icon, 30) : null;
+  if (spin) {
+    b.classList.add('ct-ai');
+    b.setAttribute('aria-label', label + (o.sub ? ' — ' + o.sub : ''));
+    const w = document.createElement('i'); w.className = 'ct-ai-m'; w.append(spin.cv); b.prepend(w);
+    for (const ev of ['pointerenter', 'focus']) b.addEventListener(ev, () => spin.hot(true));
+    for (const ev of ['pointerleave', 'blur']) b.addEventListener(ev, () => { if (document.activeElement !== b) spin.hot(false); });
+  }
   b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && document.activeElement !== b) { const a = document.activeElement as HTMLElement | null; if (a && a.tagName === 'INPUT' && (a as HTMLInputElement).type === 'text') return; b.focus({ preventScroll: true }); sfx('type', 0.6); } });
   b.addEventListener('click', () => { sfx(o.danger ? 'back' : 'key'); onClick(); });
   return b;

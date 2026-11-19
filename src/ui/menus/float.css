@@ -81,8 +81,21 @@
 .mr-cam .rec::before { content: ''; position: absolute; left: 0; top: 2px; width: 10px; height: 10px; background: #e83a20; box-shadow: 0 0 0 2px #0a0b10; }
 .mr-cam.blink .rec::before { background: #4a0e08; }
 .mr-cam .tc { font-size: 16px; color: #b8e0b0; text-shadow: var(--text-ink); }
-.mr-acts { position: absolute; left: 0; right: 0; bottom: calc(7vh + 64px); display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 28px; pointer-events: none; }
-.mr-bar { position: absolute; left: 0; right: 0; bottom: calc(7vh + 10px); display: flex; justify-content: center; gap: 44px; pointer-events: none; }
+.mr-acts { position: absolute; left: 0; right: 0; bottom: calc(7vh + 92px); display: flex; justify-content: center; flex-wrap: wrap; gap: 10px 12px; pointer-events: none; }
+.mr-bar { position: absolute; left: 0; right: 0; bottom: calc(7vh + 16px); display: flex; justify-content: center; gap: 40px; pointer-events: none; }
+/* round 21: the room's keys drop into place one after another (a clunk is the key's own sound when pressed) */
+.mr-ik { animation: mr-ik-in 0.34s cubic-bezier(.2,.9,.3,1.3) both; animation-delay: calc(var(--ik-i, 0) * 45ms); }
+@keyframes mr-ik-in { 0% { opacity: 0; transform: translateY(26px); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+.mr-bar .mr-ik.home { margin: 0 6px; }
+/* a cast brass chevron beside the prev / next keys: which way the channel turns */
+.ik-arr { position: absolute; top: 50%; width: 16px; height: 22px; margin-top: -11px; pointer-events: none; z-index: 3;
+  background: linear-gradient(180deg, #f4d47a 0 30%, #c89a3a 30% 62%, #7a5a1a 62% 100%);
+  filter: drop-shadow(1px 0 0 #120c04) drop-shadow(-1px 0 0 #120c04) drop-shadow(0 1px 0 #120c04) drop-shadow(0 -1px 0 #120c04) drop-shadow(2px 3px 0 rgba(0,0,0,.4));
+  transition: transform 0.18s cubic-bezier(.2,.9,.3,1.35), filter 0.16s; }
+.ik-arr.l { left: -26px; clip-path: polygon(100% 0, 55% 50%, 100% 100%, 45% 100%, 0 50%, 45% 0); }
+.ik-arr.r { right: -26px; clip-path: polygon(0 0, 55% 0, 100% 50%, 55% 100%, 0 100%, 45% 50%); }
+.mr-ik.hot .ik-arr.l { transform: translateX(-5px); }
+.mr-ik.hot .ik-arr.r { transform: translateX(5px); }
 .mr-word { white-space: nowrap; pointer-events: auto; position: relative; display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 6px 4px; min-height: 44px; margin: 0; cursor: var(--cur-hand, pointer); color: #e9e2cf; text-shadow: var(--text-ink-2); font-size: 32px; line-height: 1; outline: none; -webkit-tap-highlight-color: transparent; transition: color 0.12s steps(3), transform 0.16s cubic-bezier(.2,.9,.3,1.3); }
 .mr-word.act { font-size: 32px; color: #d8f0c8; }
 .mr-word.home { color: #f2c46a; }
@@ -97,11 +110,11 @@
   .mr-cam b, .mr-cam .nm { font-size: 32px; }
   .mr-tip { display: none; }
   /* above the decorator's keys (bottom right) */
-  .mr-bar { bottom: 78px; gap: 8px; justify-content: space-between; padding: 0 12px; }
+  .mr-bar { bottom: 78px; gap: 34px; }
   .mr-bar .mr-word { font-size: 16px; }
   .mr-bar .home { font-size: 32px; }
   .mr-word .long { display: none; }
-  .mr-acts { bottom: 136px; gap: 0 18px; padding: 0 10px; }
+  .mr-acts { bottom: 142px; gap: 8px 8px; padding: 0 10px; }
   .mr-acts .mr-word { font-size: 16px; min-height: 44px; }
   .mr-hotcap b { font-size: 16px; }
   .mr-feed-n { font-size: 16px; top: -20px; }

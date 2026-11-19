@@ -18,15 +18,47 @@
   text-shadow: -1px 0 0 #120c04, 0 -1px 0 #120c04, 1px 1px 0 #b08a2a, 2px 2px 0 #7a5a16, 3px 3px 0 #4a360c, 4px 4px 0 #1a1206, 5px 6px 0 rgba(0,0,0,.35); }
 .ik-n i { font-style: normal; font-size: 16px; margin-left: 10px; vertical-align: 6px; color: #c8f0c0;
   text-shadow: -1px 0 0 #06120a, 0 -1px 0 #06120a, 1px 1px 0 #3a6a3a, 2px 2px 0 #06120a; }
-.ik.hot .ik-n, .ik:focus-visible .ik-n { opacity: 1; transform: translate(-50%, 0) perspective(240px) rotateX(12deg); }
+.ik.hot .ik-n { opacity: 1; transform: translate(-50%, 0) perspective(240px) rotateX(12deg); }
 .ik-bottom .ik-n { bottom: auto; top: calc(100% + 8px); transform-origin: 50% 0; }
 .ik-right .ik-n { left: calc(100% + 14px); bottom: auto; top: 50%; transform: translate(-6px, -50%) perspective(240px) rotateY(-14deg); transform-origin: 0 50%; }
-.ik-right.hot .ik-n, .ik-right:focus-visible .ik-n { transform: translate(0, -50%) perspective(240px) rotateY(-10deg); }
+.ik-right.hot .ik-n { transform: translate(0, -50%) perspective(240px) rotateY(-10deg); }
 .ik-left .ik-n { left: auto; right: calc(100% + 14px); bottom: auto; top: 50%; transform: translate(6px, -50%) perspective(240px) rotateY(14deg); transform-origin: 100% 50%; }
-.ik-left.hot .ik-n, .ik-left:focus-visible .ik-n { transform: translate(0, -50%) perspective(240px) rotateY(10deg); }
+.ik-left.hot .ik-n { transform: translate(0, -50%) perspective(240px) rotateY(10deg); }
 .ik.ik-sm .ik-n { font-size: 16px; }
 .ik.ik-sm .ik-n i { font-size: 16px; vertical-align: 0; }
 
 .ik-row { display: flex; align-items: flex-end; justify-content: center; gap: 10px; pointer-events: none; }
 @media (max-aspect-ratio: 20/21) { .ik-n { font-size: 16px; } .ik-n i { vertical-align: 0; } }
 @media (prefers-reduced-motion: reduce) { .ik.mxk > .ik-m, .ik-n { transition: none; } }
+
+/* the banner (iconBanner): crest, booth, clearance lamps; names float under the strip while hot */
+.px-banner.ikb { pointer-events: auto; }
+.ikb > span { position: relative; display: inline-flex; align-items: center; gap: 5px; height: 100%; cursor: default; }
+.ikb > span > canvas { image-rendering: pixelated; }
+.ikb-b b { font-weight: normal; font-size: 16px; line-height: 1; color: #ffd06a; text-shadow: 1px 1px 0 #120c04; }
+.ikb > .ikb-k { margin-left: auto; gap: 4px; }
+.ikb-k i { width: 8px; height: 8px; background: #3a1c10; box-shadow: inset 0 0 0 1px #120806, inset 1px 1px 0 2px rgba(0,0,0,.35); }
+.ikb-k i.on { background: radial-gradient(circle at 35% 35%, #fff4c0 0 1px, #ffc23a 2px, #b8761a 5px); box-shadow: inset 0 0 0 1px #3a2008, 0 0 6px rgba(255,190,60,.7); }
+.ikb > span::after { content: attr(data-name); position: absolute; top: calc(100% + 8px); left: 0; white-space: nowrap; pointer-events: none; opacity: 0;
+  font-size: 16px; line-height: 1; color: #fff0b0; transform: translateY(-4px); transition: opacity .12s steps(3), transform .18s cubic-bezier(.2,.9,.3,1.35);
+  text-shadow: -1px 0 0 #120c04, 0 -1px 0 #120c04, 1px 1px 0 #b08a2a, 2px 2px 0 #7a5a16, 3px 3px 0 #1a1206; }
+.ikb > .ikb-k::after { left: auto; right: 0; }
+.ikb > span:hover::after { opacity: 1; transform: none; }
+.ikb > span:hover > canvas { filter: brightness(1.25); }
+
+/* the title console's square keys, three to a row under the way in; the name floats clear of the console */
+.tt-ikrow { display: flex; gap: 8px; margin-top: 4px; }
+html .ft-menu.mx .ft-item.tt-ik { padding: 0 !important; justify-content: center; }
+html .ft-menu.mx .ft-item.tt-ik:is(:hover, :focus, :focus-visible, :active, .px-down) { transform: none; }
+.tt-ik.ik-right .ik-n { left: calc(100% + 26px + var(--ik-push, 0px)); }
+/* the settings gear names itself only while hot */
+.tt3-menu.mx > .tt4-gear .gb-l { opacity: 0; transform: translateX(-6px); transition: opacity .12s steps(3), transform .18s cubic-bezier(.2,.9,.3,1.35);
+  text-shadow: -1px 0 0 #120c04, 0 -1px 0 #120c04, 1px 1px 0 #b08a2a, 2px 2px 0 #7a5a16, 3px 3px 0 #1a1206; }
+.tt3-menu.mx > .tt4-gear:is(:hover, :focus-visible) .gb-l { opacity: 1; transform: none; }
+
+/* the room's hover caption (title.ts showHotcap): the name alone, raised letters, no steel plate behind it */
+html body .mr-hotcap { border: 0; border-image: none; padding: 0; background: none; }
+html body .mr-hotcap b { font-size: 32px; color: #fff0b0;
+  text-shadow: -1px 0 0 #120c04, 0 -1px 0 #120c04, 1px 1px 0 #b08a2a, 2px 2px 0 #7a5a16, 3px 3px 0 #4a360c, 4px 4px 0 #1a1206, 5px 6px 0 rgba(0,0,0,.35); }
+html body .mr-hotcap small { display: none; }
+@media (max-aspect-ratio: 20/21) { html body .mr-hotcap b { font-size: 16px; } }

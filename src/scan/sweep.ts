@@ -8,6 +8,7 @@
 // plate over the unit's head (src/ui/actionBar.ts via ScanSystem.plate()).
 import * as THREE from 'three';
 import { G } from '../game/G';
+import { PX_GLSL } from '../gfx/pixelFx';
 
 const ICE = new THREE.Color(0x9fe8ff), WARM = new THREE.Color(0xffd27a);
 
@@ -15,7 +16,9 @@ const ICE = new THREE.Color(0x9fe8ff), WARM = new THREE.Color(0xffd27a);
  *  into two targets (colour + the normal buffer, src/gfx/materials.ts): every shader writes both, the normal
  *  buffer left as it was (alpha 0 blends away) */
 function lightMat(frag: string, uniforms: Record<string, THREE.IUniform>): THREE.ShaderMaterial {
-  frag = 'layout(location = 1) out highp vec4 gNormal;\n' + frag.replace(/\}\s*$/, '  gNormal = vec4(0.0);\n}\n');
+  // the art pass (wave 3): every alpha in dithered steps on the pixel grid, no soft glow
+  frag = frag.replace(/gl_FragColor = vec4\((\w+) \* a, a\);/, 'a = pxA(a); if (a <= 0.0) discard; gl_FragColor = vec4($1 * a, a);');
+  frag = 'layout(location = 1) out highp vec4 gNormal;\n' + PX_GLSL + frag.replace(/\}\s*$/, '  gNormal = vec4(0.0);\n}\n');
   return new THREE.ShaderMaterial({
     uniforms,
     vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = -mv.xyz; gl_Position = projectionMatrix * mv; }',
@@ -133,8 +136,11 @@ export class ScanSweep {
   /** the sweep ended (done or dropped): it fades */
   drop() { this.want = false; }
 
+  private clock = 0;
   update(dt: number) {
-    this.U.uT.value += dt;
+    // time moves in whole frames (12 a second), like a sprite
+    this.clock += dt;
+    this.U.uT.value = Math.floor(this.clock * 12) / 12;
     this.show += ((this.want ? 1 : 0) - this.show) * Math.min(1, dt * (this.want ? 10 : 6));
     this.want = false;
     if (this.show < 0.01) { this.root.visible = false; return; }

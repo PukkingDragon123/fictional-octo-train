@@ -232,3 +232,24 @@
 
 /* Alagard is a smooth grotesque: the menus render it antialiased (the global style sets no smoothing for the old pixel face) */
 .nx, .ps, .bt3, .kd-veil, .t-veil, .ct, .hs, .gb, .gc { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-kerning: normal; }
+/* round 21: the page's model beside its gear; the word only while hot */
+.gc-b .gc-i { position: absolute; left: calc(var(--gw) - var(--gx) + var(--gr) + var(--ks) * 1); top: 50%; transform: translateY(-50%); line-height: 0; transition: transform .18s cubic-bezier(.2,.9,.3,1.35), filter .16s; filter: brightness(.72) saturate(.7); }
+.gc-b .gc-i canvas { image-rendering: pixelated; }
+.gc-b.on .gc-i { filter: none; transform: translateY(-50%) scale(1.08); }
+.gc-b:is(:hover, :focus-visible) .gc-i { filter: brightness(1.2); transform: translateY(calc(-50% - 5px)) scale(1.14); }
+.gc-b.has-i span { left: calc(var(--gw) - var(--gx) + var(--gr) + var(--ks) * 1 + 52px); opacity: 0; transition: opacity .12s steps(3); color: #fff0b0;
+  text-shadow: -1px 0 0 #120c04, 0 -1px 0 #120c04, 1px 1px 0 #b08a2a, 2px 2px 0 #7a5a16, 3px 3px 0 #1a1206; }
+.gc-b.has-i:is(:hover, :focus-visible) span { opacity: 1; }
+.gc-b.has-i:focus span::before { content: none; }
+.gc.h .gc-b .gc-i { left: 50%; top: calc(100% + 2px); transform: translateX(-50%); }
+.gc.h .gc-b.has-i span { left: 50%; top: calc(100% + 46px); }
+/* round 21: a terminal action as a little model in phosphor (crtAct icon); its word only while hot */
+.ct-act.ct-ai { position: relative; flex-direction: column; align-items: center; gap: 2px; min-width: 52px; padding: 2px 4px; }
+.ct-act.ct-ai .ct-ai-m { line-height: 0; transition: transform .18s cubic-bezier(.2,.9,.3,1.35), filter .16s;
+  filter: grayscale(1) sepia(1) hue-rotate(62deg) saturate(2.6) brightness(1.05) drop-shadow(0 0 4px var(--ct-glow, rgba(90,255,120,.5))); }
+.ct-act.ct-ai .ct-ai-m canvas { image-rendering: pixelated; display: block; }
+.ct-act.ct-ai.danger .ct-ai-m { filter: grayscale(1) sepia(1) hue-rotate(-30deg) saturate(3) brightness(1.05) drop-shadow(0 0 4px rgba(255,120,90,.5)); }
+.ct-act.ct-ai:is(:hover, :focus) .ct-ai-m { transform: translateY(-4px) scale(1.12); filter: grayscale(1) sepia(1) hue-rotate(62deg) saturate(3) brightness(1.5) drop-shadow(0 0 7px var(--ct-glow, rgba(90,255,120,.7))); }
+.ct-act.ct-ai .ct-act-l, .ct-act.ct-ai small { position: absolute; top: calc(100% + 2px); left: 50%; transform: translateX(-50%); white-space: nowrap; opacity: 0; pointer-events: none; z-index: 3; }
+.ct-act.ct-ai .ct-act-l::before, .ct-act.ct-ai .ct-act-l::after { content: none !important; }
+.ct-act.ct-ai:is(:hover, :focus) .ct-act-l { opacity: 1; }

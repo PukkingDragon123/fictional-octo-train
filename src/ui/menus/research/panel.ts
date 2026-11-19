@@ -12,6 +12,7 @@
 import './panel.css';
 import { FocusNav } from '../nav';
 import { mxIcon } from '../../machine/decor';
+import { codexHead, codexStatIcons, codexCard, codexRp } from '../../codex21';
 import { sfx } from '../sfx';
 import { researchPoints } from '../../../game/research';
 import { stat, isUnlocked } from '../../../game/profile';
@@ -80,20 +81,22 @@ export function openCodex(host: PanelHost) {
   // round 17: less text: the numbers, then the entries as a small model (specimen or anomaly), a state lamp, the
   // name and a bar; the code, the state's word and the how-to live in the opened entry (and the card's tooltip)
   const body = frame(host, 'The codex', `${st.pct}% · ${st.complete}/${st.total}`, 'mx-wide');
-  body.append(statsRow(), bar('CODEX', st.pct, 'cx-big'));
-  const grid = el('div', 'cx-grid');
+  // round 21 (src/ui/codex21.ts): no words on it: the title is the dossier, the counts sit by their models, the
+  // entries are their models with a state lamp and a bar, each name only on hover
+  codexHead(body);
+  body.append(codexStatIcons(st), bar('CODEX', st.pct, 'cx-big'));
+  const grid = el('div', 'cx-grid cx21g');
   for (const e of entries()) {
     const s = entryState(e.key), pct = researchPct(e.key), known = s !== 'unknown';
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'cx-card ' + s;
     b.title = known ? `${(e.code.split('//')[0] || e.cls).trim()} · ${STATE_NAME[s]}${pct ? ' · ' + pct + '%' : ''}` : (e.kind === 'anomaly' ? 'an anomaly nobody has sampled' : 'a specimen nobody has filed');
-    b.innerHTML = `<i class="cx-st"></i><b>${esc(known ? e.name : '???')}</b><span class="cx-pb" style="--p:${pct}%"></span>`;
-    const ic = mxIcon(e.kind === 'anomaly' ? 'jar' : 'skull', 18);
-    if (ic) { ic.classList.add('cx-ic'); b.prepend(ic); b.classList.add('has-ic'); }
+    b.innerHTML = `<i class="cx-st"></i><span class="cx-pb" style="--p:${pct}%"></span>`;
+    codexCard(b, e.kind === 'anomaly' ? 'jar' : 'skull', known ? e.name : '???');
     b.addEventListener('click', () => { sfx('tick'); openEntry(host, e.key); });
     grid.append(b);
   }
-  body.append(grid, rpLine());
+  body.append(grid, codexRp(rpLine()));
 }
 
 // ================================================================== one entry

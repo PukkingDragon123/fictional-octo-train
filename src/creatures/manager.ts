@@ -5,7 +5,7 @@ import { Creature, CState } from './creature';
 import { SpeciesDef } from './species';
 import { species as getSpecies, allSpecies } from './registry';
 import { bus } from '../core/events';
-import { Zone } from '../world/zone';
+import { Zone, TF } from '../world/zone';
 import { moveCircle, lineOfSight, wallsBetween } from '../world/collision';
 import { findPath } from '../world/path';
 import { Player } from '../entities/player';
@@ -27,6 +27,7 @@ import { UseObjectAction } from '../actions/world';
 import { itemDef } from '../items/item';
 import { tearDef, creatureLimbFx, CreatureLimbFx } from '../gore/tearing';
 import { redirectPart, isLimbPart } from '../survival/limbs';
+import { cuesFrame } from './cues';
 import { dreadBefore, dreadPlace, dreadAfter, dreadHost, dreadFrame, dreadFlickPoll, dreadFlickStep, lightOut } from './dread';
 import './spawnTables';
 import { temperBefore, temperAfter, temperPose } from './temper';
@@ -113,6 +114,8 @@ export class CreatureSystem implements GameSystem {
     // the Parasite Salamander inside its hosts (src/survival/parasite.ts)
     try { parasiteFrame(dt); } catch (e) { console.error('parasite', e); }
     try { dreadFrame(dt); } catch (e) { console.error('dread', e); }
+    // round 21: calls and trails that lead the unit to what lives here (./cues.ts)
+    try { cuesFrame(dt); } catch (e) { console.error('cues', e); }
     this.updateThreat(dt);
   }
 
@@ -142,12 +145,17 @@ export class CreatureSystem implements GameSystem {
       const z = G.getZone(zk);
       const here = [...this.creatures.values()].filter((c) => c.zoneKey === zk && !c.dead && !c.mem.noCap); // noCap: set pieces and their parts (a Fungus Mind and its nodes) do not fill the zone
       const cap = Math.round(z.creatureCap * G.sandbox.creatures * (1 + G.collapse * 0.8));
-      // despawn far, unseen wanderers
+      // despawn far, unseen wanderers (round 21: sooner, so the zone's budget comes back to where the unit is)
+      let far: Creature | null = null, farD = 0, closeN = 0;
       for (const c of here) {
-        if (c.mem.persistent || c.tamedBy) continue;
         const near = Math.min(...[...G.players.values()].filter((p) => p.zoneKey === zk).map((p) => Math.hypot(p.x - c.x, p.z - c.z)));
-        if (near > 70 && G.time - c.lastObserved > 90) this.remove(c);
+        if (near < 42) closeN++;
+        if (c.mem.persistent || c.tamedBy) continue;
+        if (near > 58 && G.time - c.lastObserved > 60) { this.remove(c); continue; }
+        if (near > 46 && G.time - c.lastObserved > 30 && near > farD) { far = c; farD = near; }
       }
+      // nothing within reach and the budget spent far away: the farthest unseen one goes, so something can turn up nearer
+      if (closeN === 0 && far && here.length >= cap) { this.remove(far); continue; }
       if (here.length >= cap || !z.spawnTable.length) continue;
       const table = z.spawnTable.filter(([k]) => getSpecies(k));
       if (!table.length) continue;
@@ -165,6 +173,25 @@ export class CreatureSystem implements GameSystem {
   }
 
   findSpawnSpot(z: Zone, sp: SpeciesDef): [number, number] | null {
+    // round 21: most things turn up within a fair walk of a survivor (22-40 m, out of sight), not anywhere in a huge level
+    const ps = [...G.players.values()].filter((p) => p.zoneKey === z.key && !p.body.dead);
+    if (ps.length && this.rng.chance(0.7)) {
+      const p = ps[this.rng.int(0, ps.length - 1)];
+      for (let t = 0; t < 30; t++) {
+        const a = this.rng.float(0, Math.PI * 2), r = this.rng.float(22, 40);
+        const x = Math.floor(p.x + Math.cos(a) * r), y = Math.floor(p.z + Math.sin(a) * r);
+        if (!z.inb(x, y)) continue;
+        const i = z.idx(x, y);
+        if (!z.floor[i] || z.solid[i] || (z.flags[i] & TF.NOSPAWN)) continue;
+        const f = z.floorAt(x, y);
+        if (sp.flags?.swimmer ? f?.water !== 'deep' : f?.water === 'deep') continue;
+        if (sp.flags?.underCarpet && !(f?.sound ?? '').includes('carpet')) continue;
+        if (sp.diet === 'grass' && !f?.outdoor) continue;
+        if (ps.some((q) => Math.hypot(q.x - x, q.z - y) < 20)) continue;
+        if (p.isLocal && G.view?.zone === z && G.view.vis.isVisible(x, y)) continue;
+        return [x, y];
+      }
+    }
     for (let t = 0; t < 40; t++) {
       const spot = z.randomFloor(this.rng, (x, y) => {
         if (sp.flags?.swimmer) return z.floorAt(x, y)?.water === 'deep';

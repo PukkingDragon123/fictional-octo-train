@@ -7,6 +7,7 @@
 import { mxSkinKey } from '../machine/kit';
 import { mxIconSpin, mxIcon, type IconKind } from '../machine/decor';
 import { mxOk } from '../machine/core';
+import { pxCrestEl } from '../pxKit';
 import type { Tone } from '../machine/paint';
 import type { LampCol } from '../machine/parts';
 import { sfx, type Sfx } from './sfx';
@@ -57,9 +58,11 @@ export function iconKey(kind: IconKind, name: string, fn: () => void, o: IconKey
   const sk = mxSkinKey(b, { tone: o.tone ?? 'olive', lamp: o.lamp === undefined ? 'amber' : o.lamp, seed: o.seed ?? 5, sound: o.sound ?? 'key', screws: false });
   let on = false;
   const hot = (v: boolean) => { b.classList.toggle('hot', v || on); spin?.hot(v || on); };
-  b.addEventListener('pointerenter', (e) => { hot(true); if ((e as PointerEvent).pointerType === 'mouse') sfx('tick', 0.35); });
-  b.addEventListener('pointerleave', () => { if (document.activeElement !== b) hot(false); });
-  b.addEventListener('focus', () => hot(true));
+  // the pointer takes the focus with it, so only one key in a row is ever hot; a key focused by the room (not by
+  // the keyboard) stays quiet until the operator moves to it
+  b.addEventListener('pointerenter', (e) => { if (document.activeElement !== b) b.focus({ preventScroll: true }); hot(true); if ((e as PointerEvent).pointerType === 'mouse') sfx('tick', 0.35); });
+  b.addEventListener('pointerleave', () => { if (!b.matches(':focus-visible')) hot(false); });
+  b.addEventListener('focus', () => { if (b.matches(':focus-visible') || b.matches(':hover')) hot(true); });
   b.addEventListener('blur', () => hot(false));
   b.addEventListener('click', () => fn());
   b.setOn = (v: boolean) => { on = v; b.classList.toggle('on', v); sk?.setOn(v); hot(v || document.activeElement === b); };
@@ -72,5 +75,32 @@ export function iconRow(cls: string, keys: HTMLElement[]): HTMLElement {
   const d = document.createElement('div');
   d.className = 'ik-row ' + cls;
   d.append(...keys);
+  return d;
+}
+
+/**
+ * the Institute's banner without its long lines: the bishop crest, the booth's number by a little eye (title)
+ * and the operator's clearance as lamps by a key (two of four lit); every part names itself on hover
+ */
+export function iconBanner(o: { booth?: number } = {}): HTMLElement {
+  const d = document.createElement('div');
+  d.className = 'px-banner ikb';
+  const tag = (el: HTMLElement, name: string) => { el.dataset.name = name; el.setAttribute('aria-label', name); el.tabIndex = -1; return el; };
+  const crest = tag(document.createElement('span'), 'Meridian Institute of Liminality');
+  crest.className = 'ikb-c';
+  crest.append(pxCrestEl(14));
+  d.append(crest);
+  if (o.booth !== undefined) {
+    const b = tag(document.createElement('span'), 'Observation booth ' + o.booth);
+    b.className = 'ikb-b';
+    const ic = mxIcon('eye', 14); if (ic) b.append(ic);
+    b.append(Object.assign(document.createElement('b'), { textContent: String(o.booth) }));
+    d.append(b);
+  }
+  const cl = tag(document.createElement('span'), 'Clearance: operator, level 2');
+  cl.className = 'ikb-k';
+  const ik = mxIcon('key', 14); if (ik) cl.append(ik);
+  for (let i = 0; i < 4; i++) { const p = document.createElement('i'); if (i < 2) p.className = 'on'; cl.append(p); }
+  d.append(cl);
   return d;
 }

@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
-import { REELS as RD, HERE, ROOT, openStudio, stopServer } from './studiopage.mjs';
+import { REELS as RD, HERE, ROOT, openStudio, openGame, stopServer } from './studiopage.mjs';
 import { X264 } from './enc.mjs';
 
 const argv = process.argv.slice(2);
@@ -31,6 +31,9 @@ const SFX_DIR = path.join(RD, '../../../src/assets/sfx'), EXTRA = path.join(B, '
 const sha = (s) => crypto.createHash('sha1').update(s).digest('hex').slice(0, 14);
 const rev = (...fs_) => sha(fs_.map((f) => fs.readFileSync(path.join(HERE, 'studio', f), 'utf8')).join('|'));
 const REV_LEDGE = rev('reelShots.ts', 'paperCard.ts', 'adScreen.ts', 'reelActors.ts');
+/** the body beats film the game itself (studio/bodyScenes.ts through studiopage.mjs openGame) */
+const REV_GAME = sha(fs.readFileSync(path.join(HERE, 'studio/bodyScenes.ts'), 'utf8') + fs.readFileSync(path.join(HERE, 'studiopage.mjs'), 'utf8'));
+const GAME_DPR = Number(process.env.REEL_GAME_DPR || 2);
 const REV_BEAT = fs.readFileSync(path.join(HERE, 'studio/reelSpec.ts'), 'utf8').match(/SPEC_REV = '([^']+)'/)?.[1] ?? rev('reelSpec.ts', 'reelActors.ts');
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -48,7 +51,7 @@ export const CREATURES = {
 const BEDS = {
   ledge: [['bed_hum', -24], ['bed_drips', -27]], meadow: [['bed_wind', -24]], fields: [['bed_wind', -24]], undercroft: [['bed_drips', -24], ['bed_tunnel', -27]],
   tunnels: [['bed_drips', -24], ['bed_tunnel', -27]], plunge: [['bed_water', -26], ['bed_hum', -30]], pools: [['bed_water', -26]], subway: [['bed_tunnel', -24], ['bed_machine', -32]],
-  lobby: [['bed_hum', -22]], annex: [['bed_hum', -22]], office: [['bed_hum', -23]],
+  lobby: [['bed_hum', -22]], annex: [['bed_hum', -22]], office: [['bed_hum', -23]], lab: [['bed_hum', -25], ['bed_air', -31]],
 };
 const DEFAULT = {
   card: "If you want to join the Institute, here's my card.",
@@ -102,7 +105,9 @@ function plan(R) {
     const v = b.line ? V(b.line) : null;
     const lead = b.lead ?? 0.25, tail = b.tail ?? 0.35;
     if (v) say(b.line, lead, tail);
-    add(id, 'beat', b.zone ?? zone, b.dur ?? (v ? lead + v.dur + tail + (b.hold ?? 0) : 3), { spec: b.shot ?? {}, sfx: b.sfx ?? [], beat: b });
+    const d = b.dur ?? (v ? lead + v.dur + tail + (b.hold ?? 0) : 3);
+    if (b.game) add(id, 'game', b.game.zone ?? 'lab', d, { spec: b.game, sfx: b.sfx ?? [], beat: b });
+    else add(id, 'beat', b.zone ?? zone, d, { spec: b.shot ?? {}, sfx: b.sfx ?? [], beat: b });
   });
   const card = R.card?.line ?? DEFAULT.card, end = R.end?.line ?? DEFAULT.end;
   { const v = V(card); say(card, 0.2, 0.3); add('card', 'card', 'ledge', 0.2 + v.dur + 0.3); }
@@ -111,17 +116,44 @@ function plan(R) {
 }
 
 // ------------------------------------------------------------------ frames
-const shotKey = (R, s) => s.kind === 'beat'
+const shotKey = (R, s) => s.kind === 'game' ? sha([REV_GAME, R.seed ?? 1337, JSON.stringify(s.spec), s.dur, RFPS, opt.preview ? 1 : GAME_DPR].join('|'))
+  : s.kind === 'beat'
   ? sha([REV_BEAT, s.zone, R.seed ?? 1337, JSON.stringify(R.stage ?? {}), JSON.stringify(s.spec), s.dur, RFPS].join('|'))
   : s.kind === 'legacy' ? sha(['legacy', R.legacy.reel, s.id, s.dur, RFPS].join('|'))
     : sha([REV_LEDGE, s.kind, s.dur, s.kind === 'endcard' ? LINK : '', RFPS].join('|'));
 const dims = (s) => (opt.preview ? [270, 480] : s.kind === 'endcard' ? [540, 960] : [405, 720]);
 const nFrames = (s) => Math.round((s.at + s.dur) * FPS) - Math.round(s.at * FPS);
 
+async function renderGame(R, P, only) {
+  const list = P.shots.filter((s) => s.kind === 'game' && (!only || only.includes(s)));
+  const todo = [];
+  for (const s of list) {
+    s.key = shotKey(R, s); s.dir = path.join(CACHE, 'shots', s.key);
+    if (only || opt.force || redo.includes(s.id) || !fs.existsSync(path.join(s.dir, 'done'))) todo.push(s);
+  }
+  if (!todo.length) return;
+  const dpr = opt.preview ? 1 : GAME_DPR;
+  log(`${R.id}: ${todo.length} game shot(s) at 405x720 x${dpr}`);
+  const st = await openGame({ w: 405, h: 720, dpr, seed: R.seed ?? 1337 });
+  try {
+    for (const s of todo) {
+      fs.mkdirSync(s.dir, { recursive: true });
+      await st.begin(s.id, s.spec, s.dur);
+      if (only) { s.still = path.join(s.dir, 'still.jpg'); fs.writeFileSync(s.still, await st.step(1 / RFPS, s.stillAt)); await st.end(); continue; }
+      const n = Math.ceil(s.dur * RFPS) + 1, t0 = Date.now();
+      for (let j = 0; j < n; j++) fs.writeFileSync(path.join(s.dir, String(j).padStart(4, '0') + '.jpg'), await st.step(1 / RFPS));
+      await st.end();
+      fs.writeFileSync(path.join(s.dir, 'done'), JSON.stringify({ n }));
+      log(`  ${s.id} ${n} frames, ${((Date.now() - t0) / n / 1000).toFixed(2)} s/frame`);
+    }
+  } finally { await st.close(); }
+}
+
 async function render(R, P, only = null) {
-  const zones = [...new Set(P.shots.map((s) => s.zone))];
+  await renderGame(R, P, only);
+  const zones = [...new Set(P.shots.filter((s) => s.kind !== 'game').map((s) => s.zone))];
   for (const z of zones) {
-    const list = P.shots.filter((s) => s.zone === z && (!only || only.includes(s)));
+    const list = P.shots.filter((s) => s.kind !== 'game' && s.zone === z && (!only || only.includes(s)));
     const todo = [];
     for (const s of list) {
       s.key = shotKey(R, s); s.dir = path.join(CACHE, 'shots', s.key);
@@ -176,6 +208,7 @@ function soundtrack(R, P) {
     if (to - from > 0.5) for (const [tag, g] of BEDS[zs.z] ?? []) beds.push({ file: sound(tag, tag), from, to, gain: g });
   }
   const cr = CREATURES[R.creature] ?? {};
+  for (const s of P.shots.filter((x) => x.kind === 'game')) for (const e of s.sfx ?? []) sfx.push({ file: sound(e.tag, R.id + s.id + e.tag + (e.at ?? 0)), at: s.at + (e.at ?? 0), gain: e.gain ?? -12, rate: e.rate ?? 1, to: e.to !== undefined ? s.at + e.to : undefined, dur: e.dur, fade_out: e.fade_out ?? 0 });
   for (const s of P.shots.filter((x) => x.kind === 'beat')) {
     const sp = s.spec ?? {}, c0 = sp.creatures?.[0], cc = CREATURES[c0?.key ?? R.creature] ?? cr;
     const caught = sp.caught;
@@ -228,7 +261,7 @@ async function make(file) {
   const base = { fps: FPS, total: P.total, size: opt.preview ? [540, 960] : [1080, 1920], accent, logo, lines: P.lines.map((l) => ({ at: l.at, words: l.words, env: l.env, nocap: !!l.nocap, wav: l.wav, dur: l.dur })) };
 
   if (opt.sheet || stillAt !== null) {
-    const picks = stillAt !== null ? [P.shots.find((s) => stillAt >= s.at && stillAt < s.at + s.dur) ?? P.shots[P.shots.length - 1]] : P.shots.filter((s) => s.kind === 'beat');
+    const picks = stillAt !== null ? [P.shots.find((s) => stillAt >= s.at && stillAt < s.at + s.dur) ?? P.shots[P.shots.length - 1]] : P.shots.filter((s) => s.kind === 'beat' || s.kind === 'game');
     for (const s of picks) s.stillAt = stillAt !== null ? Math.max(0.02, stillAt - s.at) : s.dur * 0.55;
     await render(R, P, picks);
     if (opt.sheet) {

@@ -175,6 +175,13 @@ export class Handler implements GameSystem {
   }
 
   // ================================================================ API
+  /** round 21: a visit outside the tutorial: the projection comes up and walks with the unit for its lines, then signs off */
+  private visiting = false; private visitAt = -999;
+  visit(lines: string[]) {
+    if (!this.voiceOnly || this.scripted || this.cine) { for (const t of lines) this.say(t); return; }
+    this.voiceOnly = false; this.visiting = true;
+    for (const t of lines) this.say(t, { pri: 2 });
+  }
   get visible() { return this.show > 0.3 && !this.hidden; }
   get active() { return this.visible; }
   worldPos(out = new THREE.Vector3()) { return out.set(this.x, this.y, this.z); }
@@ -269,6 +276,12 @@ export class Handler implements GameSystem {
       // the projection does not follow you through a door: it comes back when it has something to say
       this.hidden = true; this.show = 0; this.showGoal = 0; this.coneW = 0;
       if (this.guideT && this.guideZone !== z.key) this.guide(null);
+      // round 21: a level she has never had a feed from: now and then she projects in and walks it with the unit
+      const fresh = !this.seenZones.has(z.key) && this.seenZones.size > 0;
+      if (fresh && !this.scripted && G.missions?.enabled !== false && G.time - this.visitAt > 240 && Math.random() < 0.6) {
+        this.visitAt = G.time;
+        setTimeout(() => { if (G.local?.zoneKey === z.key && !G.local.body.dead) this.visit([pickL(L.zone)]); }, 3200);
+      }
       this.seenZones.add(z.key);
     });
     // the intake is over: whatever path it took (skipped, the arrival, the old pass-through), the pack is on
@@ -366,6 +379,8 @@ export class Handler implements GameSystem {
     const z = G.view.zone;
     if (z.key !== this.zoneKey) { this.zoneKey = z.key; }
     this.updateTalk(dt);
+    // the visit is over once she has nothing left to say: the tube switches off, she is a voice again
+    if (this.visiting && !this.cur && !this.queue.length && this.quietT > 5) { this.visiting = false; this.collapse(); this.voiceOnly = true; }
     // free survival (directives off) has no contract and no handler nagging
     if (!this.scripted && G.missions?.enabled !== false) { this.updateTutorial(dt); this.updateReactions(dt, p); }
     // ---- visibility

@@ -25,6 +25,7 @@ import { sfx } from '../menus/sfx';
 import { mxOk } from '../machine/core';
 import { mxIconSpinWarm, mxIcon, type IconKind } from '../machine/decor';
 import { iconChip, nameTag } from '../iconChip';
+import { creditIcon, type CreditIconEl } from '../creditIcon';
 import { crtScreen, crtIcon, type Crt, type CrtIcon } from '../crt/crt';
 import { mxButton, mxKnob, mxToggleCanvas } from '../machine/kit';
 import { isTouchMode } from '../touch/mode';
@@ -63,6 +64,7 @@ export class BandOS {
   private msgLamp!: HTMLElement;
   private topNums!: { clock: HTMLElement; cr: HTMLElement; usd: HTMLElement; rp: HTMLElement };
   private topKey = '';
+  private crIc: CreditIconEl | null = null; private crLast: number | null = null;
   private sel = 0;
   private cur: Run | null = null;
   private busy = 0;
@@ -344,8 +346,9 @@ export class BandOS {
     // coin, the dollars by the ledger, the research points by a blueprint
     const top = el('div', 'wt-top');
     this.topL = el('b', 'wt-tl'); this.topR = el('span', 'wt-tr');
-    const num = (k: IconKind, name: string) => { const g = el('span', 'wt-tn'); const ic = mxIcon(k, 14); if (ic) g.append(ic); const v = el('em'); g.append(v); nameTag(g, name, true); this.topR.append(g); return v; };
-    this.topNums = { clock: num('lamp', 'Shift clock'), cr: num('coin', 'Credits'), usd: num('ledger', 'Dollars'), rp: num('blueprint', 'Research points') };
+    const num = (k: IconKind, name: string) => { const g = el('span', 'wt-tn'); const ic = k === 'credit' ? (this.crIc = creditIcon(14)) : mxIcon(k, 14); if (ic) g.append(ic); const v = el('em'); g.append(v); nameTag(g, name, true); this.topR.append(g); return v; };
+    // (the credits by the Institute's spinning coin, src/ui/creditIcon.ts; it flashes when the amount moves)
+    this.topNums = { clock: num('lamp', 'Shift clock'), cr: num('credit', 'Credits'), usd: num('ledger', 'Dollars'), rp: num('blueprint', 'Research points') };
     top.append(this.topL, this.topR);
     this.home = el('div', 'wt-home');
     this.appEl = el('div', 'wt-app');
@@ -540,18 +543,18 @@ export class BandOS {
     const tall = this.L.kind === 'tall';
     set(N.clock, clock);
     set(N.cr, tall || cr === null ? null : cr.toLocaleString('en-GB'));
+    if (cr !== null && this.crLast !== null && cr !== this.crLast) this.crIc?.flash();
+    this.crLast = cr;
     N.cr.classList.toggle('neg', (cr ?? 0) < 0);
-    set(N.usd, tall ? null : '$' + usd.toLocaleString('en-GB'));
+    set(N.usd, tall ? null : usd.toLocaleString('en-GB'));
     set(N.rp, tall ? null : String(rp));
   }
   private footLine() {
     if (!this.foot || this.lineT > 0) return;
     // keys, not sentences; in an app a soft key back to home (a phone has no Esc)
     this.foot.classList.remove('line');
-    const touch = isTouchMode();
     // round 21: no key legend: in an app a little model of the band's home key (its name on hover), and the app's own
     // model; on home the foot is the tube's quiet status rule
-    void touch;
     this.foot.replaceChildren();
     if (this.cur) {
       const hm = iconChip('radio', 'Home', () => this.back(), { size: this.L.kind === 'tall' ? 26 : 20, sound: 'back' });

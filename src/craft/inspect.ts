@@ -10,6 +10,7 @@
 // on a handle: each a short physical motion, repeated, a chalk line showing
 // where, a slate keeping the tally) and the ordinary verbs. Opened from the
 // item card's "Inspect in hand", or straight in for a hand step.
+import { creditAmount } from '../ui/creditIcon';
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
@@ -300,7 +301,7 @@ export class Inspect {
     const desc = it ? (d?.desc || '') : 'Tipped over. Four legs held on with glue and habit. Each one a straight dry length of hardwood: a handle, a club, a splint.';
     el.innerHTML = `<canvas class="ip-bg"></canvas><i class="ip-lamp g"></i><div class="ip-hd" style="left:42px">Meridian · in hand · ${esc(kind)}</div>
 <div class="ip-in"><div class="ip-name">${esc(name)}</div>
-${it ? `<div class="ip-row" data-bar="cond"><b>COND</b></div><div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg${d?.value ? ' · ' + d.value + ' credits' : ''}</div>` : ''}
+${it ? `<div class="ip-row" data-bar="cond"><b>COND</b></div><div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg${d?.value ? ' · <span class="ip-cr"></span>' : ''}</div>` : ''}
 ${!it || !this.pois.length ? `<div class="ip-desc">${esc(desc)}</div>` : ''}
 <div class="ip-poi"></div><div class="ip-note"></div>
 <div class="ip-keys"></div><div class="ip-hint">${L.narrow ? 'Drag: turn · Pinch: closer' : 'Drag: turn · Wheel: closer · 1-4: marks · F: flip'}</div></div>`;
@@ -318,6 +319,8 @@ ${!it || !this.pois.length ? `<div class="ip-desc">${esc(desc)}</div>` : ''}
       row.append(cv, pct);
     }
     // the marks: a numbered list on the card, a numbered reticle on the thing
+    // round 21: the value as the Institute's spinning credit coin and the number
+    const crSlot = el.querySelector('.ip-cr'); if (crSlot && d?.value) crSlot.replaceWith(creditAmount(d.value, 12));
     const list = el.querySelector('.ip-poi') as HTMLElement;
     this.pois.forEach((q, i) => {
       const li = document.createElement('div');

@@ -715,7 +715,9 @@ export type IconKind = 'gear' | 'wrench' | 'play' | 'tape' | 'clipboard' | 'door
   | 'pin' | 'compass' | 'lens' | 'boot'
   // round 21 (the lab's room keys, src/ui/menus/labIcons.ts): a little CRT set, the research lattice, the talent
   // balance, a sample flask, a filament spool, a filing cabinet
-  | 'crt' | 'lattice' | 'scale' | 'flask' | 'spool' | 'cabinet';
+  | 'crt' | 'lattice' | 'scale' | 'flask' | 'spool' | 'cabinet'
+  // the Institute's credit (src/ui/creditIcon.ts): a thick digital coin, milled edge, the meridian glyph, a lit circuit trace
+  | 'credit';
 /** icon models built outside this file (registered before their first sheet is drawn) */
 export interface IconExtra { build(m: Mold, g: THREE.Group, u: number): void; glow?: [number, number, number]; free?: boolean }
 export const ICON_EXTRA = new Map<IconKind, IconExtra>();
@@ -992,6 +994,33 @@ function iconModel(kind: IconKind, S: number, yaw = 0): THREE.Group {
       m.add(fcyl(1.1 * u, 0.6 * u, 8, 1.1 * u, 0.2), M(0, -5 * u, 1.4 * u, R90), 0x8a6a3a, PAINT);
       break;
     }
+    case 'credit': {
+      // a thick green-gold coin with a milled edge; on each face a raised rim, a sunk field engraved with the
+      // Institute's meridian (a globe's meridian and equator round a lit core), a faint lit circuit trace, a glint
+      const R = 8.6 * u, T = 3.8 * u;
+      m.add(fcyl(R, T, 28, R, 0.22), M(0, 0, 0, R90), 0xc2ae4c, BRASS);
+      for (let i = 0; i < 40; i++) { const a = (i / 40) * TAU; m.add(fbox(0.62 * u, 0.7 * u, T * 0.78, 0), M(Math.cos(a) * R, Math.sin(a) * R, 0, 0, 0, a + PI / 2), i % 2 ? 0x8a7a2a : 0xe0cc6a, BRASS); }
+      for (const sd of [1, -1]) {
+        const z = sd * T / 2;
+        m.add(fring(R - 1.1 * u, 0.62 * u, 28, 4), M(0, 0, z), 0xead88a, BRASS);
+        m.add(fcyl(R - 1.7 * u, 0.4 * u, 28, R - 1.7 * u, 0), M(0, 0, z - sd * 0.1 * u, R90), 0x7e7024, BRASS);
+        // the meridian: a narrow ring (the meridian), the equator ring and bar, the lit core
+        m.add(fring(4.6 * u, 0.5 * u, 22, 4), M(0, 0, z + sd * 0.3 * u, 0, 0, 0, 0.42, 1, 1), 0xf4e294, BRASS);
+        m.add(fring(4.6 * u, 0.42 * u, 22, 4), M(0, 0, z + sd * 0.25 * u), 0xd8c470, BRASS);
+        m.add(fbox(9.6 * u, 0.7 * u, 0.6 * u, 0.1), M(0, 0, z + sd * 0.3 * u), 0xf4e294, BRASS);
+        m.add(gem(1.3 * u, 0, 0.04, 6), M(0, 0, z + sd * 0.5 * u), 0x9affc8, GLASS, 1);
+        // the circuit: three traces out through the field, each ending on a pad
+        for (const [a, L] of [[0.75, 2.4], [2.6, 2], [4.3, 2.6]] as [number, number][]) {
+          const x0 = Math.cos(a) * 4.9 * u, y0 = Math.sin(a) * 4.9 * u, x1 = Math.cos(a) * (4.9 + L) * u, y1 = Math.sin(a) * (4.9 + L) * u;
+          m.add(frod([x0, y0, z + sd * 0.2 * u], [x1, y1, z + sd * 0.2 * u], 0.24 * u, 4), null, 0x6affb0, PAINT, 0.7);
+          m.add(fbox(0.9 * u, 0.9 * u, 0.3 * u, 0), M(x1, y1, z + sd * 0.25 * u, 0, 0, a), 0x6affb0, PAINT, 0.8);
+        }
+      }
+      // the glint on the rim
+      m.add(gem(0.9 * u, 0, 0.02, 2), M(-5.2 * u, 5.6 * u, T / 2 + 0.4 * u), 0xffffff, GLASS, 1);
+      g.rotation.x = 0.12;
+      break;
+    }
     case 'pin': {
       // a map pin: a chrome needle, a red enamel head with its shine, leaning into the plot
       m.add(frod([0, -9.5 * u, 0], [0, 2 * u, 0], 0.55 * u, 5), null, 0xd8dcd8, CHROME);
@@ -1046,6 +1075,7 @@ function iconModel(kind: IconKind, S: number, yaw = 0): THREE.Group {
   if (!m.empty) {
     const mat = mxMat({ wear: 0.4, seed: 7 });
     if (kind === 'lamp' || kind === 'bolt' || kind === 'siren' || kind === 'walkie' || kind === 'radio') mat.uniforms.uGlow.value.set(1, 0.8, 0.4);
+    if (kind === 'credit') mat.uniforms.uGlow.value.set(0.55, 1.25, 0.8);
     const xg = ICON_EXTRA.get(kind)?.glow; if (xg) mat.uniforms.uGlow.value.set(xg[0], xg[1], xg[2]);
     meshOf(m, mat, g);
   }
@@ -1077,7 +1107,7 @@ function tuneCanvas(w: number, h: number): HTMLCanvasElement {
   return cv;
 }
 const ICON_F = 10;
-const iconFree = (kind: IconKind) => kind === 'eye' || kind === 'jar' || kind === 'siren' || kind === 'phone' || kind === 'phoneOff' || kind === 'ledger' || kind === 'pin' || kind === 'compass' || kind === 'lens' || kind === 'boot' || !!ICON_EXTRA.get(kind)?.free;
+const iconFree = (kind: IconKind) => kind === 'eye' || kind === 'jar' || kind === 'siren' || kind === 'phone' || kind === 'phoneOff' || kind === 'ledger' || kind === 'pin' || kind === 'compass' || kind === 'lens' || kind === 'boot' || kind === 'credit' || !!ICON_EXTRA.get(kind)?.free;
 /**
  * a little 3D icon that sways on its turntable while its key is hot (hover / focus) and eases back to rest:
  * a sheet of ICON_F poses rendered once, frames flipped by the shared clock only while it moves
@@ -1110,7 +1140,7 @@ const SPIN_F = 24;
  * a 3D icon turning slowly all the way round on its turntable (the band's home screen), quicker while hot:
  * a sheet of SPIN_F headings rendered once (straight on), flipped by the shared clock while it is on screen
  */
-export function mxIconSpin(kind: IconKind, size = 72): { cv: HTMLCanvasElement; hot(on: boolean): void; wake(): void } | null {
+export function mxIconSpin(kind: IconKind, size = 72, rate: [number, number] = [3.2, 16]): { cv: HTMLCanvasElement; hot(on: boolean): void; wake(): void } | null {
   if (!mxOk()) return null;
   const sh = sheet(`icoS|${kind}|${size}`, size, size, 4, SPIN_F, (f) => iconModel(kind, size, (f / SPIN_F) * TAU), FREE);
   if (!sh) return null;
@@ -1119,7 +1149,7 @@ export function mxIconSpin(kind: IconKind, size = 72): { cv: HTMLCanvasElement; 
   let ph = Math.random() * SPIN_F, on = false, cur = -1;
   const draw = () => { const f = Math.floor(ph) % SPIN_F; if (f === cur) return; cur = f; blit(cv, sh, f, fw, fh); };
   draw();
-  const t: Ticker = { el: cv, seen: 0, tick: (_n, dt) => { if (reduce()) return; ph = (ph + dt * (on ? 16 : 3.2)) % SPIN_F; cur = -1; draw(); } };
+  const t: Ticker = { el: cv, seen: 0, tick: (_n, dt) => { if (reduce()) return; ph = (ph + dt * (on ? rate[1] : rate[0])) % SPIN_F; draw(); } };
   tickOf.set(cv, t); clock(t);
   return { cv, hot: (v: boolean) => { on = v; wake(cv); }, wake: () => wake(cv) };
 }

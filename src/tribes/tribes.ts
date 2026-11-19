@@ -17,7 +17,7 @@ import { itemValue } from '../game/debt/values';
 import { defScanInfo } from '../scan/scan';
 import { TRIBES, TRIBE_KEYS, standing, type TribeKey, type TribeDef } from './defs';
 import type { Camp, Drifter } from './camp';
-import { bark, memberName, prunePool, tribeOfCreature, sayAs } from './npc';
+import { bark, memberName, prunePool, tribeOfCreature, sayAs, idHash } from './npc';
 import { TradeUI } from './tradeUI';
 import { Talk, talkTarget } from './talk';
 import { tribeBrain, alarm, passBark } from './brain';
@@ -148,7 +148,10 @@ export class TribeSystem implements GameSystem {
     for (const zk of zones) {
       const z = G.zones.get(zk); if (!z) continue;
       for (const camp of (z.meta.tribeCamps || []) as Camp[]) {
+        // round 21: people are rarer: a camp keeps its trader, guard and cook and about half the rest
+        const keep = Math.max(3, Math.ceil(camp.slots.length * 0.55));
         camp.slots.forEach((s, slot) => {
+          if (slot >= keep) return;
           const key = `${zk}:${camp.i}:${slot}`;
           const id = `tb_${zk}_${camp.i}_${slot}_${this.st.gen[key] ?? 0}`;
           const c = G.creatures?.creatures?.get(id) as Creature | undefined;
@@ -164,6 +167,8 @@ export class TribeSystem implements GameSystem {
       // lone people out in the rooms
       for (const d of (z.meta.tribeDrifters || []) as Drifter[]) {
         const key = `${zk}:d:${d.i}`;
+        // round 21: rarer: only some of the lone people are out there (the same ones on every peer and reload)
+        if (idHash(key) % 100 >= 45) continue;
         const id = `tb_${zk}_d${d.i}_${this.st.gen[key] ?? 0}`;
         const c = G.creatures?.creatures?.get(id) as Creature | undefined;
         if (c) { if ((c.dead || c.tamedBy) && this.st.deadAt[key] === undefined) op('tribe', { k: 'dead', key, v: G.clock.hours }); continue; }

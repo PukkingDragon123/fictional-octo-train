@@ -2,6 +2,7 @@
 // spring-scale dial, a strip of embossed label tape that drops in with a
 // note, a luggage tag tied to whatever you point at, a chalk slate with tally
 // marks for work in progress, clickable typed tags, a bakelite control box.
+import { mxIcon, type IconKind } from '../ui/machine/decor';
 import * as THREE from 'three';
 import type { Item } from '../items/item';
 import { itemDef, itemName, itemWeight } from '../items/item';
@@ -83,8 +84,11 @@ export class HoverTag {
       const s = size3(it.key);
       const y = 12 + lines * 8.5;
       t.type(itemWeight(it).toFixed(1) + ' kg · ' + s[0] + '×' + s[1] + '×' + s[2], 6, y, '#5a3418', 6.5);
-      const extra = d.durability || d.weapon ? 'condition ' + Math.round(it.cond * 100) + '%' : d.value ? d.value + ' credits' : (d.cat || '');
-      t.type(extra, 6, y + 8, '#5a3418', 6.5);
+      const extra = d.durability || d.weapon ? 'condition ' + Math.round(it.cond * 100) + '%' : d.value ? String(d.value) : (d.cat || '');
+      // round 21: a value is the Institute's credit coin (a still of its 3D model) and the number, no word
+      const coin = !(d.durability || d.weapon) && d.value ? mxIcon('credit', 18) : null;
+      if (coin) { t.ctx.drawImage(coin, 5 * 4, (y + 6.5) * 4, 9 * 4, 9 * 4); t.type(extra, 15, y + 8, '#5a3418', 6.5); }
+      else t.type(extra, 6, y + 8, '#5a3418', 6.5);
       t.flush();
     }
     this.place(at);
@@ -157,6 +161,17 @@ export function clickTag(text: string, _kind: 'tag' | 'card' = 'tag', w = 54, si
   const h = sub ? 24 : 18;
   const t = pixTag('key', w, h, size);
   keyLegend(t, text, sub, lamp);
+  keycap(t);
+  return t;
+}
+/** round 21: a bench key with a little 3D model on its cap instead of a legend (the lamp stays) */
+export function iconKeyTag(kind: IconKind, w = 34, size = 0.1, lamp: KeyLamp = 'go'): PixTag {
+  const t = pixTag('key', w, 18, size);
+  keyLegend(t, '', '', lamp);
+  // the model drawn into the cap in the tag's art space (ART px per unit), centred right of the lamp
+  const ic = mxIcon(kind, 30);
+  if (ic) t.art((c) => { const hh = t.h * 2 - 4, sc = hh / ic.height; c.imageSmoothingEnabled = false; c.drawImage(ic, Math.round(18 + (t.w * 2 - 18 - ic.width * sc) / 2), 1, Math.round(ic.width * sc), Math.round(ic.height * sc)); });
+  t.flush();
   keycap(t);
   return t;
 }

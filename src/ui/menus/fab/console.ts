@@ -8,6 +8,8 @@ import { plateBtn } from '../btnKit';
 import { FocusNav } from '../nav';
 import { sfx } from '../sfx';
 import { mxArrive } from '../../machine/kit';
+import { mxOk } from '../../machine/core';
+import { iconKey } from '../iconKey';
 import { bus } from '../../../core/events';
 import { hasUnlock } from '../../../game/research';
 import { hasItemDef } from '../../../items/item';
@@ -30,12 +32,13 @@ export interface PrintConsole { close(): void; refresh(): void }
 export function openPrintConsole(printer: Printer3D, ctx: FabCtx, onClose: () => void): PrintConsole {
   const wrap = document.createElement('div');
   wrap.className = 'ptm fabc';
-  const t = terminal({ title: 'Printer', sub: 'print patterns', cls: 'ptm-term fabc-term', model: 'Meridian · Fabricator P-3', powerOn: true });
+  // round 21: no words on the head (the printer's state shows as its lamp); the off key is a power bolt
+  const t = terminal({ title: '', sub: '', cls: 'ptm-term fabc-term', model: 'Meridian · Fabricator P-3', powerOn: true });
   t.screen.classList.add('amber');
   wrap.append(t.el);
   document.body.append(wrap);
   mxArrive(t.el, 'right', { delay: 60 });
-  t.keys.append(plateBtn('Off', () => close(), { finish: 'oxblood', size: 'sm', shape: 'key', tight: true, sound: 'relay' }));
+  t.keys.append(mxOk() ? iconKey('bolt', 'Off', () => close(), { w: 70, h: 50, tone: 'red', lamp: 'red', sound: 'relay', hint: 'Esc', nameAt: 'top' }) : plateBtn('Off', () => close(), { finish: 'oxblood', size: 'sm', shape: 'key', tight: true, sound: 'relay' }));
   if (!document.getElementById('fabc-css')) {
     const st = document.createElement('style'); st.id = 'fabc-css';
     st.textContent = `.ptm.fabc { inset: 5vh 2vw 5vh auto; width: min(50vw, 620px); background: none; display: block; animation: none; pointer-events: none; }
@@ -80,7 +83,8 @@ export function openPrintConsole(printer: Printer3D, ctx: FabCtx, onClose: () =>
       upgrades: PRESS_UPGRADES.map((u) => ({ title: u.title, on: hasUnlock(u.key) })),
       spools: [...by].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([m, kg]) => ({ color: hex(FILAMENT[m]), kg })),
     };
-    t.setHead('Printer', printer.busy ? 'printing' : 'print patterns');
+    t.setHead('', '');
+    t.el.classList.toggle('fabc-busy', printer.busy);
     if (!cs) cs = new CreateScreen(host); else cs.setHost(host);
     cs.render(t.body);
   };

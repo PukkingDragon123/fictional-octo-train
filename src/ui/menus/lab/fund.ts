@@ -43,7 +43,9 @@ export function fundTag(k: StationKey, at: () => { x: number; y: number } | null
     gauge = document.createElement('i'); gauge.className = 'lfund-g'; gauge.innerHTML = '<i></i>';
     el.append(hold, gauge);
   } else {
-    const n = document.createElement('em'); n.textContent = why.startsWith('$') ? 'not enough dollars' : why; el.append(n);
+    // round 21: short of dollars shows as the price itself going red and shaking (Dr. Calder says why); other needs keep their few words
+    if (why.startsWith('$')) { price.classList.add('short'); el.setAttribute('aria-label', 'not enough dollars'); }
+    else { const n = document.createElement('em'); n.textContent = why; el.append(n); }
     say?.(why.startsWith('$') ? CALDER.money : CALDER.need);
     sfx('error', 0.4);
   }
@@ -56,6 +58,8 @@ export function fundTag(k: StationKey, at: () => { x: number; y: number } | null
 .lfund b { font-weight: 400; font-size: 20px; letter-spacing: .04em; white-space: nowrap; }
 .lfund-p { display: inline-flex; align-items: center; gap: 5px; font-size: 22px; color: #ffd870; }
 .lfund-p img { width: 16px; height: 16px; image-rendering: pixelated; filter: drop-shadow(1px 1px 0 #0b0a07); }
+.lfund-p.short { color: #ff7a5a; animation: lfund-no .36s steps(6) 2; }
+@keyframes lfund-no { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 .lfund em { font-style: normal; font-size: 16px; color: #ffb090; white-space: nowrap; }
 .lfund-h { padding: 0; border: 0; background: none; cursor: pointer; line-height: 0; outline: none; }
 .lfund-h .tcap { background-position: 0 0; filter: drop-shadow(0 3px 0 rgba(11,10,7,.7)); }

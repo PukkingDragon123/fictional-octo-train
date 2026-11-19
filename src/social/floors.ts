@@ -385,10 +385,11 @@ export class FloorSystem implements GameSystem {
   private stepRing(dt: number) {
     const r = this.ring!;
     this.ringT += dt;
-    const k = this.ringT / 0.55;
-    if (k >= 1) { r.visible = false; this.ringT = -1; return; }
+    // stepped like a sprite (the art pass): the puff grows in whole frames and fades in three steps
+    const k = Math.floor((this.ringT / 0.55) * 7) / 7;
+    if (this.ringT >= 0.55) { r.visible = false; this.ringT = -1; return; }
     const s = 0.4 + k * 2.6;
     r.scale.set(s, 1, s);
-    (r.material as THREE.Material).opacity = 0.6 * (1 - k) * (1 - k);
+    (r.material as THREE.Material).opacity = 0.6 * Math.ceil((1 - k) * 3) / 3;
   }
 }

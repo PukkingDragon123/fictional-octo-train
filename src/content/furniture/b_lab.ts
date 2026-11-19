@@ -341,6 +341,9 @@ defObj({
     const cc = ['plastic_blue', 'plastic_yellow', 'plastic_black', 'plastic_red'];
     cc.forEach((t, i) => mb.cylinder(-0.18 + i * 0.1, 2.01, -0.35, 0.025, 0.69, 5, t, { caps: false }));
     mb.box(0, 2.01, -0.35, 0.5, 0.04, 0.12, 'metal_dark');
+    // the art pass: a small lit status plate at eye height, amber over green
+    mb.box(-0.27, 1.5, 0.45, 0.07, 0.12, 0.012, 'metal_dark');
+    for (let i = 0; i < 3; i++) mb.box(-0.27, 1.52 + i * 0.035, 0.457, 0.045, 0.018, 0.004, i === 2 ? 'plastic_yellow' : 'led_green', { emissive: 1.0, bevel: false });
   },
 });
 
@@ -369,6 +372,15 @@ defObj({
     mb.box(0.36, 0.74, zc - 0.05, 0.18, 0.22, 0.26, { sides: 'q_steel_dark', top: 'q_steel_dark' });
     for (let i = 0; i < 3; i++) mb.box(0.36, 0.8 + i * 0.05, zc + 0.085, 0.03, 0.02, 0.02, i === 0 ? 'led_green' : 'plastic_white', { emissive: i === 0 ? 1.2 : 0 });
     mb.cylinder(0.33, 0.74, zc + 0.2, 0.04, 0.09, 7, 'porcelain', { color: 0xe8d8c0 });
+    // the art pass: a lit status rail along the plinth (the machine kit's green and amber) and the cable run to the wall
+    mb.box(0, 0.045, zc + 0.313, 0.78, 0.014, 0.006, 'metal_dark');
+    for (let i = 0; i < 9; i++) mb.box(-0.32 + i * 0.08, 0.049, zc + 0.317, 0.05, 0.006, 0.003, i % 4 === 3 ? 'plastic_yellow' : 'led_green', { emissive: i % 4 === 3 ? 0.9 : 0.7, bevel: false });
+    ['plastic_black', 'plastic_blue', 'plastic_yellow'].forEach((t, i) => {
+      const x = -0.12 + i * 0.035;
+      mb.cylinder(x, 0.03, zc - 0.33 - i * 0.012, 0.012, 0.74, 5, t, { caps: false, bevel: false });
+      mb.cylinderZ(x, 0.012, zc - 0.33 - i * 0.012 - 0.06, 0.012, 0.12, 5, t, { caps: false, bevel: false });
+    });
+    for (const z of [zc - 0.36, zc - 0.44]) mb.box(-0.085, 0.015, z, 0.12, 0.03, 0.02, 'metal_dark');
   },
 });
 

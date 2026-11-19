@@ -23,7 +23,7 @@ import { ink, inkMesh, shade, shadowBlob, WorkLamp } from './fpScene';
 import { gem } from '../ui/touch/facet';
 import { pixTag, disposeTag, type PixTag } from './tags';
 import { Shape } from './shapes';
-import { Dymo, Slate, HoverTag, clickTag } from './props';
+import { Dymo, Slate, HoverTag, clickTag, iconKeyTag } from './props';
 import { recipeHint } from './knowledge';
 import { storeItems } from './stores';
 import { mxItemStill } from '../ui/machine/itemSpin';
@@ -99,7 +99,8 @@ export class Bench {
     this.cube.root.scale.setScalar(0.58);
     this.cube.root.position.set(-0.52, 0, -0.04);
     g.add(this.top);
-    const sweep = clickTag('Sweep back into the cube', 'tag', 110, 0.27), away = clickTag('Step away', 'tag', 70, 0.21, '(Esc)');
+    // round 21: no legends: the sweep key carries the crate, the leave key the door (Esc still leaves)
+    const sweep = iconKeyTag('crate', 40, 0.1), away = iconKeyTag('door', 40, 0.1, 'stop');
     // both tags hang off hooks on the pegboard, swinging a little
     // tags you can pull: one tied to the cube's corner, one hung on the vice's tommy bar
     // keycaps standing on the bench edge (src/craft/props.ts clickTag), tipped toward you

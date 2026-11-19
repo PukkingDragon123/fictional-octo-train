@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { MenuStage, type StageRoom, type Hot, type Grade } from '../monitor/stage';
 import { facetMats, disposeFacetMats, type FMats } from '../scene/pixtex';
 import { FacetBuilder, at, cbox, prism, slab } from '../monitor/props';
-import { mxButton } from '../../machine/kit';
+import { iconKey } from '../iconKey';
 import { FocusNav } from '../nav';
 import { G } from '../../../game/G';
 import { op } from '../../../game/ops';
@@ -118,7 +118,7 @@ export function openCampFab(kind: Kind, o: TileObject, p: Player) {
   const layer = document.createElement('div');
   Object.assign(layer.style, { position: 'absolute', left: '12px', top: '12px', zIndex: '2' });
   host.append(layer);
-  if (matchMedia('(pointer: coarse)').matches) layer.append(mxButton('Back', () => close(), { tone: 'yellow', w: 92, h: 40 }));
+  if (matchMedia('(pointer: coarse)').matches) layer.append(iconKey('door', 'Back', () => close(), { tone: 'yellow', lamp: 'green', w: 76, h: 56, hint: 'Esc', nameAt: 'top' }));
   const nav = new FocusNav(host, { onBack: () => { if (!(fm?.back() || pr?.back())) close(); }, onArrow: () => true });
   let gone = false;
   function close() {

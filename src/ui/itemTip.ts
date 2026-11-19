@@ -1,4 +1,5 @@
 import { Item, itemDef, itemName, itemWeight, freshness, fluidName, BodyPart } from '../items/item';
+import { creditSlot } from './creditIcon';
 import { escapeHtml } from './ui';
 import { PART_NAMES } from '../survival/body';
 import { itemIconFor, iconRes } from './icons';
@@ -121,6 +122,7 @@ export function itemTag(it: Item, count = 1, foot?: [number, number], hint = '')
   if (d.literature?.skill) row('Teaches', d.literature.skill);
   const kind = (CAT_LABEL[d.cat] || d.cat) + ' · ' + (itemWeight(it) * count).toFixed(count > 1 || itemWeight(it) < 1 ? 2 : 1) + ' kg' + (foot ? ` · ${foot[0]}x${foot[1]}` : '');
   const desc = d.desc ? escapeHtml(d.desc.split(/(?<=[.!?])\s/)[0].slice(0, 120)) : '';
-  const value = d.value && d.value > 1 ? `<div class="v">≈ ${Math.round(d.value * count)} credits at the hopper</div>` : '';
+  // round 21: the hopper value as the Institute's spinning credit coin and the number (src/ui/creditIcon.ts)
+  const value = d.value && d.value > 1 ? `<div class="v">≈ ${creditSlot(d.value * count, 14)}</div>` : '';
   return `<h5>${escapeHtml(itemName(it))}${count > 1 ? ' ×' + count : ''}</h5><div class="k">${escapeHtml(kind)}</div>${rows.join('')}${value}${desc ? `<div class="d">${desc}</div>` : ''}${hint ? `<div class="h">${escapeHtml(hint)}</div>` : ''}`;
 }

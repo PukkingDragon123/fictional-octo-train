@@ -6,6 +6,7 @@ import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { mxIcon, type IconKind } from '../machine/decor';
 import { iconChip } from '../iconChip';
+import { creditText } from '../creditIcon';
 import type { WinApi } from './bandos';
 import { statusPage, crewPage } from '../menus/pause';
 import { optionsPanel, controlsPanel } from '../menus/common';
@@ -107,8 +108,9 @@ export const APPS: AppDef[] = [
         const ol = el('div', 'bos-objs');
         for (const o of v.objectives) ol.append(el('div', 'bos-obj' + (o.done ? ' done' : ''), `<i></i><span>${esc(o.text.replace(/\s*\([^)]*\)/g, ''))}${o.optional ? ' <em>OPT</em>' : ''}</span>${o.prog > 0 && !o.done ? `<s style="--p:${Math.round(o.prog * 100)}%"></s>` : ''}`));
         out.push(ol);
-        if (v.rewardText) out.push(el('p', 'bos-rew', `+ ${esc(v.rewardText)}`));
-        if (v.costText) out.push(el('p', 'bos-dim', `- ${esc(v.costText)}`));
+        // round 21: credits as the spinning coin and the number (src/ui/creditIcon.ts)
+        if (v.rewardText) { const p = el('p', 'bos-rew'); p.append(creditText(v.rewardText, 14)); out.push(p); }
+        if (v.costText) { const p = el('p', 'bos-dim'); p.append('- ', creditText(v.costText, 14)); out.push(p); }
         // round 21: the job's keys are models: take it (a play key), turn it down (the door), settle (a coin), track it
         // (the compass, lit while it is the tracked one), drop it (the canister)
         const keys = el('div', 'bos-keys ic');

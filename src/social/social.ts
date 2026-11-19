@@ -6,6 +6,7 @@
 // co-op peers in the player snapshot; whistles and barks travel as 'sx'
 // messages. Every 'say' and 'shout' speech line (chat included) gets the
 // speaker's chip voice, timed to the floating letters.
+import { pixelNote, soundRings } from '../gfx/pixelFx';
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
@@ -145,13 +146,16 @@ export class SocialSystem implements GameSystem {
   }
   private whistleAt(p: Player, tune: number) {
     G.audio?.at?.('vx_whistle_' + (tune & 3), p.x, p.z, 0.9);
+    // rings of sound spreading over the floor, in pixels
+    if (p.zoneKey === G.local?.zoneKey) soundRings.emit(p.x, p.y ?? 0, p.z, tune === 2 ? 3.2 : 2.2, tune === 2 ? 3 : 2, tune === 2 ? 0xffc890 : 0xfff0c4);
     // notes float up off the whistler
     const ui = G.ui; if (!ui?.root || !ui.bubbles) return;
     const n = tune === 2 ? 4 : 3;
     for (let i = 0; i < n; i++) {
       const el = document.createElement('div');
       el.className = 'w-bubble ft-note';
-      el.textContent = i % 2 ? '♫' : '♪';
+      // pixel-art notes (src/gfx/pixelFx.ts), stepped like a sprite
+      el.appendChild(pixelNote(i % 2, tune === 2 ? 0xffc890 : 0xfff0c4));
       el.style.setProperty('--nx', (i % 2 ? 1 : -1) * (8 + i * 6) + 'px');
       el.style.animationDelay = (i * 0.16).toFixed(2) + 's';
       ui.root.appendChild(el);
@@ -168,6 +172,7 @@ export class SocialSystem implements GameSystem {
     const text = lines[Math.floor(Math.random() * lines.length)];
     g.ui?.say?.(p, text, 'shout', 2.5);
     g.audio?.at?.('shout', p.x, p.z, 1);
+    soundRings.emit(p.x, p.y ?? 0, p.z, 4, 3, 0xffd75a, 1.1);
     bus.emit('noise', { x: p.x, z: p.z, radius: 28, kind: 'shout', zone: p.zoneKey, by: p.id });
     g.net?.shout?.(text);
     bus.emit('shout', p);

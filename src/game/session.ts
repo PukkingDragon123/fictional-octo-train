@@ -11,6 +11,7 @@ import { InventoryUI } from '../ui/inventory';
 import { GrabCut } from '../ui/fpack/grab';
 import { Interact } from '../interact/world';
 import { FloorItemRenderer } from '../items/worldItems';
+import '../world/sciFx';
 import { bus } from '../core/events';
 import { CreatureSystem } from '../creatures/manager';
 import { CombatSystem } from './combat';
@@ -86,6 +87,7 @@ class WorldExtras implements GameSystem {
     const g = G;
     if (!g.view) return;
     const R = g.pr.lowW * g.pr.pxSize * 0.7 + 4;
+    this.floor.walkers = [...g.players.values()];
     this.floor.update(g.zone, g.pr.target.x, g.pr.target.z, R, (x, y) => g.view!.vis.isVisible(x, y), dt);
     const inp = g.input;
     if (inp.hit('inventory')) g.ui?.inventory?.toggle();

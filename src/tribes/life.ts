@@ -141,6 +141,11 @@ export function lifeJob(z: Zone, c: Creature, camp: Camp | null, tag: string, po
       if (Math.random() < 0.3) say(LIFE.search, 8, 0.3);
       return { x: q[0], z: q[1], kneel: 1, act: r < 0.6 ? 'loot' : 'dig', secs: 12 + r * 10 };
     }
+    case 'sleep': {
+      if (camp) return null;
+      // a drifter sleeps where they holed up
+      return { x: c.x, z: c.z, lie: 1, secs: 60 };
+    }
     case 'holeup': {
       const q = pointNear(z, c.x, c.z, 0, 3) || [c.x, c.z];
       say(LIFE.holeUp, 10, 0.5);
