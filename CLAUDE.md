@@ -16,7 +16,8 @@
   machine kit, the CRT skin). Never a generic smooth 3D render, never low-res mush or placeholder-flat.
 - Real 3D objects with rich materials (worn metal, glass, enamel, paper, brass), well lit, bright, never murky.
 - Interactive and physical: grab, drag, drop, press, pull; things react with motion, sound and physics.
-- Minimal text: icons and numbers, names on hover; no hint lines, sign plates or label spam.
+- Minimal text: icons and numbers, names on hover; no hint lines, sign plates or label spam. Menus and buttons are icons or
+  small 3D models (the map menu has no text at all); the name shows only on hover.
 - No plain "UI blocks": no flat rectangles of colour holding text or buttons. Every element is a designed object
   (detailed pixel art, a 3D prop, or something in the scene). Choices and prompts float as styled, slightly 3D text.
 - Before showing the user anything, compare its screenshot against this list; if it fails any point, it is not done.
