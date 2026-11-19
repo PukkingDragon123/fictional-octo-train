@@ -16,6 +16,7 @@ import { isTouchMode } from '../touch/mode';
 import './objective.css';
 import { mxOk } from '../machine/core';
 import { mxDecor, type MxDecor } from '../machine/decor';
+import { trackerEl, trackerFlash } from '../questTracker';
 
 type Card = { kind: string; title: string; step?: string; done?: string; tone?: 'new' | 'up' | 'ok' | 'filed' };
 const Q = () => G.missions?.quests as QuestRuntime | undefined;
@@ -95,6 +96,17 @@ export class ObjectiveLine {
     if (this.showing && document.body.classList.contains('noclip-cine')) {
       this.el.classList.remove('on', 'out'); this.showing = 0; this.hold = 0;
       if (this.cur) { this.queue.unshift(this.cur); this.cur = null; }
+      return;
+    }
+    // round 19: the quest tracker (../questTracker.ts) is the one line at the top now: this news flashes on it
+    if (trackerEl()) {
+      if (this.showing) { this.el.classList.remove('on', 'out'); this.showing = 0; this.cur = null; }
+      if (this.hold > 0) { this.hold -= dt; return; }
+      if (!this.queue.length || this.blocked()) return;
+      const c = this.queue.shift()!;
+      trackerFlash({ title: c.title, step: c.step ?? c.done, tone: c.tone });
+      this.hold = 3.6;
+      G.audio?.ui?.('bag_place', 0.18);
       return;
     }
     if (this.showing) {
