@@ -201,6 +201,9 @@ class TitleRoom {
       await this.stage.warm(breath);
       await breath();
       this.readyRes();
+      // (not while the loading screen is still playing out: it gets every frame until it is gone)
+      for (let k = 0; k < 200 && isLoading(); k++) await new Promise((r) => setTimeout(r, 100));
+      await idleSlice();
       lab0 = new ResearchLab(mats); await idleSlice();
       arc0 = new CodexArchive(mats); await idleSlice();
       this.buildRoomsNow(mon0, lab0, arc0);

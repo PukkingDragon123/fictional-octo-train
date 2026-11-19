@@ -7,7 +7,7 @@ import { PixelCanvas } from '../../../gfx/pixel';
 import { glyph5x7 } from '../../font5x7';
 
 const mul = (c: number, f: number) => ((Math.min(255, ((c >> 16) & 255) * f) << 16) | (Math.min(255, ((c >> 8) & 255) * f) << 8) | Math.min(255, (c & 255) * f)) >>> 0;
-const url = (pc: PixelCanvas) => { const cv = document.createElement('canvas'); cv.width = pc.w; cv.height = pc.h; cv.getContext('2d')!.putImageData(pc.toImageData(), 0, 0); return cv.toDataURL(); };
+const url = (pc: PixelCanvas) => { const cv = document.createElement('canvas'); cv.width = pc.w; cv.height = pc.h; cv.getContext('2d', { willReadFrequently: true })!.putImageData(pc.toImageData(), 0, 0); return cv.toDataURL(); };
 const cache = new Map<string, string>();
 const memo = (k: string, f: () => string) => { let u = cache.get(k); if (!u) { u = f(); cache.set(k, u); } return u; };
 

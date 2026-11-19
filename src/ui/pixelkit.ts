@@ -59,7 +59,8 @@ export function art(pc: PixelCanvas, x: number, y: number, rows: string[], pal: 
 export function toUrl(pc: PixelCanvas, scale = 1): string {
   const c = document.createElement('canvas');
   c.width = pc.w * scale; c.height = pc.h * scale;
-  const g = c.getContext('2d')!;
+  // (a CPU-backed canvas: encoding it never waits on the GPU, which is busy compiling shaders at boot)
+  const g = c.getContext('2d', { willReadFrequently: true })!;
   if (scale === 1) g.putImageData(pc.toImageData(), 0, 0);
   else {
     const t = document.createElement('canvas'); t.width = pc.w; t.height = pc.h;

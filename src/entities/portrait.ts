@@ -73,6 +73,8 @@ function uniformOutfit(u: Uniform, seed: number): Outfit {
 let R: THREE.WebGLRenderer | null = null;
 let failed = false;
 let idle: ReturnType<typeof setTimeout> | 0 = 0;
+/** the last portrait's rig, kept (hidden) so its shader programs stay compiled for the next one */
+let keptRig: HumanRig | null = null;
 function renderer(): THREE.WebGLRenderer | null {
   if (R) return R;
   if (typeof document === 'undefined') failed = true;
@@ -90,7 +92,11 @@ function renderer(): THREE.WebGLRenderer | null {
 /** drop the context a few seconds after the last portrait (browsers cap live WebGL contexts) */
 function scheduleRelease() {
   if (idle) clearTimeout(idle);
-  idle = setTimeout(() => { idle = 0; if (!R) return; try { R.dispose(); R.forceContextLoss(); } catch { /* gone */ } R = null; }, 6000);
+  idle = setTimeout(() => {
+    idle = 0;
+    if (keptRig) { try { keptRig.dispose(); } catch { /* ok */ } keptRig = null; }
+    if (!R) return; try { R.dispose(); R.forceContextLoss(); } catch { /* gone */ } R = null;
+  }, 6000);
 }
 
 const LIGHTS: Record<NonNullable<PortraitOpts['light']>, { hemi: [number, number, number]; key: [number, number, THREE.Vector3]; fill: [number, number, THREE.Vector3]; rim: [number, number, THREE.Vector3] }> = {
@@ -168,7 +174,9 @@ function renderBase(o: PortraitOpts): HTMLCanvasElement | null {
     return null;
   } finally {
     GLOWU.uGlowN.value = glowN;
-    if (rig) { scene.remove(rig.root); try { rig.dispose(); } catch { /* ok */ } }
+    // round 22 (load time): the rig is kept until the next portrait has been drawn, so its materials keep their
+    // shader programs alive and the next render reuses them instead of compiling every program again
+    if (rig) { scene.remove(rig.root); const old = keptRig; keptRig = rig; if (old) { try { old.dispose(); } catch { /* ok */ } } }
     scheduleRelease();
   }
   const big = document.createElement('canvas'); big.width = W; big.height = H;
@@ -242,6 +250,8 @@ function pump() {
   if (pumping) return;
   pumping = true;
   const step = () => {
+    // round 22: not while the boot screen is up (the title's own rooms are compiling): they wait for it to go
+    if (typeof document !== 'undefined' && document.querySelector('.lp-load.on')) { setTimeout(step, 400); return; }
     const first = queue.entries().next();
     if (first.done) { pumping = false; return; }
     const [bk, job] = first.value;

@@ -75,7 +75,7 @@ function drawSheet(draw: (p: P) => void): string {
   }
   const cv = document.createElement('canvas');
   cv.width = N; cv.height = N * 3;
-  cv.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
+  cv.getContext('2d', { willReadFrequently: true })!.putImageData(pc.toImageData(), 0, 0);
   return cv.toDataURL();
 }
 /** a selective outline (a dark shade of what it touches; black below), then a soft shadow pixel down-right */

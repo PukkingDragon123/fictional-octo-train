@@ -45,9 +45,8 @@ class ReviveScene {
   private rt: THREE.WebGLRenderTarget | null = null;
   private noShadow: THREE.WebGLRenderTarget | null = null;
   private post = makePost();
-  // the menu rooms' glow and bounce fill (src/ui/menus/monitor/stage.ts): only real emitters bloom
-  private bloom = Object.assign(new Bloom(), { thr: 2.2, knee: 0.5 });
-  private fillB = Object.assign(new Bloom(), { thr: 0.06, knee: 0.05 });
+  // the menu rooms' glow (src/ui/menus/monitor/stage.ts): only real emitters bloom
+  private bloom = Object.assign(new Bloom(), { thr: 3.2, knee: 0.3 });
   private lowW = 0; private lowH = 0;
   private vat: Vat;
   private rig: HumanRig;
@@ -101,10 +100,12 @@ class ReviveScene {
     // ---- light: the exam bay's rig (src/ui/body/health3d.ts) scaled to a room: a bright sky/bounce, a warm key and a cool
     // fill and a green rim off the tiles, then the two pendant lamps throwing warm pools on the floor, the vat's own glow
     // lighting the body from below and behind, and a reflected room for glints on the tiles, metal and glass
-    sc.add(new THREE.HemisphereLight(0xfff6ea, 0x8a9a84, 0.8));
-    const key = new THREE.DirectionalLight(0xfffaf0, 1.6); key.position.set(-1.4, 2.6, 2.2);
-    const fill = new THREE.DirectionalLight(0xe4f0ff, 0.6); fill.position.set(2.2, 0.8, 2.4);
-    const rimL = new THREE.DirectionalLight(0xc8f0d8, 1.0); rimL.position.set(1.4, 1.8, -2.4);
+    sc.add(new THREE.HemisphereLight(0xf4f6f8, 0x6a6e66, 0.55));
+    const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(-1.4, 2.6, 2.2);
+    // the key throws real shadows: contact under the vat, the trolley and the unit
+    if (!low) { key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0015; Object.assign(key.shadow.camera, { left: -3.2, right: 3.2, top: 3.2, bottom: -3.2, near: 0.1, far: 9 }); }
+    const fill = new THREE.DirectionalLight(0xe8f0ff, 0.45); fill.position.set(2.2, 0.8, 2.4);
+    const rimL = new THREE.DirectionalLight(0xe8f4ff, 0.9); rimL.position.set(1.4, 1.8, -2.4);
     sc.add(key, fill, rimL);
     // the pendants: warm spots straight down, shadows from the one on the key side, a haze cone under each
     for (const [i, x] of [-1.25, 1.25].entries()) {
@@ -114,23 +115,23 @@ class ReviveScene {
       sc.add(L, L.target); this.lamps.push(L);
       const sh = shaftMesh(9);
       sh.mesh.position.set(x, H - 1.0, 0.75); sh.mesh.scale.set(Math.tan(0.78) * 1.9, 1.9, Math.tan(0.78) * 1.9);
-      sh.u.uColor.value.set(0xffd8a0); sh.u.uInt.value = 0.07;
+      sh.u.uColor.value.set(0xffd8a0); sh.u.uInt.value = 0.022;
       sc.add(sh.mesh);
     }
     // the tray lamps on the back wall wash the tiles and the gauge board
     for (const x of [-1.4, 1.4]) { const wl = new THREE.PointLight(0xffe0b0, 5, 3.4, 1.5); wl.position.set(x, H - 0.85, BACK + 0.7); sc.add(wl); }
     // the vat: glow from the grate up the body, and a cyan-green rim from behind
-    const under = new THREE.PointLight(0x50ffb8, 4, 3.2, 1.4); under.position.set(0, VAT.base + 0.12, 0.25);
-    const back = new THREE.SpotLight(0x7affd8, 16, 5, 0.6, 0.6, 1.4); back.position.set(0, 1.9, -1.4); back.target.position.set(0, 1.1, 0.6);
+    const under = new THREE.PointLight(0x60ffc8, 2.2, 1.1, 2); under.position.set(0, VAT.base + 0.12, 0.25);
+    const back = new THREE.SpotLight(0x8affe0, 9, 3.4, 0.32, 0.4, 1.6); back.position.set(0, 1.9, -1.4); back.target.position.set(0, 1.1, 0.6);
     sc.add(under, back, back.target);
     this.under = under;
     if (this.renderer) {
       const pm = new THREE.PMREMGenerator(this.renderer);
       this.env = pm.fromScene(new RoomEnvironment(), 0.04).texture;
       pm.dispose();
-      sc.environment = this.env; sc.environmentIntensity = 0.2;
+      sc.environment = this.env; sc.environmentIntensity = 0.12;
     }
-    this.post.u.uExposure.value = 1.32; this.post.u.uVig.value = 0.3;
+    this.post.u.uExposure.value = 1.2; this.post.u.uVig.value = 0.5;
     this.cam.position.set(0, 1.35, 2.2); this.cam.lookAt(0, 1.2, 0);
   }
 
@@ -276,6 +277,8 @@ class ReviveScene {
     v.lift = ease(clamp01((t - 5.6) / 1.2));
     if (t > 7.2) v.mode = 0;
     v.update(dt, t);
+    // (the vat's own lamp stays inside the glass: it lights the medium and the body's edge, not the room)
+    v.light.distance = 1.6; v.light.intensity *= 0.25 + 0.55 * v.level;
     // steam where the sleeve breaks its seal
     if (t > 5.55 && t < 7.6) for (let n = 0; n < 2; n++) {
       const a = Math.random() * Math.PI * 2;
@@ -322,7 +325,7 @@ class ReviveScene {
     // ---- the lamps buzz
     this.lamps[0].intensity = 44 * (Math.sin(t * 0.8) > 0.97 && Math.random() < 0.5 ? 0.65 : 1);
     // the vat's glow on the body stays while it is on the grate, fading as it walks out
-    if (this.under) this.under.intensity = 4 * (0.55 + 0.45 * v.level) * (1 - clamp01((t - 8.4) / 2) * 0.5);
+    if (this.under) this.under.intensity = 2.2 * (0.55 + 0.45 * v.level) * (1 - clamp01((t - 8.4) / 2) * 0.5);
     // ---- the picture
     this.resize();
     const sh = this.shotAt(t, this.lowW / Math.max(1, this.lowH));
@@ -359,10 +362,10 @@ class ReviveScene {
     const r = this.renderer; if (!r || !this.rt) return;
     const u = this.post.u;
     u.uTime.value = this.t;
-    u.uLift.value.set(0.9, 0.95, 1.0); u.uGain.value.set(1.04, 1.03, 0.99);
-    u.uSat.value = 1.16; u.uContrast.value = 1.2; u.uSide.value.set(1, 0, 0, 0.35); u.uFloor.value = 0.05; u.uGrain.value = 0.014;
-    u.uOutline.value = 0.55; u.uSharp.value = 0.16; u.uAA.value = 0; u.uLevels.value = 32; u.uKeepSat.value = 0.6; u.uHalation.value = 0.25;
-    u.uBloom.value = 0.95; u.uAO.value = 0.6; u.uAORad.value = 0.3; u.uBounce.value = 0.1; u.uScatter.value = 0.4;
+    u.uLift.value.set(0.96, 0.98, 1.0); u.uGain.value.set(1.0, 1.0, 1.0);
+    u.uSat.value = 1.06; u.uContrast.value = 1.26; u.uSide.value.set(1, 0, 0, 0.35); u.uFloor.value = 0.05; u.uGrain.value = 0.014;
+    u.uOutline.value = 0.55; u.uSharp.value = 0.16; u.uAA.value = 0; u.uLevels.value = 32; u.uKeepSat.value = 0.6; u.uHalation.value = 0.08;
+    u.uBloom.value = 0.45; u.uAO.value = 0.5; u.uAORad.value = 0.22; u.uBounce.value = 0; u.uScatter.value = 0;
     u.uFocal.value = this.lowH / (2 * Math.tan(THREE.MathUtils.degToRad(this.cam.fov) / 2));
     const saved = { cut: U.uCutOn.value, vis: U.uVisOn.value, fn: U.uFogNear.value, ff: U.uFogFar.value, gs: U.uGridScale.value, col: U.uCollapse.value, snap: U.uSnapOn.value };
     const ss = { ts: SPOTU.tSpotShadow.value, tu: SPOTU.tSunShadow.value, so: SPOTU.uSpotOn.value, su: SPOTU.uSunOn.value, sh: SPOTU.uSpotShadowOn.value };
@@ -375,8 +378,6 @@ class ReviveScene {
       r.clear(true, true, true);
       r.render(this.scene, this.cam);
       this.bloom.run(r, this.rt.texture, this.rt.width, this.rt.height, u.uExposure.value);
-      this.fillB.run(r, this.rt.texture, this.rt.width, this.rt.height, 1);
-      u.tFill.value = this.fillB.tex[2];
       u.tB1.value = this.bloom.tex[0]; u.tB2.value = this.bloom.tex[1]; u.tB3.value = this.bloom.tex[2];
       r.setRenderTarget(null);
       r.render(this.post.scene, this.post.cam);
@@ -393,7 +394,7 @@ class ReviveScene {
     this.rig.dispose();
     this.vat.dispose();
     this.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && m.geometry) m.geometry.dispose(); });
-    this.rt?.dispose(); this.noShadow?.dispose(); this.env?.dispose(); this.bloom.dispose(); this.fillB.dispose();
+    this.rt?.dispose(); this.noShadow?.dispose(); this.env?.dispose(); this.bloom.dispose();
     disposeFacetMats();
     this.renderer?.dispose(); this.renderer?.forceContextLoss?.();
     this.root.remove();
