@@ -37,6 +37,7 @@ export class Spotlight {
     if (!document.getElementById('spot-css')) {
       const st = document.createElement('style'); st.id = 'spot-css';
       st.textContent = `.spot { position: fixed; inset: 0; z-index: 63; pointer-events: none; }
+body:has(.spot.on) .ct-layer, body:has(.spot.on) .ft-subs { z-index: 64; }
 .spot-cv { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0; transition: opacity .35s ease; }
 .spot.on .spot-cv { opacity: 1; }
 .spot-ring { position: absolute; left: 0; top: 0; opacity: 0; transition: opacity .25s steps(3); }

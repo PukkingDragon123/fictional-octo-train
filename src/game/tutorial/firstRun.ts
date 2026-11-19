@@ -34,6 +34,8 @@ import { walkable } from '../../creatures/behaviors_b';
 import { findPath } from '../../world/path';
 import { floatText, floatQuiet } from '../../social/floatText';
 import { offscreen } from '../../ui/holo/subs';
+import { cineSay, cineClear } from '../../ui/holo/cineText';
+import { subStrip } from '../../ui/menus/settings';
 import { readTime } from '../lines';
 import { RadioVoice } from '../vossVoice';
 import { defQuest } from '../quests';
@@ -247,7 +249,10 @@ export class FirstRun implements GameSystem {
     const voiced = this.voice.speak(text);
     const d = Math.max(voiced, readTime(text) * 0.85);
     this.lineDur = d;
-    offscreen(floatText(text, { kind: 'voss', name: 'DR. CALDER', life: d + 0.5, pri: 3 }), d + 0.5);
+    // her words hang beside her in the world as cinematic type (src/ui/holo/cineText.ts; over the unit when she
+    // is not in the scene); the subtitle strip when Settings asks for it
+    if (subStrip() || !G.local) offscreen(floatText(text, { kind: 'voss', name: 'DR. CALDER', life: d + 0.5, pri: 3 }), d + 0.5);
+    else cineSay('calder', text, this.voiceAt, { secs: d + 0.5, name: 'DR. CALDER', tone: 'calder' });
     bus.emit('calderSpeak', { text, dur: d });
     this.calder.talk(d);
     if (o.gesture) this.calder.gesture(o.gesture);
@@ -257,6 +262,12 @@ export class FirstRun implements GameSystem {
     this.speak(text, o);
     await this.sleep(this.lineDur + 0.25);
   }
+  /** a point over Dr. Calder's head (the unit's when she is not here), followed every frame */
+  private voiceAt = (() => {
+    const who = () => this.calder.c ?? G.local!;
+    const ground = () => { const w = who(); return G.zones.get(w.zoneKey)?.heightAt(Math.floor(w.x), Math.floor(w.z)) ?? 0; };
+    return { get x() { return who().x; }, get y() { return ground() + 2.3; }, get z() { return who().z; } };
+  })();
   private interject(text: string) { this.voice.stop(); this.speak(text); }
   private lock(acts: Action[] | null) { this.allow = acts ? new Set(acts) : null; }
 
