@@ -4,7 +4,7 @@
 // Faceted like the rest of the lab (src/ui/menus/monitor/props.ts).
 import * as THREE from 'three';
 import type { FMats } from '../scene/pixtex';
-import { FacetBuilder, at, cbox, prism } from '../monitor/props';
+import { FacetBuilder, at, cbox, prism, tube, type V3 } from '../monitor/props';
 
 /** the site: centred on (x, z) on the floor, `w` x `d` metres of taped floor */
 export function buildSite(mats: FMats, x: number, z: number, w: number, d: number, seed = 1): THREE.Group {
@@ -59,4 +59,73 @@ export function stepRise(r: Rise, dt: number): boolean {
   for (const b of r.base) b.o.scale.set(b.s.x, Math.max(0.02, b.s.y * e), b.s.z);
   r.onDust?.(k);
   return k < 1;
+}
+
+/**
+ * the lab filling up (round 19): the more stations are built, the more of the room is wired in. A cable tray runs
+ * under the ceiling along the back wall (then the side walls), bundled cables lie in it, each built station takes a
+ * drop cable down from the tray into a small junction box with a lit lamp, and caged work lamps hang off the tray.
+ * `feeds` are the built stations (middle and top); `level` is how many are built.
+ */
+export function buildDressing(mats: FMats, room: { W: number; BACK: number; FRONT: number; H: number }, feeds: { x: number; z: number; top: number }[], level: number): THREE.Group {
+  const g = new THREE.Group();
+  if (level <= 0) return g;
+  const b = new FacetBuilder();
+  const { W, BACK, FRONT, H } = room;
+  const ty = H - 0.32, inset = 0.3;
+  // a tray between two points (rails, rungs, hanger rods to the ceiling, three cables lying in it)
+  const tray = (x0: number, z0: number, x1: number, z1: number, seed: number) => {
+    const len = Math.hypot(x1 - x0, z1 - z0), ry = Math.atan2(-(z1 - z0), x1 - x0);
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, nx = -(z1 - z0) / len, nz = (x1 - x0) / len;
+    for (const s of [-1, 1]) b.add('metal', cbox(len, 0.07, 0.02, 0.004), 0x6a6e66, at(mx + nx * s * 0.13, ty, mz + nz * s * 0.13, 0, ry));
+    for (let t = 0.1; t < len; t += 0.32) {
+      const px = x0 + (x1 - x0) * (t / len), pz = z0 + (z1 - z0) * (t / len);
+      b.add('metal', cbox(0.02, 0.015, 0.28, 0.003), 0x585c56, at(px, ty - 0.03, pz, 0, ry));
+    }
+    for (let t = 0.3; t < len; t += 1.2) {
+      const px = x0 + (x1 - x0) * (t / len), pz = z0 + (z1 - z0) * (t / len);
+      for (const s of [-1, 1]) b.add('chrome', cbox(0.012, H - ty, 0.012, 0.002), 0xa8aca6, at(px + nx * s * 0.13, (H + ty) / 2, pz + nz * s * 0.13));
+    }
+    const cols = [0x1c1c1c, 0x2a2622, 0x8a3020, 0x2a4a7a];
+    for (let c = 0; c < 3 + (seed % 2); c++) {
+      const off = (c - 1.5) * 0.06, pts: V3[] = [];
+      for (let k = 0; k <= 6; k++) {
+        const u = k / 6, px = x0 + (x1 - x0) * u + nx * off, pz = z0 + (z1 - z0) * u + nz * off;
+        pts.push([px, ty + 0.0 + Math.sin(u * 9 + c + seed) * 0.012, pz]);
+      }
+      b.add('rubber', tube(pts, 0.018 + (c % 2) * 0.006, 18, 5), cols[(c + seed) % cols.length]);
+    }
+  };
+  tray(-W + inset, BACK + inset, W - inset, BACK + inset, 1);
+  if (level >= 3) tray(-W + inset, BACK + inset, -W + inset, FRONT - 1.2, 2);
+  if (level >= 5) tray(W - inset, BACK + inset, W - inset, FRONT - 1.2, 3);
+  // each built station takes a drop from the nearest tray into a junction box on its top
+  const lamps: THREE.Vector3[] = [];
+  for (const f of feeds) {
+    let tx = Math.max(-W + inset, Math.min(W - inset, f.x)), tz = BACK + inset;
+    if (level >= 3 && f.x < -W * 0.4 && f.z > BACK + 1.2) { tx = -W + inset; tz = Math.min(FRONT - 1.2, f.z); }
+    if (level >= 5 && f.x > W * 0.4 && f.z > BACK + 1.2) { tx = W - inset; tz = Math.min(FRONT - 1.2, f.z); }
+    const top = Math.min(ty - 0.3, f.top + 0.02);
+    const pts: V3[] = [[tx, ty + 0.02, tz], [tx + (f.x - tx) * 0.15, ty - 0.12, tz + (f.z - tz) * 0.15], [tx + (f.x - tx) * 0.7, (ty + top) / 2 + 0.1, tz + (f.z - tz) * 0.7], [f.x, top + 0.12, f.z], [f.x, top + 0.04, f.z]];
+    b.add('rubber', tube(pts, 0.016, 16, 5), 0x1a1a1a);
+    b.add('paint', cbox(0.14, 0.08, 0.1, 0.008), 0x3a6a3a, at(f.x, top + 0.03, f.z));
+    b.add('lamp', cbox(0.025, 0.02, 0.025, 0.004), 0x80ff70, at(f.x + 0.04, top + 0.075, f.z));
+    lamps.push(new THREE.Vector3(f.x, top, f.z));
+  }
+  // caged work lamps hung off the back tray (from the second station built)
+  if (level >= 2) {
+    const spots = level >= 4 ? [-W * 0.55, 0, W * 0.55] : [-W * 0.3, W * 0.3];
+    for (const x of spots) {
+      const z = BACK + inset + 0.18, y = ty - 0.42;
+      b.add('chrome', cbox(0.01, 0.36, 0.01, 0.002), 0xa0a49e, at(x, ty - 0.2, z - 0.05));
+      b.add('metal', prism(0.09, 0.14, 8, { rTop: 0.05 }), 0xe8b030, at(x, y + 0.05, z));
+      for (let i = 0; i < 4; i++) b.add('metal', cbox(0.008, 0.12, 0.008, 0.002), 0x2a2a26, at(x + Math.cos(i * 1.57) * 0.07, y - 0.06, z + Math.sin(i * 1.57) * 0.07));
+      b.add('lamp', prism(0.05, 0.08, 8), 0xfff2c8, at(x, y - 0.04, z));
+    }
+    const L = new THREE.PointLight(0xffe2b0, 0.9 + level * 0.15, 6, 1.6);
+    L.position.set(0, ty - 0.6, BACK + inset + 0.4);
+    g.add(L);
+  }
+  g.add(b.build(mats));
+  return g;
 }

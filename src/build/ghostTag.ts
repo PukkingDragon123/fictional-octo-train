@@ -3,7 +3,7 @@
 // and its salvage as small item icons with have/need counts (red when short).
 // Nothing else: where to learn a blueprint lives on the clipboard, the reason a
 // spot is refused is the red ghost (and a thought when you click). The key caps
-// (R turn, Tab shelf, X take down, Esc put away) show for the first few times the
+// (R turn, Tab shelf, Delete take down, Esc put away) show for the first few times the
 // kit is taken out, then hide; Settings > Interface > "Build key hints" keeps them.
 // Drawn in the world prompt's own type (#wprompt .wp-tag, src/ui/worldPrompt.css).
 import * as THREE from 'three';
@@ -70,7 +70,7 @@ export class GhostTag {
           return `<span class="bld-c ${ok ? 'ok' : 'no'}">${ic}${c.give ? '+' + c.need : `${Math.min(c.have, 99)}/${c.need}`}</span>`;
         }).join('') + '</div>';
       }
-      if (keys) h += '<div class="bld-keys"><span class="bld-kc">R ↻</span><span class="bld-kc">Tab</span><span class="bld-kc">X</span><span class="bld-kc">Esc</span></div>';
+      if (keys) h += '<div class="bld-keys"><span class="bld-kc">R ↻</span><span class="bld-kc">Tab</span><span class="bld-kc">Del</span><span class="bld-kc">Esc</span></div>';
       el.innerHTML = h + '</div>';
       this.w = el.offsetWidth; this.h = el.offsetHeight;
     }

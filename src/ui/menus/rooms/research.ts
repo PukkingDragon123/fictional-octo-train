@@ -47,8 +47,8 @@ import { Dresser } from './dress';
 import { Vault, blob, frostCard } from './vault';
 import { Pokes } from './pokes';
 import { TalentBench } from './talentBench';
-import { built, can, station, onLab, type StationKey } from '../lab/stations';
-import { buildSite, startRise, stepRise, type Rise } from '../lab/site';
+import { built, can, station, onLab, STATIONS, type StationKey } from '../lab/stations';
+import { buildSite, buildDressing, startRise, stepRise, type Rise } from '../lab/site';
 /** is o inside g (or g itself) */
 const isUnder = (o: THREE.Object3D, g: THREE.Object3D) => { for (let x: THREE.Object3D | null = o; x; x = x.parent) if (x === g) return true; return false; };
 import type { Sample } from '../../../game/codex';
@@ -213,6 +213,7 @@ export class ResearchLab implements StageRoom {
   private stationG: Partial<Record<StationKey, THREE.Object3D[]>> = {};
   private sites = new Map<StationKey, { g: THREE.Group; hot: Hot }>();
   private rises: { k: StationKey; r: Rise }[] = [];
+  private wired: THREE.Group | null = null; private wiredKey = '';
   private allActions: { key: string; label: string; run: () => void }[] = [];
   /** a build site was pressed (the title room shows the fund tag) */
   onSite?: (k: StationKey, at: THREE.Vector3) => void;
@@ -253,6 +254,27 @@ export class ResearchLab implements StageRoom {
       this.hots.push(hot);
       this.sites.set(k, { g, hot });
     });
+    this.dressLab();
+  }
+  /** the room fills up as it is built: cable trays, drops into each station, work lamps (../lab/site.ts) */
+  private dressLab() {
+    const feeds: { x: number; z: number; top: number }[] = [];
+    const bb = new THREE.Box3(), c = new THREE.Vector3();
+    for (const k of Object.keys(this.stationG) as StationKey[]) {
+      const g0 = this.stationG[k]?.[0];
+      if (!g0 || !built(k) || this.rises.some((r) => r.k === k)) continue;
+      bb.makeEmpty().expandByObject(g0);
+      if (bb.isEmpty()) continue;
+      bb.getCenter(c);
+      feeds.push({ x: c.x, z: c.z, top: bb.max.y });
+    }
+    const level = STATIONS.filter((s) => built(s.key)).length;
+    const key = level + ':' + feeds.map((f) => f.x.toFixed(1)).join(',');
+    if (key === this.wiredKey) return;
+    this.wiredKey = key;
+    if (this.wired) { this.wired.removeFromParent(); this.wired.traverse((o) => (o as THREE.Mesh).geometry?.dispose()); }
+    this.wired = buildDressing(this.mats, { W, BACK, FRONT, H }, feeds, level);
+    this.scene.add(this.wired);
   }
   /** the build moment: the crates go, the station rises out of the floor in a puff of dust */
   playBuild(k: StationKey) {

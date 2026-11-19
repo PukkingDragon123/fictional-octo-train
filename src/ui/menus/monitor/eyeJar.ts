@@ -44,7 +44,7 @@ function eyeCanvas(): HTMLCanvasElement {
   c.fillStyle = pr; c.beginPath(); c.arc(cx, cy, R + 22, 0, Math.PI * 2); c.fill();
   // the iris: brown-amber fibres, darker crypts, a black limbal ring, a gold collarette
   const ig = c.createRadialGradient(cx, cy, 8, cx, cy, R);
-  ig.addColorStop(0, '#3a2210'); ig.addColorStop(0.32, '#a8702c'); ig.addColorStop(0.55, '#7a4a1e'); ig.addColorStop(0.85, '#4a2c14'); ig.addColorStop(1, '#140c06');
+  ig.addColorStop(0, '#2a1608'); ig.addColorStop(0.32, '#9a5e1e'); ig.addColorStop(0.55, '#6a3a14'); ig.addColorStop(0.85, '#3a200c'); ig.addColorStop(1, '#0c0804');
   c.fillStyle = ig; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.fill();
   for (let i = 0; i < 260; i++) {
     const a = rnd() * Math.PI * 2, r0 = 15 + rnd() * 5, r1 = R * (0.62 + rnd() * 0.36);
@@ -57,7 +57,7 @@ function eyeCanvas(): HTMLCanvasElement {
   c.strokeStyle = 'rgba(240,200,110,.75)'; c.lineWidth = 2.5; c.beginPath(); c.arc(cx, cy, 21, 0, Math.PI * 2); c.stroke();
   c.strokeStyle = '#0a0604'; c.lineWidth = 5; c.beginPath(); c.arc(cx, cy, R - 2, 0, Math.PI * 2); c.stroke();
   // the pupil
-  c.fillStyle = '#030303'; c.beginPath(); c.arc(cx, cy, 16, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#030303'; c.beginPath(); c.arc(cx, cy, 19, 0, Math.PI * 2); c.fill();
   return cv;
 }
 
@@ -82,7 +82,7 @@ export function eyeJar(): EyeJar {
   const g = new THREE.Group();
   const R = 0.052, Hh = 0.15;
   const glassM = new THREE.MeshStandardMaterial({ color: 0xeef2ec, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.2, depthWrite: false });
-  const fluidM = new THREE.MeshStandardMaterial({ color: 0xe8c880, roughness: 0.3, transparent: true, opacity: 0.22, depthWrite: false, emissive: 0x3a2a0c, emissiveIntensity: 0.4 });
+  const fluidM = new THREE.MeshStandardMaterial({ color: 0xe8c880, roughness: 0.3, transparent: true, opacity: 0.22, depthWrite: false, emissive: 0x3a2a0c, emissiveIntensity: 0.12 });
   const brass = new THREE.MeshStandardMaterial({ color: 0xc8a050, roughness: 0.3, metalness: 0.85 });
   const brassD = new THREE.MeshStandardMaterial({ color: 0x8a6a2a, roughness: 0.45, metalness: 0.8 });
   const iron = new THREE.MeshStandardMaterial({ color: 0x3a3a36, roughness: 0.55, metalness: 0.6 });
@@ -91,7 +91,7 @@ export function eyeJar(): EyeJar {
   // the glass catches the light in two long vertical streaks
   const streakM = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false });
   const streaks: THREE.Mesh[] = [];
-  for (const [a, w, o] of [[-0.55, 0.006, 0.55], [0.35, 0.003, 0.35]] as [number, number, number][]) {
+  for (const [a, w, o] of [[-0.55, 0.005, 0.32], [0.35, 0.003, 0.2]] as [number, number, number][]) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, Hh * 0.8), streakM.clone());
     (m.material as THREE.MeshBasicMaterial).opacity = o;
     m.position.set(Math.sin(a) * (R + 0.0015), 0.022 + Hh * 0.52, Math.cos(a) * (R + 0.0015)); m.rotation.y = a; m.renderOrder = 4;
@@ -148,8 +148,8 @@ export function eyeJar(): EyeJar {
   specks.renderOrder = 2;
   const base0 = pos.slice();
   // a warm lamp on the jar so it reads against the green of the screens
-  const lamp = new THREE.PointLight(0xffd2a0, 1.1, 0.75, 2);
-  lamp.position.set(-0.09, Hh + 0.12, 0.14);
+  const lamp = new THREE.PointLight(0xffd2a0, 0.5, 0.7, 2);
+  lamp.position.set(-0.14, Hh + 0.08, 0.16);
   g.add(base, ball, specks, fluid, meniscus, glass, ...streaks, label, lid, knurl, dome, knob, ...wires, lamp);
   const hit = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.01, R + 0.01, Hh + 0.05, 8), new THREE.MeshBasicMaterial({ visible: false }));
   hit.position.y = (Hh + 0.05) / 2; g.add(hit);

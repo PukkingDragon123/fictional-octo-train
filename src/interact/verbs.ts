@@ -1,8 +1,7 @@
-// Verbs without menus. Every thing in the world has an ordered list of verbs
-// (the data the old context menus showed, built in ./world.ts plus whatever
-// systems add through the 'objectMenu' / 'worldMenu' hooks). There is no list
-// on screen any more:
-//  - a right click does the PRIMARY verb (the first one that can be done):
+// Verbs. Every thing in the world has an ordered list of verbs (built in
+// ./world.ts plus whatever systems add through the 'objectMenu' / 'worldMenu'
+// hooks). Round 19: a right click lists them (./contextMenu.ts) and:
+//  - E does the PRIMARY verb (the first one that can be done):
 //    a box opens, a chair is sat on, a door swings, an item is picked up
 //  - what is in hand changes it: a bottle at a tap fills, food at a lit stove
 //    cooks, fuel on a fire feeds it, planks on a door barricade it, a key

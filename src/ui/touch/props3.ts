@@ -56,7 +56,7 @@ export class Die extends Thing {
     for (const [a, b] of [[-d, -d], [d, -d], [-d, d], [d, d], [-d, 0], [d, 0]]) pip(a, -h, b);
     this.mesh(m, this.mat({ wear: 0.5 }), this.cube);
     this.cube.rotation.set(0.2, 0.55, 0);
-    this.tape('ROLL', 0, 0.004, 0.36);
+    this.tape('VAULT', 0, 0.004, 0.36);
   }
   protected onDown() { sfx('tc_clack', 0.5, 0.8); haptic(10); this.goal += PI / 2; }
   protected animate(dt: number) {

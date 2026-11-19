@@ -111,7 +111,7 @@ function spotNear(zoneKey: string, x: number, z: number, r0: number, r1: number,
     const tx = Math.floor(x + Math.cos(a) * r), ty = Math.floor(z + Math.sin(a) * r);
     if (!zn.inb(tx, ty) || !walkable(zn, tx, ty) || zn.objectsAt(tx, ty).length) continue;
     if (avoid && avoid(tx, ty)) continue;
-    if (needPath && !findPath(zn, Math.floor(x), Math.floor(z), tx, ty)) continue;
+    if (needPath && t < 60 && !findPath(zn, Math.floor(x), Math.floor(z), tx, ty, { doors: true })) continue;
     return { x: tx + 0.5, z: ty + 0.5 };
   }
   return null;
@@ -143,7 +143,7 @@ export class FirstRun implements GameSystem {
     limitApps(['tasks']);
     // the contract's first job waits for hers (a quick start may have handed it out already)
     const q = (G.missions as unknown as { quests?: { questStatus(k: string): string; apply(k: string, r: null): void; track(k: string | null): void } }).quests;
-    if (q && q.questStatus('first_haul') === 'act') { q.apply('first_haul', null); q.track(null); }
+    if (q && q.questStatus('first_haul') === 'active') { q.apply('first_haul', null); q.track(null); }
     floatQuiet(true);
     const h = G.handler as unknown as { briefed?: boolean; cine?: boolean; hush?: () => void; guide?: (t: null) => void } | null;
     if (h) { h.briefed = true; h.hush?.(); h.cine = true; h.guide?.(null); }
@@ -519,11 +519,11 @@ export class FirstRun implements GameSystem {
     for (const o of z.objects.values()) {
       if (!objDef(o.key)?.tags?.includes('workbench')) continue;
       const d = Math.hypot(o.x - p.x, o.y - p.z);
-      if (d < bd && findPath(z, Math.floor(p.x), Math.floor(p.z), o.x, o.y + 1)) { bd = d; best = o; }
+      if (d < bd && findPath(z, Math.floor(p.x), Math.floor(p.z), o.x, o.y + 1, { doors: true })) { bd = d; best = o; }
     }
     if (best) return best;
     // none near: she had one sent down (a field bench, set down a few steps away)
-    const s = spotNear(p.zoneKey, p.x, p.z, 3, 6, true, (x, y) => !walkable(z, x + 1, y) || z.objectsAt(x + 1, y).length > 0);
+    const s = spotNear(p.zoneKey, p.x, p.z, 2.5, 6, false, (x, y) => !walkable(z, x + 1, y) || z.objectsAt(x + 1, y).length > 0) ?? spotNear(p.zoneKey, p.x, p.z, 2, 8);
     if (!s) return null;
     const nu = uid();
     op('objAdd', { z: z.key, obj: { uid: nu, key: 'workbench', x: Math.floor(s.x), y: Math.floor(s.z), rot: 0, state: { built: true }, inv: null } });

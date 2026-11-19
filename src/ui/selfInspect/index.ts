@@ -424,7 +424,7 @@ export class SelfInspect {
     const p = G.local; if (!p) return;
     switch (e.code) {
       case 'Escape': case 'KeyO': if (!e.repeat) this.close(); break;
-      case 'KeyI': if (!e.repeat) this.doAct('openpack'); break;
+      case 'KeyB': case 'KeyI': if (!e.repeat) this.doAct('openpack'); break;
       case 'ArrowLeft': case 'KeyA': this.yawV -= 2.2; break;
       case 'ArrowRight': case 'KeyD': this.yawV += 2.2; break;
       case 'Tab': case 'ArrowDown': case 'ArrowUp': {

@@ -47,7 +47,6 @@ export function toolKind(it: Item | null | undefined): ToolKind {
 export interface ToolVerb { label: string; run: () => void; reach: number; at: { x: number; z: number }; strike: boolean }
 
 const SHARP = new Set(['knife', 'spear', 'saw']);
-const heavyEnough = (k: ToolKind) => k === 'sledge' || k === 'axe' || k === 'blunt' || k === 'hammer' || k === 'crowbar' || k === 'dig';
 
 /** the verb a left click with this tool would do on a target (null: nothing, combat decides) */
 export function toolVerb(p: Player, t: PickTarget | null, it: Item | null = p.handR): ToolVerb | null {
@@ -107,7 +106,8 @@ export function toolVerb(p: Player, t: PickTarget | null, it: Item | null = p.ha
       if (k === 'paint') return { label: 'Mark the floor', reach: 1.3, at, strike: false, run: () => queueAt(p, at.x, at.z, new MarkAction(p, it, at.x, at.z, it.key === 'glow_paint' ? 'decal_glow_paint' : (itemDef(it.key).tags || []).includes('chalk') ? 'decal_mark_x' : 'decal_arrow_floor'), 1.3) };
       // a wall right where they clicked: smash through it
       const wl = wallNear(z, t.point.x, t.point.z, p);
-      if (wl && heavyEnough(k)) {
+      // round 19: only a tool made for it goes through a wall (no free prompt for it otherwise)
+      if (wl && (k === 'sledge' || k === 'axe' || k === 'crowbar')) {
         const s = wallStand(wl);
         return { label: 'Smash through the wall', reach: 0.7, at: s, strike: true, run: () => queueAt(p, s.x, s.z, new SmashAction(p, { kind: 'wall', x: wl.x, y: wl.y, side: wl.side, u: wl.u, h: 1.15, n: wl.n }, false, 0, { tool: k }), 0.7, false) };
       }

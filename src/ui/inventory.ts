@@ -477,7 +477,7 @@ export class InventoryUI {
     let opens = 0;
     try { opens = Number(localStorage.getItem('pack.opens') ?? 0) || 0; localStorage.setItem('pack.opens', String(opens + 1)); } catch { /* private window */ }
     const coarse = matchMedia('(pointer: coarse)').matches;
-    this.help.innerHTML = opens >= 3 || coarse ? '' : ['RMB', 'SHIFT', 'R', 'SPACE', 'I'].map((k) => `<kbd>${k}</kbd>`).join('');
+    this.help.innerHTML = opens >= 3 || coarse ? '' : ['RMB', 'SHIFT', 'R', 'SPACE', 'B'].map((k) => `<kbd>${k}</kbd>`).join('');
     this.hook();
   }
 

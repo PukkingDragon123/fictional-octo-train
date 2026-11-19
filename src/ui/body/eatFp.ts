@@ -410,10 +410,14 @@ export class EatFp {
       mouth.add(inside);
       const rimM = new THREE.MeshLambertMaterial({ color: 0xc8c8c0, flatShading: true });
       for (const s2 of [-1, 1]) { const r = new THREE.Mesh(jitter(fbox(0.122, 0.018, 0.006, 0.3), 0.003, 5), s2 > 0 ? rimM : foil); r.position.set(0, 0.006, s2 * 0.024); mouth.add(r); }
-      const chipM = new THREE.MeshLambertMaterial({ color: 0xe8b048, flatShading: true });
-      const chipG = jitter(new THREE.SphereGeometry(0.016, 7, 3), 0.002, 9);
-      for (let i = 0; i < 5; i++) { const m = new THREE.Mesh(chipG, chipM); m.scale.set(1, 0.22, 0.8); m.position.set(-0.04 + i * 0.02, 0.004 + (i % 2) * 0.006, (i % 3 - 1) * 0.008); m.rotation.set(0.6 + i, i * 1.3, 0.4); mouth.add(m); }
-      const chip = this.chip = new THREE.Mesh(chipG, chipM); chip.scale.set(1.15, 0.24, 0.9); chip.visible = false;
+      // chips: thin curled discs, golden with a few darker edges
+      const chipM = new THREE.MeshLambertMaterial({ color: 0xf0c45a, flatShading: true });
+      const chipD = new THREE.MeshLambertMaterial({ color: 0xd89a38, flatShading: true });
+      const chipG = new THREE.CylinderGeometry(0.0105, 0.0105, 0.0014, 11, 1);
+      { const pa = chipG.attributes.position as THREE.BufferAttribute; for (let i = 0; i < pa.count; i++) { const x = pa.getX(i), z = pa.getZ(i); const r = Math.hypot(x, z); pa.setY(i, pa.getY(i) + (x * x - z * z * 0.4) * 22 + (r > 0.009 ? (Math.sin(i * 7.3) * 0.0008) : 0)); pa.setX(i, x * (1 + Math.sin(i * 3.1) * 0.07)); } chipG.computeVertexNormals(); }
+      for (let i = 0; i < 7; i++) { const m = new THREE.Mesh(chipG, i % 3 ? chipM : chipD); m.position.set(-0.045 + i * 0.015, 0.004 + (i % 2) * 0.006, (i % 3 - 1) * 0.008); m.rotation.set(0.9 + i * 0.7, i * 1.3, 0.5 - i * 0.2); mouth.add(m); }
+      const chip = this.chip = new THREE.Mesh(chipG, chipM); chip.scale.setScalar(1.1); chip.visible = false;
+      g.scale.setScalar(0.62);
       this.root!.add(g, chip);
     }
     this.bag.visible = true; this.chip!.visible = false;
@@ -614,7 +618,7 @@ export class EatFp {
     if (this.bagMode && this.bag) {
       // left hand holds the bag low, its mouth tipped toward you; the right goes in and out
       const fold = this.lowerT >= 0 && this.left > 0 ? this.lowerT : 0;
-      this.bag.position.set(-0.035 + sway, -0.115 + bob + yOff, -0.36);
+      this.bag.position.set(-0.045 + sway, -0.07 + bob + yOff, -0.36);
       this.bag.rotation.set(0.75, 0.25, 0.08);
       const op = this.bagOpen * (1 - fold);
       this.bagMouth!.scale.set(1 + op * 0.12, 1, 0.2 + op * 1.2);
@@ -628,7 +632,7 @@ export class EatFp {
         // into the mouth of the bag (0 .. .36), a pinch (.36 .. .44), up to the mouth (.44 .. .8)
         const a = k < 0.36 ? k / 0.36 : 1, b = k < 0.44 ? 0 : Math.min(1, (k - 0.44) / 0.36);
         const e1 = a * a * (3 - 2 * a), e2 = b * b * (3 - 2 * b);
-        const rest = _t.set(0.12, -0.2 + yOff, -0.36);
+        const rest = _t.set(0.1, -0.14 + yOff, -0.34);
         const pos = _w.copy(rest).lerp(_v.copy(_bm).add(_s.set(0, -0.01, 0)), e1).lerp(_mo, e2);
         if (k >= 0.8) pos.lerp(rest, Math.min(1, (k - 0.8) / 0.2));
         chip.visible = k >= 0.4 && k < 0.8;
@@ -639,7 +643,7 @@ export class EatFp {
         this.holdAt('right', k > 0.3 && k < 0.82 ? 'pinch' : 'open', chip.parent!, pos.x, pos.y, pos.z, [0.24, -0.36, -0.1], [-0.6, 0.35, 0.6]);
       } else {
         chip.visible = false;
-        this.holdAt('right', 'relaxed', this.root!, 0.11, -0.19 + yOff, -0.36, [0.26, -0.4, -0.1], [-0.6, 0.35, 0.6]);
+        this.holdAt('right', 'relaxed', this.root!, 0.1, -0.15 + yOff, -0.34, [0.26, -0.4, -0.1], [-0.6, 0.35, 0.6]);
       }
       this.holdAt('left', 'grip', this.bag, -0.05, -0.03, 0.0, [-0.2, -0.4, -0.16], [0.5, 0.6, 0.5]);
       return;

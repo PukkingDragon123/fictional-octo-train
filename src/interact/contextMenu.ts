@@ -28,6 +28,10 @@ import { wallNear } from '../world/destructActions';
 import { pxPlate } from '../ui/pxKit';
 import { dprK } from '../ui/hiPixel';
 import { clearReach } from '../world/collision';
+import { floorContainer } from '../items/worldItems';
+import { itemMenuOptions } from './itemMenu';
+import { queueAt } from '../actions/basic';
+import { InstantAction } from '../actions/action';
 import './contextMenu.css';
 
 export type CtxKind = 'any' | 'self' | 'object' | 'container' | 'furniture' | 'door' | 'window' | 'edge' | 'item' | 'creature' | 'corpse' | 'player' | 'vehicle' | 'tile' | 'wall';
@@ -122,6 +126,18 @@ export function contextOptions(t: VerbTarget, p: Player): MenuOption[] {
   const seen = new Set<string>();
   return out.filter((o) => o && o.label && o.label !== '-' && (seen.has(o.label) ? false : (seen.add(o.label), true)));
 }
+
+// ---------------------------------------------------------------- built in: a thing on the floor offers what it is for
+// (Eat, Drink, Hold, Read, Wear...), each done after walking to it and picking it up
+registerContextActions('item', (t, p) => {
+  if (t.kind !== 'item') return [];
+  const wi = t.wi;
+  const z = G.getZone(p.zoneKey);
+  const fc = floorContainer(z, wi.x, wi.z, 0.5);
+  if (!fc.items.includes(wi.item)) fc.items.push(wi.item);
+  const walk = (o: MenuOption): MenuOption => ({ ...o, sub: o.sub?.map(walk), action: o.action ? () => queueAt(p, wi.x, wi.z, new InstantAction(p, o.action!, o.label), 1.2, false) : undefined });
+  return itemMenuOptions(p, wi.item, fc, [wi.item]).filter((o) => o && !/^(Grab|Drop|Move to|Inspect|Put away)/.test(o.label)).map(walk);
+});
 
 /** what is known about a target ("Info") */
 export function contextInfo(t: VerbTarget, p: Player): string[] {

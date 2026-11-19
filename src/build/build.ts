@@ -486,8 +486,9 @@ export class BuildSystem implements GameSystem {
     // keys
     if (inp.hit('pause')) { consume('pause'); this.putAway(p); return; }
     if (inp.hit('rotate')) { this.rot = ((this.rot + 1) % 4) as 0 | 1 | 2 | 3; G.audio?.ui?.('tab', 0.4); }
-    if (inp.keyHit('BracketRight') || inp.keyHit('Period')) this.cycle(1);
-    if (inp.keyHit('BracketLeft') || inp.keyHit('Comma')) this.cycle(-1);
+    // (round 19: brackets only; comma / period are the whistle and the emote wheel)
+    if (inp.keyHit('BracketRight')) this.cycle(1);
+    if (inp.keyHit('BracketLeft')) this.cycle(-1);
     // the clipboard: the cursor over it is not pointing into the world (and the wheel turns its pages)
     const bh = this.board.hit(inp.mouseX, inp.mouseY);
     if (bh && !this.boardOver) { this.boardOver = true; inp.pointerOverUI = true; }
@@ -497,7 +498,8 @@ export class BuildSystem implements GameSystem {
     const over = inp.pointerOverUI;
     const t = over ? null : pick(inp.mouseX, inp.mouseY, { ignore: p });
     this.hover = this.hoverOf(t) ?? (over ? null : this.wallUnderCursor(p));
-    if (inp.keyHit('KeyX') || inp.keyHit('Delete')) this.demolishAt(p, this.hover);
+    // (round 19: Delete / Backspace; X turns the camera)
+    if (inp.keyHit('Delete') || inp.keyHit('Backspace')) this.demolishAt(p, this.hover);
     if (inp.keyHit('KeyU') && this.hover && this.hover.kind !== 'frame') this.upgradeAt(p, this.hover);
     if (inp.keyHit('Tab')) { this.nextCat(); inp.pressed.delete('Tab'); }
     const pc = this.current();

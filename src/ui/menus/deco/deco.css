@@ -155,3 +155,7 @@ body.touring :is(.mr-hud, .mr-hotcap, .mr-feeds, .tt3-menu, .tt3-cap, .obj15, #w
 .dk-icon.dk-3d:is(:hover, :focus-visible) .dk-3dm { transform: translateY(-5px) scale(1.08); filter: brightness(1.12) drop-shadow(0 0 6px rgba(255, 220, 150, 0.35)); }
 .dk-icon.dk-3d.down .dk-3dm { transform: translateY(2px) scale(0.95); filter: brightness(0.9); transition-duration: 0.05s; }
 .dk-icon.dk-3d .dk-icap { font-size: 13px; letter-spacing: 0.04em; }
+/* round 19, the lab from zero: a station not built yet stands as a dim, desaturated key (a press funds it) */
+.dk-icon.unbuilt > .mxi-cv { filter: grayscale(0.85) brightness(0.62) contrast(1.1); }
+.dk-icon.unbuilt:hover > .mxi-cv, .dk-icon.unbuilt:focus-visible > .mxi-cv { filter: grayscale(0.4) brightness(0.9); }
+.dk-icon.unbuilt .dk-icap { color: #ffd870; }

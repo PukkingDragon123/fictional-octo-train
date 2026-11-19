@@ -7,6 +7,7 @@
 // debt, research), joined by brass arrows, and a key cap to close it. No plain boxes, no text walls, no stamps.
 // The title room (title.ts) provides the moves; this only runs them.
 import { SubLine } from './subline';
+import { built, type StationKey } from '../lab/stations';
 import { sfx } from '../sfx';
 import { pixIconEl, type PixKind } from '../deco/pixIcons';
 import { cornerSheet, CORNER, CORNER_F, capEl, pipSheet, arrowSheet } from './tourArt';
@@ -35,6 +36,25 @@ const STOPS: Stop[] = [
   { room: 'research', pose: 'room', el: '.dk-icon[aria-label^="Commissary"], .dk-icon[aria-label^="Emote"]', line: 'Up there: spend your dollars on this room and emotes.' },
   { room: 'subject', line: 'Shape the next unit here. New unit sends them in.' },
 ];
+// round 19, the lab from zero (../lab/stations.ts): a station not built yet is a taped build site; she names what
+// goes there instead, the archive stop waits until it is built, the hub keys stop waits until one of them shows
+const EMPTY: Partial<Record<StationKey, string>> = {
+  lattice: 'The research lattice goes here. Your runs pay for it.',
+  fridge: 'A sample fridge, once we can afford one.',
+  talent: 'And a talent bench. Everything in here is bought with runs.',
+};
+const STATION_HOT: Record<string, StationKey> = { codex: 'lattice', fridge: 'fridge', 'tb:bench': 'talent' };
+function stopsNow(): Stop[] {
+  const out: Stop[] = [];
+  for (const s of STOPS) {
+    if (s.room === 'archive' && !built('archive')) continue;
+    if (s.el && ![...document.querySelectorAll<HTMLElement>(s.el)].some((e) => !e.hidden)) continue;
+    const k = s.hot ? STATION_HOT[s.hot] : undefined;
+    if (k && !built(k)) { out.push({ room: s.room, hot: 'site:' + k, pose: s.pose, line: EMPTY[k] ?? s.line }); continue; }
+    out.push(s);
+  }
+  return out;
+}
 const LOOP: [PixKind, string][] = [['plug', 'Go in'], ['crate', 'Loot'], ['press', 'Press'], ['coin', 'Pay the debt'], ['tree', 'Research']];
 const KEY = 'noclip.tour.v1';
 
@@ -79,6 +99,7 @@ export async function runTour(h: TourHost): Promise<void> {
   const dots = document.createElement('div');
   dots.className = 'tour-dots';
   const pipU = pipSheet();
+  const STOPS = stopsNow();
   const pips = STOPS.map(() => { const p = document.createElement('i'); Object.assign(p.style, { backgroundImage: `url(${pipU})` }); dots.append(p); return p; });
   const skip = document.createElement('button');
   skip.type = 'button'; skip.className = 'tour-skip'; skip.setAttribute('aria-label', 'Skip the tour (Esc)');

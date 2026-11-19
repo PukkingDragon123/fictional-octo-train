@@ -323,7 +323,7 @@ export class HumanAnimator {
     this.reachWL += (this.reachL.w - this.reachWL) * kw; this.reachWR += (this.reachR.w - this.reachWR) * kw;
     if (lod === 0) {
       // on the move the pelvis may only sink a little to reach (a stretched trailing foot peels off instead); standing it can drop down a step
-      legIK(p, this.gait, D, { wL: this.ikL, wR: this.ikR, stiffL: this.stiffL, stiffR: this.stiffR, dt, maxDrop: lerp(0.3, 0.07 + 0.03 * this.sneakW, this.walkW) * D.s });
+      legIK(p, this.gait, D, { wL: this.ikL, wR: this.ikR, stiffL: this.stiffL, stiffR: this.stiffR, dt, maxDrop: lerp(0.3, 0.07 + 0.03 * this.sneakW + 0.035 * this.runW, this.walkW) * D.s });
       if (this.reachWL > 0.01 || this.reachWR > 0.01) {
         chestFrame(p, D);
         this.doReach(p, D, 'L', this.reachL, this.reachWL);

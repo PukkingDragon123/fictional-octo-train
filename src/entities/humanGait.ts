@@ -161,9 +161,11 @@ export class Gait {
     // stride shortens when moving sideways or backwards (side-steps instead of crossing the legs)
     const fwd = Math.sin(f.yaw) * this.dirX + Math.cos(f.yaw) * this.dirZ;
     const side = 0.55 + 0.45 * Math.abs(fwd);
-    const Sw = Math.min(1.6, 0.5 + 0.42 * v) * s, Sr = (0.95 + 0.38 * v) * s;
+    // round 19: a shorter, quicker running stride (the old one split the legs into a long stretched stance at
+    // game scale): about 2 m a cycle at a full run, a touch more time on the ground, less flight
+    const Sw = Math.min(1.55, 0.5 + 0.41 * v) * s, Sr = (0.9 + 0.27 * v) * s;
     this.S = Math.max(0.35, (Sw + (Sr - Sw) * run) * (1 - 0.14 * sn) * (1 - 0.28 * f.limp) * side * (1 - f.tired * 0.12));
-    this.beta = (0.6 + 0.06 * sn) * (1 - run) + 0.32 * run;
+    this.beta = (0.6 + 0.06 * sn) * (1 - run) + 0.36 * run;
     const beta = this.beta;
     if (!this.init) this.plantAll(f, D);
     if (!f.active) { this.plantAll(f, D); this.moving = false; this.output(f, D); return; }
@@ -200,7 +202,8 @@ export class Gait {
           this.idleTarget(ft, f, i);
           const e = Math.hypot(ft.tx - ft.px, ft.tz - ft.pz) / s + Math.abs(wrapPi(ft.tyaw - ft.pyaw)) * 0.2;
           const lim = 0.115 - f.restless * 0.04;
-          if ((e > lim || Math.abs(wrapPi(ft.tyaw - ft.pyaw)) > 0.6) && e > bestE) { bestE = e; best = i; }
+          // (round 19: a turn on the spot steps the feet round sooner, so the legs never wind up)
+          if ((e > lim || Math.abs(wrapPi(ft.tyaw - ft.pyaw)) > 0.45) && e > bestE) { bestE = e; best = i; }
         }
         // a restless body shuffles now and then
         if (best < 0 && f.restless > 0.3 && this.restT <= 0) { this.restT = 0.6 + Math.random() * 1.6 / f.restless; best = Math.random() < 0.5 ? 0 : 1; bestE = 0.05; }

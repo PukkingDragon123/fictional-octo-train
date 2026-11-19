@@ -154,6 +154,29 @@ registerPose('mo_slide', (t, dur, _inp, time) => {
   return { pose: P, mask: ALL };
 }, { noIK: true, dur: 0.82 });
 
+// ------------------------------------------------------------------ down flat (Ctrl): a knee, the hands, the chest; and back up again
+// The last key is the crawl stance's own resting pose (src/entities/humanAnim.ts), so it hands over without a pop.
+const PRONE: Key[1] = { bodyPitch: 1.42, bodyY: 0.13, rootY: -0.84, uarmL: [-2.5, 0, 0.35], uarmR: [-2.5, 0, -0.35], farmL: [-0.5, 0, 0], farmR: [-0.5, 0, 0],
+  thighL: [0.1, 0, 0.12], thighR: [0.1, 0, -0.12], shinL: [0.3, 0, 0], shinR: [0.3, 0, 0], footL: [0.9, 0, 0], footR: [0.9, 0, 0], head: [-1.05, 0, 0] };
+const KNEEL: Key[1] = { rootY: -0.46, spine: [0.32, 0, 0], head: [-0.15, 0, 0],
+  thighL: [-1.3, 0, 0.06], shinL: [1.45, 0, 0], footL: [-0.15, 0, 0], thighR: [0.12, 0, -0.06], shinR: [1.75, 0, 0], footR: [0.65, 0, 0],
+  uarmL: [-0.85, 0, 0.2], farmL: [-0.35, 0, 0], uarmR: [-0.85, 0, -0.2], farmR: [-0.35, 0, 0] };
+const HANDS: Key[1] = { bodyPitch: 0.95, bodyY: 0.06, rootY: -0.62, spine: [0.15, 0, 0], head: [-0.75, 0, 0],
+  thighL: [-0.85, 0, 0.1], shinL: [1.6, 0, 0], footL: [0.5, 0, 0], thighR: [-0.6, 0, -0.1], shinR: [1.7, 0, 0], footR: [0.7, 0, 0],
+  uarmL: [-1.75, 0, 0.3], farmL: [-0.25, 0, 0], handL: [-0.9, 0, 0], uarmR: [-1.75, 0, -0.3], farmR: [-0.25, 0, 0], handR: [-0.9, 0, 0] };
+registerPose('mo_down', (t, dur) => {
+  const P: Pose = {};
+  keys([[0, {}], [0.38, KNEEL], [0.7, HANDS], [1, PRONE]], dur > 0 ? clamp(t / dur, 0, 1) : 1, P);
+  P.gripL = 0.4; P.gripR = 0.4;
+  return { pose: P, mask: ALL };
+}, { noIK: true, dur: 0.62 });
+registerPose('mo_up', (t, dur) => {
+  const P: Pose = {};
+  keys([[0, PRONE], [0.3, HANDS], [0.62, KNEEL], [1, {}]], dur > 0 ? clamp(t / dur, 0, 1) : 1, P);
+  P.gripL = 0.4; P.gripR = 0.4;
+  return { pose: P, mask: ALL };
+}, { noIK: true, dur: 0.7 });
+
 // ------------------------------------------------------------------ haul: an armload (planks, a sheet, a battery) hugged to the belly
 // The hands go under the load by IK (src/entities/humanAnim.ts actionReach 'haul'); the load sits on them
 // (src/interact/haul.ts). The trunk leans back against the weight, the shoulders round, the elbows stay out.

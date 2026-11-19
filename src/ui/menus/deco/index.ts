@@ -26,6 +26,7 @@ import { Preview } from './preview';
 import { pixSheet, PIX_N } from './pixIcons';
 import { hubIcon, type HubKind } from './hubModels';
 import { built, station, onLab, type StationKey } from '../lab/stations';
+import { bus } from '../../../core/events';
 import { fundTag } from '../lab/fund';
 import { guideHooks } from '../guide/tour';
 import { GIFTS } from './catalog';

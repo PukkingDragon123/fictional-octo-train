@@ -173,7 +173,7 @@ export class TouchControls implements GameSystem {
     this.btn(act, 'attack', 'attack', { x: 0.05, y: 0.05, s: 1.6, cls: 'round big', down: (e) => this.atkDown(e), move: (e) => this.atkMove(e), up: (_e, c) => this.atkUp(c) });
     this.btn(act, 'use', 'use', { label: 'USE', x: 1.85, y: 0.0, s: 1.3, cls: 'big', down: (e) => this.useDown(e), move: (e) => this.useMove(e), up: (_e, c) => this.useUp(c) });
     this.btn(act, 'shove', 'shove', { label: 'SHOVE', x: 0.0, y: 1.78, w: 1.8, h: 0.82, tap: () => this.g.input.tap('shove') });
-    this.btn(act, 'sneak', 'sneak', { label: 'SNEAK', x: 1.95, y: 1.45, s: 1.05, tap: () => this.g.input.tap('sneak') });
+    this.btn(act, 'sneak', 'sneak', { label: 'CROUCH', x: 1.95, y: 1.45, s: 1.05, tap: () => this.g.input.tap('sneak') });
     this.btn(act, 'light', 'light', { label: 'LIGHT', x: 3.3, y: 0.08, w: 0.9, h: 2.15, tap: () => this.g.input.tap('flashlight') });
     // the whistle: Q (whistle, hold to shout) is bound to both actions, so the prop presses both
     this.btn(act, 'shout', 'shout', { label: 'WHISTLE', x: 0.45, y: 2.75, s: 1.05, down: () => { this.g.input.press('whistle'); this.g.input.press('shout'); }, up: () => { this.g.input.release('whistle'); this.g.input.release('shout'); } });
@@ -182,9 +182,9 @@ export class TouchControls implements GameSystem {
     // the lung pump (H)
     this.btn(act, 'pump', 'pump', { label: 'PUMP', x: 3.35, y: 3.5, s: 0.95, hold: 'breathe', tap: () => { if (!this.g.hudBody && this.g.local) startBreathing(this.g.local); } });
     this.btn(act, 'talk', 'talk', { label: 'TALK', x: 1.75, y: 2.6, s: 1.0, cls: 'rec', hold: 'talk' });
-    // round 16: the newer moves on the cluster's top row: SCAN (hold, Q), ROLL (C), CRAWL (hold Ctrl: down flat, again to get up)
+    // the newer moves on the cluster's top row: SCAN (hold, Q), VAULT (Space: over what is in front, else a hop), CRAWL (Ctrl: down flat, again to get up)
     this.btn(act, 'qscan', 'scan', { label: 'SCAN', x: 0.42, y: 3.85, s: 0.95, hold: 'scan' });
-    this.btn(act, 'roll', 'roll', { label: 'ROLL', x: 1.42, y: 3.8, s: 0.95, tap: () => this.g.input.tap('roll') });
+    this.btn(act, 'roll', 'roll', { label: 'VAULT', x: 1.42, y: 3.8, s: 0.95, tap: () => this.g.input.tap('jump') });
     this.btn(act, 'crawl', 'crawl', { label: 'CRAWL', x: 2.38, y: 3.75, s: 0.95, tap: () => this.crawl() });
     // round 17: the build kit in hand (src/build/build.ts): these keys take the strike button's and the shove bar's place
     const bld = () => (this.g as any).build;
@@ -784,13 +784,10 @@ export class TouchControls implements GameSystem {
   strikeDown(e: PointerEvent) { this.atkDown(e); }
   strikeMove(e: PointerEvent) { this.atkMove(e); }
   strikeUp(cancelled: boolean) { this.atkUp(cancelled); }
-  /** CRAWL: down flat (the sneak key held past the drop), or up again when already down */
+  /** CRAWL: down flat, or up again when already down (the crawl key's toggle) */
   private crawl() {
-    const p = this.g.local, inp = this.g.input;
-    if (!p) return;
-    if ((p as any).motion?.prone) { inp.tap('sneak'); return; }
-    inp.press('sneak');
-    setTimeout(() => inp.release('sneak'), 560);
+    if (!this.g.local) return;
+    this.g.input.tap('crawl');
   }
   /** the adaptive layout replaced the on-foot cluster (round 12-15); round 16 brings the found-object cluster back */
   adaptive = false;

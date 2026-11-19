@@ -56,7 +56,10 @@ export class Interact {
       const w = d.w ?? 1, dd = d.d ?? 1; const rw = o.rot % 2 === 0 ? w : dd, rd = o.rot % 2 === 0 ? dd : w;
       const nx = Math.max(o.x, Math.min(p.x, o.x + rw)), nz = Math.max(o.y, Math.min(p.z, o.y + rd));
       // round 19: nothing through a wall or a shut door
-      if (Math.hypot(nx - p.x, nz - p.z) <= r && clearReach(z, p.x, p.z, nx, nz)) out.push(o);
+      if (Math.hypot(nx - p.x, nz - p.z) > r) continue;
+      // (tested a hand's width inside the thing, so a wall on its edge counts)
+      const ocx = o.x + rw / 2, ocz = o.y + rd / 2, ol = Math.hypot(ocx - nx, ocz - nz) || 1, k = Math.min(0.15, ol) / ol;
+      if (clearReach(z, p.x, p.z, nx + (ocx - nx) * k, nz + (ocz - nz) * k)) out.push(o);
     }
     return out;
   }

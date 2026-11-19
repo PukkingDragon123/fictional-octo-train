@@ -549,7 +549,7 @@ export class BandOS {
   }
   private async quit() {
     const { confirmDialog } = await import('../menus/common');
-    const ok = await confirmDialog({ title: 'Quit to title', body: G.role === 'client' ? 'Leave the room and go back to the title?' : 'Your progress is saved first, then the tape rewinds to the title.', ok: 'Quit', cancel: 'Stay', danger: true });
+    const ok = await confirmDialog({ title: 'Back to the lab', body: G.role === 'client' ? 'Leave the room and go back to the lab?' : 'Saved first. The link drops and you are back in the lab.', ok: 'Go back', cancel: 'Stay', danger: true });
     if (!ok) return;
     if (G.role !== 'client') { const { saveGame } = await import('../../game/save'); await saveGame(); }
     location.reload();
@@ -559,7 +559,7 @@ export class BandOS {
   private onKey(e: KeyboardEvent) {
     const typing = (e.target as HTMLElement)?.closest?.('input, textarea, [contenteditable="true"]');
     if (!this.open) {
-      if (e.code === 'Tab' && !e.repeat && !typing && !G.input?.textFocus && G.local && !(G as any).ui?.modal && !document.querySelector('.ipnl, .kd-veil, .mx-over:not(.mx-embed)')) { e.preventDefault(); e.stopImmediatePropagation(); this.show(); }
+      if (e.code === 'Tab' && !e.repeat && !typing && !G.input?.textFocus && G.local && !(G as any).ui?.modal && !(G as any).build?.active && !document.querySelector('.ipnl, .kd-veil, .mx-over:not(.mx-embed)')) { e.preventDefault(); e.stopImmediatePropagation(); this.show(); }
       return;
     }
     if (document.querySelector('.kd-veil, .ipnl')) return; // a dialog or an item card over the unit takes the keys

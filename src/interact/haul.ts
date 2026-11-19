@@ -65,7 +65,7 @@ class Armload {
   update(p: Player, dt: number) {
     const load = p.armload ?? [];
     // the load left the unit some other way (dropped from the pack view, used up): forget it
-    if (load.length) p.armload = load.filter((it) => p.containerOf(it));
+    if (load.length) p.armload = load.filter((it) => p.containerOf(it) === p.inv);
     const k = (p.armload ?? []).map((i) => i.key).join(',');
     if (this.on !== p || k !== this.key) {
       this.key = k; this.on = p;
@@ -194,7 +194,7 @@ function stepDrag(p: Player, dt: number) {
 }
 
 // ================================================================== wiring
-let installed = false;
+let installed = false, sweeping = false;
 export function installHaul() {
   if (installed) return;
   installed = true;
@@ -203,11 +203,20 @@ export function installHaul() {
     try { if (isBulky(it)) takeIntoArms(p, it); else autoHot(p, it); } catch (e) { console.warn('haul pickup', e); }
   });
   bus.on('travelStart', (p: Player) => { if (p?.isLocal) stopDrag(p); });
-  // a thing taken in the hands (the hotbar, the pack) while the arms are full: the armload goes down first
   bus.on('inventoryChanged', (p: Player) => {
-    if (!p?.isLocal || !p.armload?.length) return;
-    const h = p.handR ?? p.handL;
-    if (h && !p.armload.includes(h)) { say(p, 'I put the load down.'); setDown(p); }
+    if (!p?.isLocal || sweeping) return;
+    sweeping = true;
+    try {
+      // a bulky thing put in the pack (or a pocket) comes back out into the arms: it does not fit
+      for (const c of p.containers()) {
+        if (c === p.inv) continue;
+        for (const it of [...c.items]) if (isBulky(it) && !p.isWorn(it)) { c.remove(it); p.inv.add(it); say(p, 'That won\'t fit in there.'); takeIntoArms(p, it); }
+      }
+      if (!p.armload?.length) return;
+      // a thing taken in the hands (the hotbar, the pack) while the arms are full: the armload goes down first
+      const h = p.handR ?? p.handL;
+      if (h && !p.armload.includes(h)) { say(p, 'I put the load down.'); setDown(p); }
+    } finally { sweeping = false; }
   });
   // the right-click menu: drag a body, set down what is in the arms
   registerContextActions('corpse', (t, p) => {

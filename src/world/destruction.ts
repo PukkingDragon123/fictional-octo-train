@@ -30,6 +30,13 @@ import { Container } from '../items/container';
 import { fillLoot, serializeItem } from '../items/factory';
 import { dropItem } from '../items/worldItems';
 import { itemDef, Item } from '../items/item';
+
+/** a tool that goes through a wall: a sledgehammer, an axe, a crowbar (round 19: nothing else breaks walls) */
+export function wallTool(it: Item | null | undefined): boolean {
+  if (!it) return false;
+  const d = itemDef(it.key), t = d.tags || [];
+  return t.includes('sledge') || t.includes('axe') || d.weapon?.kind === 'axe' || t.includes('crowbar');
+}
 import { defLoot } from '../items/loot';
 import type { Player } from '../entities/player';
 import { Particles, PK } from '../gore/particles';
@@ -442,6 +449,14 @@ export class DestructionSystem implements GameSystem {
     // a wall right in front
     const wh = this.wallInFront(z, p, reach);
     if (wh) {
+      // round 19: walls only give to a tool made for it (a sledgehammer, an axe, a crowbar); anything else jars off it
+      if (!wallTool(it)) {
+        G.audio?.at?.(it ? 'metal_clank' : 'body_thud', p.x + Math.cos(p.facing) * 0.6, p.z + Math.sin(p.facing) * 0.6, 0.5);
+        try { (p as any).anim?.impact?.(0.9); } catch { /* older rigs */ }
+        if (!it) this.punchedWall(p);
+        else if (Math.random() < 0.35) bus.emit('think', p, 'That won\'t go through a wall. A sledgehammer would.');
+        return true;
+      }
       const base = (w.dmg ? (w.dmg[0] + Math.random() * (w.dmg[1] - w.dmg[0])) : 2);
       const k = w.kind === 'blunt' ? 1 : w.kind === 'axe' ? 0.85 : w.kind === 'unarmed' ? 0.35 : 0.2;
       op('wallSmash', { z: z.key, x: wh.x, y: wh.y, side: wh.side, d: r2(base * k * (1 + p.body.skill('strength') * 0.05)), how: 'melee', by: p.id, u: r2(wh.u), h: r2(wh.h), n: wh.n } as WallArgs);

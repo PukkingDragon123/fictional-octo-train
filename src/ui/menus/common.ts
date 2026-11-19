@@ -416,19 +416,29 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
 }
 
 // round 14: no on-screen action buttons on desktop. What can be done with the thing in reach
-// floats over it ("[E] Search: Filing Cabinet"); everything else is a key, listed here.
+// floats over it ("[E] Search: Filing Cabinet"); everything else is a key, listed here
+// (round 19: matches src/core/input.ts DEFAULT_BINDINGS key for key).
 export const CONTROLS: [string, string][] = [
-  ['WASD', 'walk'], ['Shift', 'sprint · push harder · swim'], ['Ctrl', 'sneak (hold: drop flat and crawl, under tables too)'], ['C', 'dodge roll'],
-  ['E', 'the action floating over what is in reach'], ['G', 'carry · grip · drop what you carry (else the emote wheel)'], ['R', 'turn what you carry · reload · rotate when placing'],
-  ['Space', 'shove · kick · throw what you carry'], ['U', 'the second thing in reach'], ['F', 'suit lamp (no button: the key only)'], ['Q (hold)', 'scan · "[Q] Scan" floats over anything new'],
-  ['1 - 6', 'hotbar: take the bound thing in hand'], ['Left mouse', 'use the tool in hand · attack (hold to charge)'], ['Right mouse', 'grab · push · pull · guard in a fight (raise it on the blow to parry)'],
-  ['J', 'Dr. Calder\'s task board'], ['I', 'backpack'], ['O', 'inspect yourself'], ['H', 'lung pump · breathing'],
-  ['Build kit in hand', 'build mode (hotbar 1 · R turn · Tab shelf · U upgrade · X take down)'], ['M', 'map'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'],
-  ['Middle mouse / Alt+drag', 'orbit the camera'], ['PageUp / PageDown · Alt+wheel', 'camera pitch'], ['P', 'photo mode'], ['V (hold)', 'talk (co-op voice, walkie when switched on)'],
-  ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],
+  // moving (round 19: one key per action, nothing on two)
+  ['W A S D', 'walk'], ['Shift', 'sprint · push harder · swim'], ['C', 'crouch (sprinting: slide)'], ['Ctrl', 'crawl · under tables'],
+  ['Space', 'vault (counters, crates, low walls, windows) · hop'],
+  // hands
+  ['E', 'pick up · open · use what is in front'], ['Right mouse', 'everything you can do to it (Info at the bottom)'], ['Right mouse (hold)', 'grab · push · pull'],
+  ['Left mouse', 'use what is in hand · attack (hold to charge)'], ['1 - 6', 'hotbar: take that thing in hand'], ['G', 'carry · grip · set down an armload · ignition'],
+  ['R', 'turn what you carry · rotate when placing'], ['V', 'shove · kick · throw what you carry'], ['U', 'the second thing in reach'], ['` / Y', 'draw or holster the tool'],
+  // the unit
+  ['B / I', 'backpack'], ['O', 'inspect yourself'], ['F', 'suit lamp'], ['Q (hold)', 'scan'], ['H', 'lung pump · breathing'], ['K', 'order your thralls'],
+  // the institute
+  ['J', 'Dr. Calder\'s task board'], ['M', 'map'], ['Tab', 'wrist terminal'], ['L', 'resync the link'],
+  // the camera
+  ['Z / X', 'turn the camera'], ['Mouse wheel', 'zoom'], ['Middle mouse / Alt+drag', 'orbit the camera'], ['PageUp / PageDown · Alt+wheel', 'camera pitch'], ['P', 'photo mode'],
+  // rarely needed
+  [', (comma)', 'whistle (hold: shout)'], ['. (period)', 'emote wheel'], ['T (hold)', 'talk (co-op voice)'], ['Enter', 'chat (co-op)'], ['Esc', 'close · pause'],
+  ['Build kit in hand', 'build mode: R turn · [ ] piece · Tab shelf · U upgrade · Delete take down'],
 ];
 export const TOUCH_CONTROLS: [string, string][] = [
   ['Stick', 'move · push fully or double-tap to run'], ['Tap a floating name', 'do what it says (tap a small verb under it for the others)'], ['Tap', 'act on a thing · walk to a spot'], ['Hold', 'grab it · its other verbs'],
+  ['CROUCH · CRAWL · VAULT', 'crouch (running: slide) · down flat · over what is in front'],
   ['STRIKE (hold)', 'aim, release to strike'], ['LAMP', 'suit lamp'], ['SWIM (hold)', 'swim hard (in water)'],
   ['Pinch', 'zoom'], ['Two-finger twist / swipe', 'turn the camera'],
 ];
@@ -441,6 +451,6 @@ export function controlsPanel(): HTMLElement {
   box.append(h('div', 't-ctl-h', 'MENUS'));
   for (const [k, v] of MENU_CONTROLS) box.append(h('div', 't-ctl', `<kbd>${esc(k)}</kbd><span>${esc(v)}</span>`));
   box.append(h('div', 't-ctl-h', 'INVENTORY'));
-  for (const [k, v] of [['Drag', 'move items · shift-drag moves the stack'], ['Double-click / double-tap', 'move to the other side'], ['Right click / long-press', 'item actions']]) box.append(h('div', 't-ctl', `<kbd>${esc(k)}</kbd><span>${esc(v)}</span>`));
+  for (const [k, v] of [['Drag', 'move items · shift-drag moves the stack'], ['Double-click / double-tap', 'move to the other side'], ['Right click / long-press', 'item actions · Info']]) box.append(h('div', 't-ctl', `<kbd>${esc(k)}</kbd><span>${esc(v)}</span>`));
   return box;
 }

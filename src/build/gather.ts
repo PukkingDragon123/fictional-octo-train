@@ -122,6 +122,15 @@ const regrowH = (d: NodeDef) => d.regrow * (hasUnlock('gt_regrow') ? 0.5 : 1);
 export const leftOf = (o: TileObject) => { const d = nodeDef(o.key); return d ? Math.max(0, Math.min(d.charges, o.state.left ?? d.charges)) : 0; };
 
 /** the best tool this unit carries for a node: [item, multiplier, name] or null (hands: item null) */
+/** nodes that are a wall being broken out (round 19: only with the tool in hand) */
+const BREAKS_WALL = new Set(['gn_drywall']);
+/** is what the unit holds one of the node's tools */
+function heldFor(p: Player, d: NodeDef): boolean {
+  const it = p.handR ?? p.handL;
+  if (!it) return false;
+  const tags = itemDef(it.key).tags || [];
+  return d.tools.some(([t]) => (t.startsWith('#') ? tags.includes(t.slice(1)) || it.key === t.slice(1) : it.key === t));
+}
 export function toolFor(p: Player, d: NodeDef): { it: Item | null; mul: number; name: string } | null {
   for (const [t, mul, name] of d.tools) {
     const it = p.findTool(t);
@@ -224,6 +233,8 @@ export class Gathering {
   /** start working a node (E) */
   work(p: Player, o: TileObject): boolean {
     const d = nodeDef(o.key); if (!d) return false;
+    // round 19: breaking a wall out is done with the tool in hand, never from a pocket
+    if (BREAKS_WALL.has(d.key) && !heldFor(p, d)) { bus.emit('think', p, `I need a ${d.tools.map((t) => t[2].toLowerCase()).slice(0, 2).join(' or a ')} in my hands for that.`); G.audio?.ui?.('dryfire'); return false; }
     if (leftOf(o) <= 0) { bus.emit('think', p, `${d.name}: picked clean. Back in about ${this.backIn(o)} hours.`); return false; }
     const tool = toolFor(p, d);
     if (!tool) { bus.emit('think', p, `I need a ${d.tools[0][2].toLowerCase()} for that${d.tools.length > 1 ? ' (or a ' + d.tools.slice(1).map((t) => t[2].toLowerCase()).join(', a ') + ')' : ''}.`); G.audio?.ui?.('dryfire'); return false; }
@@ -256,6 +267,8 @@ export class Gathering {
     }
     if (!best) return [];
     const o = best, d = nodeDef(o.key)!;
+    // round 19: no free pop-up for breaking a wall: it shows only with a fitting tool in hand
+    if (BREAKS_WALL.has(d.key) && !heldFor(p, d)) return [];
     const tool = toolFor(p, d);
     const h = (objDef(o.key)?.height ?? 1);
     const at = { x: o.x + 0.5, y: (p.y ?? 0) + Math.min(1.9, h) + 0.25, z: o.y + 0.5 };

@@ -106,13 +106,16 @@ export class UnitMotion {
       if (crouch || crawl || run || jump) {
         if (!this.roomToStand(p)) { say(p, 'No room to stand under here.'); return; }
         this.prone = false; p.sneaking = crouch;
+        // push up off the floor, a knee, up (quicker when it means to run)
+        if (p.stance === 'crawl' && !p.body.downed) { this.dir = p.facing; this.enter('getup', run ? 0.5 : 0.7); p.playAnim('mo_up', this.dur); }
         audio('cloth', p.x, p.z, 0.5);
       }
       return;
     }
     if (crawl) {
-      // down flat
+      // down flat: a knee, the hands, the chest
       this.prone = true; p.sneaking = true;
+      if (p.stance !== 'crawl') { this.dir = p.facing; this.enter('getup', 0.62); p.playAnim('mo_down', this.dur); }
       audio('cloth', p.x, p.z, 0.6); audio('thud_soft', p.x, p.z, 0.25);
       return;
     }
@@ -162,7 +165,8 @@ export class UnitMotion {
     const s = Math.hypot(p.vx, p.vz);
     return s > 1.3 && p.stance !== 'crawl' ? Math.atan2(p.vz, p.vx) : Math.atan2(mz, mx);
   }
-  turnRate(p: Player): number { return this.locked ? 30 : p.stance === 'crawl' ? 4 : Math.hypot(p.vx, p.vz) > 3 ? 7 : 12; }
+  /** turning on the spot is a touch slower than turning on the move: the feet step round under it (src/entities/humanGait.ts) */
+  turnRate(p: Player): number { const s = Math.hypot(p.vx, p.vz); return this.locked ? 30 : p.stance === 'crawl' ? 4 : s > 3 ? 7 : s < 0.3 ? 9.5 : 12; }
 
   // ================================================================ the step
   /** wanted velocity (tvx, tvz) in, a moved body out (p.x / p.z / p.vx / p.vz / p.speed) */
@@ -235,8 +239,10 @@ export class UnitMotion {
     const moved = Math.hypot(p.x - ox, p.z - oz), meant = Math.hypot(ix, iz);
     // a wall (or furniture) square on at a full sprint: a slam
     if (s > 3.3 && meant > 1e-4 && moved < meant * 0.3 && this.tripCd <= 0) { this.slam(z, p, h, s); return; }
-    // what is left of the velocity after the collision (sliding along a wall keeps the slide)
-    if (meant > 1e-4 && moved < meant * 0.98) { const k = moved / meant; p.vx *= k; p.vz *= k; }
+    // what is left of the velocity after the collision: the slide along the wall or round the corner it was pushed
+    // into (round 19: the velocity follows where the body really went, so a glancing wall keeps its speed instead of
+    // bleeding it off every frame and leaving the unit stuck against it)
+    if (meant > 1e-4 && moved < meant * 0.98) { p.vx = (p.x - ox) / dt; p.vz = (p.z - oz) / dt; }
     // a foot catches
     if (p.running && s > 3 && this.tripCd <= 0) {
       this.clutterT -= dt;
@@ -641,6 +647,8 @@ export class UnitMotion {
   }
   private resolveHit(p: Player, h: { dx: number; dz: number; k: number; dmg: number; part: string; grab: boolean }) {
     if (p.body.dead || p.body.downed) return;
+    // mid-vault the body is over the counter: the blow is shrugged off (no knockback into the furniture)
+    if (this.st === 'vault') return;
     // a grip or a pin is the struggle's business (src/combat/qte.ts)
     if (h.grab || G.combat?.qte?.active) return;
     const s = h.k + h.dmg / 40;
@@ -734,16 +742,26 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
       const yaw = G.pr.yaw, rx = Math.cos(yaw), rz = -Math.sin(yaw);
       const ax = Math.abs(rx) > Math.abs(rz), sx = ax ? Math.sign(rx) : 0, sz = ax ? 0 : Math.sign(rz);
       const free = (x: number, y: number) => z.inb(x, y) && !!z.floor[z.idx(x, y)] && !z.solid[z.idx(x, y)] && !z.objectsAt(x, y).length;
-      for (let r = 0; r < 8; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      const lit = (x: number, y: number) => { try { return (G as any).lightLevelAt?.(x + 0.5, y + 0.5) ?? 1; } catch { return 1; } };
+      let best: { x: number; y: number; l: number } | null = null;
+      for (let r = 0; r < 14; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
         const x = p.tileX() + dx, y = p.tileY() + dy;
         if (!free(x, y) || !free(x + sx, y + sz) || !free(x + 2 * sx, y + 2 * sz)) continue;
+        // open floor round it (no wall to hide the unit from the camera)
+        let open = true;
+        for (let k = -1; k <= 3 && open; k++) for (const w of [-1, 1]) { const qx = x + sx * k + (sz ? w : 0), qy = y + sz * k + (sx ? w : 0); if (!free(qx, qy)) open = false; }
+        if (!open || z.edgeBlocks(x, y, -sx, -sz)) continue;
         if (z.edgeBlocks(x, y, sx, sz) || z.edgeBlocks(x + sx, y + sz, sx, sz)) continue;
-        z.addObject({ uid: 990000 + Math.floor(Math.random() * 9000), key, x: x + sx, y: y + sz, rot: sx ? 1 : 0, state: {} } as any);
-        p.x = x + 0.5 - sx * 0.1; p.z = y + 0.5 - sz * 0.1; p.vx = p.vz = 0; p.facing = p.targetFacing = Math.atan2(sz, sx);
-        G.pr.target.set(p.x, p.y, p.z);
-        return { x, y, sx, sz };
+        // the best lit spot (a dark corner hides the unit)
+        const l = lit(x, y) + lit(x + sx, y + sz);
+        if (!best || l > best.l + 0.05) best = { x, y, l };
       }
-      return null;
+      if (!best) return null;
+      const { x, y } = best;
+      z.addObject({ uid: 990000 + Math.floor(Math.random() * 9000), key, x: x + sx, y: y + sz, rot: sx ? 1 : 0, state: {} } as any);
+      p.x = x + 0.5 - sx * 0.1; p.z = y + 0.5 - sz * 0.1; p.vx = p.vz = 0; p.facing = p.targetFacing = Math.atan2(sz, sx);
+      G.pr.target.set(p.x, p.y, p.z);
+      return { x, y, sx, sz, light: best.l };
     },
     /** start a vault / slide / hop for real; `freeze` (0..1) stops the world at that point of it */
     act(kind: 'vault' | 'slide' | 'hop', freeze = -1) {

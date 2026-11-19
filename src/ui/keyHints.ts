@@ -2,7 +2,8 @@
 // the hotbar: pixel key caps (src/ui/menus/guide/tourArt.ts; the cap sinks when the key is pressed) and a word or
 // two in floating type. Move at the start; E the first time something can be used; Q when the first new thing
 // that can be scanned is near; F the first time it is dark round the unit; the build kit the first time the unit
-// picks something up (there is now something to build with); Tab for the wrist terminal a while in. Each goes
+// picks something up (there is now something to build with); Tab for the wrist terminal a while in; round 19: B the
+// first pickup, Space in front of something to vault, Ctrl in front of a table, C after a while. Each goes
 // when its key is pressed (or after a few seconds) and never comes back (localStorage). Not on touch (the pad has
 // its own), not while a cinematic, the tutorial or a menu has the screen.
 import { G } from '../game/G';
@@ -26,7 +27,25 @@ const HINTS: Hint[] = [
   { id: 'lamp', keys: ['F'], word: 'lamp', done: ['KeyF'], when: () => dark() },
   { id: 'build', keys: ['1'], word: 'build kit', done: ['Digit1'], when: () => pickedUp && !!G.local?.allItems?.().some((i) => i.key === 'build_kit') && !(G.build as { active?: boolean } | undefined)?.active },
   { id: 'watch', keys: ['Tab'], word: 'wrist terminal', done: ['Tab'], when: (t) => t > 90 },
+  // round 19: the new movement and the backpack key, each the first time it would help
+  { id: 'pack', keys: ['B'], word: 'backpack', done: ['KeyB', 'KeyI'], when: () => pickedUp },
+  { id: 'vault', keys: ['Space'], word: 'vault', done: ['Space'], when: () => vaultAhead() },
+  { id: 'crawl', keys: ['Ctrl'], word: 'crawl under', done: ['ControlLeft', 'ControlRight'], when: () => tableAhead() },
+  { id: 'crouch', keys: ['C'], word: 'crouch · sprinting: slide', done: ['KeyC'], when: (t) => t > 45 },
 ];
+/** something waist-high right in front that Space would clear */
+function vaultAhead(): boolean {
+  const p = G.local as unknown as { motion?: { vaultPlan?: (z: unknown, p: unknown, dir: number) => unknown }; zoneKey: string; facing: number } | undefined;
+  const z = p && (G as unknown as { getZone?: (k: string) => unknown }).getZone?.(p.zoneKey);
+  try { return !!(p && z && p.motion?.vaultPlan?.(z, p, p.facing)); } catch { return false; }
+}
+/** a table or a counter to crawl under, a step ahead */
+function tableAhead(): boolean {
+  const p = G.local; if (!p) return false;
+  const z = G.getZone(p.zoneKey); if (!z) return false;
+  const x = Math.floor(p.x + Math.cos(p.facing) * 0.9), y = Math.floor(p.z + Math.sin(p.facing) * 0.9);
+  return z.inb(x, y) && z.solid[z.idx(x, y)] === 3;
+}
 
 let installed = false;
 export function installKeyHints() {

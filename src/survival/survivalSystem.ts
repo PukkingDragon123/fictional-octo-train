@@ -133,7 +133,7 @@ export class SurvivalSystem implements GameSystem {
     this.mind.update(p, env, dt, dh);
     this.quirks.update(p, env, dt);
     this.unlocks.update(p, env, dt, dh);
-    if (G.input.keyHit('KeyH') && !G.ui?.blocksMovement?.()) startBreathing(p);
+    if (G.input.hit('breathe') && !G.ui?.blocksMovement?.()) startBreathing(p);
     // death / downed
     if (p.body.health <= 0 && !p.body.dead && !p.body.downed) {
       if (G.role !== 'solo' && G.players.size > 1) { p.body.downed = true; p.body.downedTime = 0; bus.emit('downed', p); }

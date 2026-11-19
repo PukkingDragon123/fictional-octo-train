@@ -79,8 +79,8 @@ export class PauseMenu {
     // round 17: the emote jukebox (buy emotes for dollars, fill the wheel)
     plate(pt ? 'Emotes' : 'Emote jukebox', () => { void import('../../social/emotes/shop').then((m) => m.openEmoteShop()); }, { icon: 'coin' });
     col.append(h('i', 'ps2-gap'));
-    plate(pt ? 'Quit' : 'Quit to title', async () => {
-      const ok = await confirmDialog({ title: 'Quit to title', body: G.role === 'client' ? 'Leave the room and go back to the title?' : 'Your progress is saved first, then the tape rewinds to the title.', ok: 'Quit', cancel: 'Stay', danger: true });
+    plate(pt ? 'To the lab' : 'Back to the lab', async () => {
+      const ok = await confirmDialog({ title: 'Back to the lab', body: G.role === 'client' ? 'Leave the room and go back to the lab?' : 'Saved first. The link drops and you are back in the lab.', ok: 'Go back', cancel: 'Stay', danger: true });
       if (!ok) return;
       if (G.role !== 'client') await saveGame();
       location.reload();
