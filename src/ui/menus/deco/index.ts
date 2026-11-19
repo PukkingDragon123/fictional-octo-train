@@ -25,6 +25,8 @@ import { Shop } from './shop';
 import { Preview } from './preview';
 import { pixSheet, PIX_N } from './pixIcons';
 import { hubIcon, type HubKind } from './hubModels';
+import { built, station, onLab, type StationKey } from '../lab/stations';
+import { fundTag } from '../lab/fund';
 import { guideHooks } from '../guide/tour';
 import { GIFTS } from './catalog';
 import { owned, addOwned, flag, setFlag } from './store';
@@ -164,11 +166,31 @@ export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unkno
   // the codex, the research lattice, the commissary, the emote jukebox, decorating the room. Dr. Calder herself (a
   // click on her) runs the guided tour; muting her and replaying the tour live in Settings.
   const J = opts.jump ?? {};
-  const codexKey = icon(pixSheet('codex'), 'Codex', 'Codex: the files on every inhabitant and anomaly', () => { if (!hidden() && J.codex) J.codex(); });
-  const treeKey = icon(pixSheet('tree'), 'Skill tree', 'Skill tree: the research lattice', () => { if (!hidden() && J.tree) J.tree(); });
-  const shopKey = icon(pixSheet('shop'), 'Commissary', 'Commissary: collectibles for this room', () => openShop());
-  const emoteKey = icon(pixSheet('jukebox'), 'Emotes', 'Emote jukebox: emotes for the wheel', () => { if (!hidden()) void import('../../../social/emotes/shop').then((m) => m.openEmoteShop()); });
-  const bpKey = icon(pixSheet('blueprint'), 'Decorate', 'Blueprint: decorate this room', () => enterBuild());
+  // round 19 (the lab from zero, ../lab/stations.ts): a key whose station is not built yet stands dim; a press funds it
+  const gated = (k: StationKey, b: () => HTMLElement, run: () => void) => () => {
+    if (hidden()) return;
+    if (built(k)) { run(); return; }
+    const el = b();
+    fundTag(k, () => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.bottom + 64 }; }, () => { el.animate?.([{ transform: 'scale(.6)' }, { transform: 'scale(1.2)' }, { transform: 'none' }], { duration: 420, easing: 'steps(6, end)' }); syncLab(); }, (t) => guide.now?.(t));
+  };
+  const codexKey: HTMLElement = icon(pixSheet('codex'), 'Codex', 'Codex: the files on every inhabitant and anomaly', gated('archive', () => codexKey, () => { if (J.codex) J.codex(); }));
+  const treeKey: HTMLElement = icon(pixSheet('tree'), 'Skill tree', 'Skill tree: the research lattice', gated('lattice', () => treeKey, () => { if (J.tree) J.tree(); }));
+  const shopKey: HTMLElement = icon(pixSheet('shop'), 'Commissary', 'Commissary: collectibles for this room', gated('commissary', () => shopKey, () => openShop()));
+  const emoteKey: HTMLElement = icon(pixSheet('jukebox'), 'Emotes', 'Emote jukebox: emotes for the wheel', gated('jukebox', () => emoteKey, () => { void import('../../../social/emotes/shop').then((m) => m.openEmoteShop()); }));
+  const bpKey: HTMLElement = icon(pixSheet('blueprint'), 'Decorate', 'Blueprint: decorate this room', gated('decorate', () => bpKey, () => enterBuild()));
+  const STATION_OF = new Map<HTMLElement, StationKey>([[codexKey, 'archive'], [treeKey, 'lattice'], [shopKey, 'commissary'], [emoteKey, 'jukebox'], [bpKey, 'decorate']]);
+  /** built keys stand; buildable ones stand dim (a press funds them); the rest wait until the runs earn them */
+  const syncLab = () => {
+    for (const [b, k] of STATION_OF) {
+      const on = built(k), ready = station(k).ready();
+      b.hidden = !on && !ready;
+      b.classList.toggle('unbuilt', !on);
+      const cap = b.querySelector('.dk-icap');
+      if (cap) cap.textContent = on ? (b.dataset.k ?? '') : `${b.dataset.k} · $${station(k).cost}`;
+    }
+  };
+  onLab(() => syncLab());
+  bus.on('money', () => syncLab());
   if (!J.codex) codexKey.remove();
   if (!J.tree) treeKey.remove();
   // Settings reaches the guide through these (guide/tour.ts): mute her, replay the tour
@@ -204,6 +226,7 @@ export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unkno
     }
   };
   const syncKeys = () => { layer.classList.toggle('busy', build.active || shop.active); };
+  syncLab();
   paintKeys();
   addEventListener('resize', paintKeys);
   // ---- clicks on the guide and on placed things (outside build mode)

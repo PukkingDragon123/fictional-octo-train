@@ -5,6 +5,7 @@ import { itemGeometry } from './itemMeshes';
 import { worldMaterial } from '../gfx/materials';
 import { Container } from './container';
 import { uid } from '../core/rng';
+import { clearReach } from '../world/collision';
 
 /** An item lying on the floor of a zone (dropped, spilled from a corpse, generated loot). */
 export interface WorldItem {
@@ -63,7 +64,8 @@ export function floorContainer(z: Zone, x: number, zz: number, r = 1.3): Contain
   // transient view of the floor: fixed id so UIs can diff it and no ids are burned
   const c = new Container(-1, 'Floor', 'floor', 9999);
   c.owner = `floor:${x.toFixed(2)},${zz.toFixed(2)}`;
-  for (const wi of floorItemsNear(z, x, zz, r)) c.items.push(wi.item);
+  // round 19: no reaching through walls: only what a hand at (x, zz) can get to
+  for (const wi of floorItemsNear(z, x, zz, r)) if (clearReach(z, x, zz, wi.x, wi.z)) c.items.push(wi.item);
   c.lootDone = true;
   return c;
 }

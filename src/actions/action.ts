@@ -1,6 +1,16 @@
 import type { Player } from '../entities/player';
 import type { ActionAnim, FullBody } from '../entities/humanAnim';
 import type { SkillCheck } from './skillCheck';
+import { G } from '../game/G';
+import { bus } from '../core/events';
+import { clearReach } from '../world/collision';
+
+/** is a point within a hand's reach of the unit, with nothing solid in between */
+function reachable(p: Player, r: { x: number; z: number; r: number }): boolean {
+  if (Math.hypot(r.x - p.x, r.z - p.z) > r.r) return false;
+  const z = G.getZone?.(p.zoneKey);
+  return !z || clearReach(z, p.x, p.z, r.x, r.z);
+}
 
 /**
  * Project Zomboid style timed action. Everything a survivor does — moving an
@@ -20,6 +30,8 @@ export abstract class TimedAction {
   showBar = true;
   /** face this world point while acting */
   face?: { x: number; z: number };
+  /** round 19: where a hand must get to before this starts (set by queueAt; out of reach or behind a wall: dropped) */
+  reachAt?: { x: number; z: number; r: number };
   /** loop sound key */
   sound?: string;
   started = false;
@@ -70,6 +82,12 @@ export class ActionQueue {
     if (!a) return;
     if (!a.started) {
       if (!a.isValid()) { this.list.shift(); return; }
+      // round 19: a hand has to get there (the walk ended out of reach, or a wall is in the way)
+      if (a.reachAt && !reachable(this.p, a.reachAt)) {
+        this.list.shift();
+        if (this.p.isLocal) bus.emit('think', this.p, "I can't reach it from here.");
+        return;
+      }
       a.started = true;
       try { a.start(); } catch (e) { console.error('action start', a.name, e); this.list.shift(); return; }
     }

@@ -315,6 +315,7 @@ export class HumanAnimator {
     if (lod < 2) this.lookAt(p, dt, inp, D);
     this.react.apply(p, dt);
     this.balance(p, dt, inp);
+    if (inp.full === 'carried') this.hang(p, dt, inp);
     // ---------------- IK: feet on the ground, hands on things
     const kr = 1 - Math.exp(-this.ikRate * dt);
     this.ikL += (this.ikTL - this.ikL) * kr; this.ikR += (this.ikTR - this.ikR) * kr;
@@ -450,6 +451,25 @@ export class HumanAnimator {
     p.bodyRoll = (p.bodyRoll ?? 0) + this.bal[1];
     // turning on the spot: the head leads into the turn
     if (!g.moving && up > 0.5) add(p, 'head', 0, clamp(g.turn * 0.1, -0.4, 0.4), 0);
+  }
+
+  // ================================================================ carried over a shoulder: the body hangs and swings
+  private hangS = new Float32Array(3); private hangV = new Float32Array(3); private hangSp = 0;
+  /** round 19: limbs and trunk lag behind the carrier's turns and starts (springs), the body slews round after a turn */
+  private hang(p: Pose, dt: number, inp: AnimInput) {
+    const sp = inp.speed, acc = dt > 0 ? (sp - this.hangSp) / dt : 0;
+    this.hangSp = sp;
+    const turn = clamp(inp.turn ?? 0, -6, 6);
+    // targets: a turn throws the hanging half outward and lags the trunk's yaw; a start swings it back, a stop forward
+    this.hangS[0] = spring(this.hangS[0], this.hangV, 0, clamp(-turn * 0.09, -0.45, 0.45), 5.5, dt, 0.32);
+    this.hangS[1] = spring(this.hangS[1], this.hangV, 1, clamp(-acc * 0.06, -0.4, 0.4) + Math.sin(this.time * 7) * 0.05 * clamp(sp / 2, 0, 1), 6, dt, 0.28);
+    this.hangS[2] = spring(this.hangS[2], this.hangV, 2, clamp(-turn * 0.06, -0.3, 0.3), 3.2, dt, 0.55);
+    const side = this.hangS[0], fore = this.hangS[1], yawLag = this.hangS[2];
+    p.bodyYaw = (p.bodyYaw ?? 0) + yawLag;
+    add(p, 'uarmL', fore, 0, side * 0.8); add(p, 'uarmR', fore, 0, side * 0.8);
+    add(p, 'farmL', -Math.abs(fore) * 0.4, 0, 0); add(p, 'farmR', -Math.abs(fore) * 0.4, 0, 0);
+    add(p, 'chest', fore * 0.35, 0, side * 0.3); add(p, 'neck', fore * 0.3, 0, side * 0.4); add(p, 'head', fore * 0.4, 0, side * 0.5);
+    add(p, 'shinL', -fore * 0.3, 0, 0); add(p, 'shinR', -fore * 0.25, 0, 0);
   }
 
   // ================================================================ hands
@@ -797,6 +817,8 @@ export class HumanAnimator {
       if (P.blink !== undefined && this.actW > 0.5) p.blink = P.blink;
       if (act) this.actionReach(act, inp, t);
       if (act && NO_IK.has(act) && !(act === 'get_up' && inp.actionT / Math.max(0.1, inp.actionDur) > 0.82)) ikT = 0;
+      // the whole-body moves (vault, slide, hop) take the legs off the floor at once and give them back quickly
+      if (act && act.startsWith('mo_')) this.ikRate = 22;
       if (act === 'kick_obj') {
         const T = Math.min(inp.actionDur || 0.85, 0.85), u = ((inp.actionT % T) + T) % T / T;
         this.ikTR = u > 0.1 && u < 0.9 ? 0 : 1; this.ikRate = 16;
@@ -894,6 +916,10 @@ export class HumanAnimator {
     } else if (act === 'drag') {
       const tug = Math.max(0, Math.sin(t * 4.2)) * 0.03;
       L.to(0.95, 0.17, 0.8, 0.5 - tug).pole(0.6, -0.4, -0.6); R.to(0.95, -0.17, 0.8, 0.5 - tug).pole(-0.6, -0.4, -0.6);
+    } else if (act === 'haul') {
+      // round 19: under an armload (src/interact/haul.ts puts it on these points): hands under it, elbows out
+      const sw = Math.sin(t * 6.2) * 0.006 * clamp(inp.speed / 2, 0, 1);
+      L.to(0.95, 0.22, 0.95 + sw, 0.31).pole(0.9, -0.45, -0.25); R.to(0.95, -0.22, 0.95 - sw, 0.31).pole(-0.9, -0.45, -0.25);
     } else if (act === 'pickup') {
       // the hand goes down for it, in front of the feet, at the bottom of the dip
       const u = clamp(inp.actionT / Math.max(0.2, inp.actionDur), 0, 1), d = Math.sin(u * Math.PI);

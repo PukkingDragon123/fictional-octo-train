@@ -23,6 +23,7 @@ import type { Player } from '../../entities/player';
 import type { TileObject, EdgeObj } from '../../world/zone';
 import { objDef } from '../../world/objects';
 import { floorItemsNear } from '../../items/worldItems';
+import { clearReach } from '../../world/collision';
 import { itemDef } from '../../items/item';
 import { LootAction, verbWord } from '../../interact/verbs';
 import { creatureSampleOption } from '../../research/collect';
@@ -223,7 +224,7 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
     }
   }
   // ---- things lying on the floor
-  const fl = floorItemsNear(z, p.x, p.z, 1.4);
+  const fl = floorItemsNear(z, p.x, p.z, 1.4).filter((wi) => clearReach(z, p.x, p.z, wi.x, wi.z));
   if (fl.length) {
     let bi = fl[0], bdd = Infinity;
     for (const wi of fl) { const d = Math.hypot(wi.x - p.x, wi.z - p.z); if (d < bdd) { bdd = d; bi = wi; } }

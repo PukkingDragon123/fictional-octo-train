@@ -154,6 +154,35 @@ registerPose('mo_slide', (t, dur, _inp, time) => {
   return { pose: P, mask: ALL };
 }, { noIK: true, dur: 0.82 });
 
+// ------------------------------------------------------------------ haul: an armload (planks, a sheet, a battery) hugged to the belly
+// The hands go under the load by IK (src/entities/humanAnim.ts actionReach 'haul'); the load sits on them
+// (src/interact/haul.ts). The trunk leans back against the weight, the shoulders round, the elbows stay out.
+registerPose('haul', (_t, _dur, inp, time) => {
+  const P: Pose = {};
+  const mv = clamp(inp.speed / 1.6, 0, 1);
+  const bob = Math.sin(time * 6.2) * 0.012 * mv;
+  S(P, 'spine', -0.1 + bob, 0, 0); S(P, 'chest', 0.08, 0, 0); S(P, 'neck', 0.12, 0, 0); S(P, 'head', 0.16, 0, 0);
+  S(P, 'uarmL', -0.55, 0.15, 0.32); S(P, 'farmL', -1.25, 0, 0); S(P, 'handL', -0.2, 0, 0.35);
+  S(P, 'uarmR', -0.55, -0.15, -0.32); S(P, 'farmR', -1.25, 0, 0); S(P, 'handR', -0.2, 0, -0.35);
+  P.gripL = 0.85; P.gripR = 0.85;
+  return { pose: P, mask: ['spine', 'chest', 'neck', 'head', 'uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR'] };
+});
+
+// ------------------------------------------------------------------ dragging a body: one hand back on an ankle, leaning into the pull
+registerPose('drag_body', (_t, _dur, inp, time) => {
+  const P: Pose = {};
+  const mv = clamp(inp.speed / 1.2, 0, 1);
+  // a heave with every step while it moves
+  const tug = Math.max(0, Math.sin(time * 5.2)) * mv;
+  S(P, 'spine', 0.28 + tug * 0.06, 0.12, 0); S(P, 'chest', 0.08, 0.18, 0); S(P, 'neck', -0.05, -0.2, 0); S(P, 'head', -0.1, -0.15, 0);
+  // the right arm long and back, gripping low; the left out for balance
+  S(P, 'uarmR', 0.62 + tug * 0.08, 0, -0.18); S(P, 'farmR', -0.12, 0, 0); S(P, 'handR', 0.3, 0, 0);
+  S(P, 'uarmL', -0.35 + tug * 0.1, 0, 0.32); S(P, 'farmL', -0.7, 0, 0);
+  P.gripR = 1; P.gripL = 0.5;
+  P.bodyPitch = 0.12 + tug * 0.04;
+  return { pose: P, mask: ['spine', 'chest', 'neck', 'head', 'uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR'] };
+});
+
 // ------------------------------------------------------------------ stumble: a foot catches, two lurching catch-steps, arms flung out
 registerPose('mo_stumble', (t, dur) => {
   const P: Pose = {};

@@ -52,6 +52,8 @@ import { registerMenuRoom, setActiveMenuRoom, type MenuRoomId } from './menuRoom
 import { installDecoAndGuide, onBuildMode } from './deco';
 import { pixIconEl, type PixKind } from './deco/pixIcons';
 import { runTour, tourSeen, tourRunning } from './guide/tour';
+import { built } from './lab/stations';
+import { fundTag } from './lab/fund';
 import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePanel, type PanelHost } from './research/panel';
 import * as THREE from 'three';
 import { mxOk } from '../machine/core';
@@ -193,6 +195,12 @@ class TitleRoom {
     this.stage.show('monitor');
     mon.setFeedTexture('subject', this.subject.tex, false);
     mon.onFeed = (k) => { void this.go(k); };
+    // round 19: the lab from zero (src/ui/menus/lab): a build site in the control room funds its station
+    const calder = (t: string) => { (window as unknown as { __deco?: { guide?: { now?: (t: string) => void } } }).__deco?.guide?.now?.(t); };
+    lab.onSite = (k, at) => {
+      if (this.view !== 'research') return;
+      fundTag(k, () => this.stage.project(at), () => { lab.playBuild(k); this.buildHud(); }, calder);
+    };
     // the lab's paperwork (research/panel.ts): the codex, an entry, the fridge, the requisition, the Meridian file
     const ph: PanelHost = { root: this.root, onChange: () => lab.refresh(), onClose: () => lab.unfocus(), onProcess: (smp) => { if (this.view === 'research') void lab.process(smp); } };
     lab.onPanel = (w, key) => {
@@ -514,6 +522,13 @@ class TitleRoom {
   /** into a room: dive into its tube from the monitors, or switch channel from another room */
   async go(k: FeedKey) {
     if (this.moving || this.view === k || !this.monitor) return;
+    // round 19: the codex archive has to be built (funded) first; its monitor shows the tag
+    if (k === 'archive' && !built('archive')) {
+      const calder = (t: string) => { (window as unknown as { __deco?: { guide?: { now?: (t: string) => void } } }).__deco?.guide?.now?.(t); };
+      const r = this.stage.canvas.getBoundingClientRect();
+      fundTag('archive', () => ({ x: r.left + r.width * 0.3, y: r.top + r.height * 0.42 }), () => { sfx('confirm'); }, calder);
+      return;
+    }
     if (this.over.classList.contains('on')) this.closeOver();
     this.moving = true;
     this.hotcap.classList.remove('on');

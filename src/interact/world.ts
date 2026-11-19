@@ -13,7 +13,7 @@ import { queueTransfers } from '../actions/transfer';
 import { floorContainer } from '../items/worldItems';
 import { op } from '../game/ops';
 import { bus } from '../core/events';
-import { lineOfSight } from '../world/collision';
+import { lineOfSight, clearReach } from '../world/collision';
 import { lore } from '../content/loreRegistry';
 import { TimedAction } from '../actions/action';
 import { createItem } from '../items/factory';
@@ -55,7 +55,8 @@ export class Interact {
       const d = objDef(o.key); if (!d) continue;
       const w = d.w ?? 1, dd = d.d ?? 1; const rw = o.rot % 2 === 0 ? w : dd, rd = o.rot % 2 === 0 ? dd : w;
       const nx = Math.max(o.x, Math.min(p.x, o.x + rw)), nz = Math.max(o.y, Math.min(p.z, o.y + rd));
-      if (Math.hypot(nx - p.x, nz - p.z) <= r) out.push(o);
+      // round 19: nothing through a wall or a shut door
+      if (Math.hypot(nx - p.x, nz - p.z) <= r && clearReach(z, p.x, p.z, nx, nz)) out.push(o);
     }
     return out;
   }

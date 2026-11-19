@@ -2,7 +2,7 @@ import { TimedAction } from './action';
 import type { Player } from '../entities/player';
 import { G } from '../game/G';
 import { findPath, adjacentStand } from '../world/path';
-import { moveCircle } from '../world/collision';
+import { moveCircle, clearReach } from '../world/collision';
 import { Item, itemDef, freshness, FluidType, fluidName } from '../items/item';
 import { bus } from '../core/events';
 import { createItem } from '../items/factory';
@@ -34,7 +34,7 @@ export class WalkToAction extends TimedAction {
     if (!this.path) return;
     const z = G.getZone(p.zoneKey);
     // close enough to interact?
-    if (this.goal && Math.hypot(this.goal.x - p.x, this.goal.z - p.z) <= this.reach && this.idx > 0) { this.finishWalk(); return; }
+    if (this.goal && Math.hypot(this.goal.x - p.x, this.goal.z - p.z) <= this.reach && this.idx > 0 && clearReach(z, p.x, p.z, this.goal.x, this.goal.z)) { this.finishWalk(); return; }
     if (this.idx >= this.path.length) { this.finishWalk(); return; }
     const [nx, ny] = this.path[this.idx];
     // open closed doors on the way
@@ -66,8 +66,12 @@ export class WalkToAction extends TimedAction {
 /** Queue: walk next to a world position if needed, then run the action */
 export function queueAt(p: Player, x: number, z: number, a: TimedAction, reach = 1.3, adjacentTile = true) {
   p.actions.clear();
-  if (Math.hypot(x - p.x, z - p.z) > reach) p.actions.add(new WalkToAction(p, Math.floor(x), Math.floor(z), adjacentTile, reach, { x, z }));
+  // round 19: no reaching through walls: out of reach OR on the far side of a wall / shut door means walking round
+  const zone = G.getZone(p.zoneKey);
+  const clear = !zone || clearReach(zone, p.x, p.z, x, z);
+  if (Math.hypot(x - p.x, z - p.z) > reach || !clear) p.actions.add(new WalkToAction(p, Math.floor(x), Math.floor(z), adjacentTile || !clear, reach, { x, z }));
   a.face = { x, z };
+  a.reachAt = { x, z, r: reach + 0.45 };
   p.actions.add(a);
 }
 
