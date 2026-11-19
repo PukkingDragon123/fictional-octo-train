@@ -291,7 +291,7 @@ class TitleRoom {
         const fx = this.fx as unknown as { runs?: unknown[] };
         for (let k = 0; k < 40 && (fx.runs?.length ?? 0) > 0; k++) await new Promise((res) => setTimeout(res, 100));
       },
-      aim: (r, pose) => { if (r === 'research' && this.research) (this.research as unknown as { pose: string }).pose = pose; },
+      aim: (r, pose) => { if (r === 'research' && this.research) (this.research as unknown as { pose: string }).pose = pose; else if (r === 'monitor') this.monitor?.leanTo(null); },
       spot: (r, key) => {
         // round 22: a monitor's tube (the lab introduction shows an unbuilt archive on its feed)
         if (r === 'monitor' && key.startsWith('feed:') && this.monitor && this.view === 'monitor') {
