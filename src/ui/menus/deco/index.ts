@@ -28,6 +28,7 @@ import { hubIcon, type HubKind } from './hubModels';
 import { built, station, onLab, type StationKey } from '../lab/stations';
 import { bus } from '../../../core/events';
 import { fundTag } from '../lab/fund';
+import { creditAmount } from '../../creditIcon';
 import { guideHooks } from '../guide/tour';
 import { GIFTS } from './catalog';
 import { owned, addOwned, flag, setFlag } from './store';
@@ -187,7 +188,7 @@ export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unkno
       b.hidden = !on && !ready;
       b.classList.toggle('unbuilt', !on);
       const cap = b.querySelector('.dk-icap');
-      if (cap) cap.textContent = on ? (b.dataset.k ?? '') : `${b.dataset.k} · $${station(k).cost}`;
+      if (cap) { cap.textContent = on ? (b.dataset.k ?? '') : `${b.dataset.k} · `; if (!on) cap.append(creditAmount(station(k).cost, 14)); }
     }
   };
   onLab(() => syncLab());

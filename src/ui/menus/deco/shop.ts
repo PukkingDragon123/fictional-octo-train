@@ -14,6 +14,9 @@ import { bitText, bitMeasure } from '../../../gfx/bitfont';
 import { FocusNav } from '../nav';
 import { plateBtn, type PlateButton } from '../btnKit';
 import { sfx } from '../sfx';
+import { creditAmount } from '../../creditIcon';
+import { mxIcon } from '../../machine/decor';
+import { mxOk } from '../../machine/core';
 import { esc } from '../common';
 import { CATALOG, ITEM, SERIES, type Series } from './catalog';
 import { owned, addOwned, spare } from './store';
@@ -254,7 +257,9 @@ export class Shop {
     const red = this.flash > 0 && Math.floor(this.flash * 8) % 2 === 0;
     bitText(ctx, '8888'.slice(0, s.length), b.x + b.w - 4, b.y + 1, { color: '#2a1606', outline: null, align: 'right' });
     bitText(ctx, s, b.x + b.w - 4, b.y + 1, { color: red ? '#ff4a2a' : '#ffb43c', outline: null, align: 'right' });
-    bitText(ctx, '$', b.x + 4, b.y + 1, { color: '#8a5a20', outline: null });
+    // round 21: the purse is in credits: the coin's still frame stands where the dollar sign was
+    const ci = mxOk() ? mxIcon('credit', 10) : null;
+    if (ci) ctx.drawImage(ci, b.x + 3, b.y + Math.round((b.h - ci.height) / 2));
   }
 
   // ---------------------------------------------------------------- slots
@@ -310,7 +315,8 @@ export class Shop {
     ctx.fillStyle = '#b8ac88'; ctx.fillRect(1, RH + 12, cw, 1);
     bitText(ctx, s.code, 1 + cw / 2, RH - 1, { color: '#2a1d0e', outline: null, align: 'center' });
     ctx.fillStyle = '#100604'; ctx.fillRect(cw + 2, RH + 1, W - cw - 3, 12);
-    const price = it.price ? '$' + cost(it) : '0';
+    const price = it.price ? String(cost(it)) : '0';
+    if (it.price) { const ci = mxOk() ? mxIcon('credit', 8) : null; if (ci) ctx.drawImage(ci, W - 3 - bitMeasure(price) - ci.width - 1, RH + Math.round((12 - ci.height) / 2) + 1); }
     bitText(ctx, price, W - 3, RH - 1, { color: !it.price ? '#8aff9a' : cost(it) > dollars() ? '#8a4a2a' : '#ffb43c', outline: null, align: 'right' });
     const n = owned(s.id);
     if (n) { ctx.fillStyle = '#0a0806'; ctx.fillRect(1, 1, 15, 10); bitText(ctx, '×' + n, 2, -2, { color: '#8aff9a', outline: null }); }
@@ -329,7 +335,8 @@ export class Shop {
     this.nameEl.innerHTML = `<b>${esc(it.name)}</b>`;
     const sub = SERIES.find((s) => s.key === it.series)!;
     this.blurbEl.innerHTML = `${esc(it.blurb)}<small>${esc(sub.name)} · ${n ? `owned ${n}${sp < n ? ` · ${n - sp} placed` : ''}` : 'not owned'}</small>`;
-    this.priceEl.innerHTML = it.price ? `<b>$${cost(it)}</b><small>DOLLARS</small>` : '<b>FREE</b>';
+    this.priceEl.innerHTML = it.price ? '' : '<b>FREE</b>';
+    if (it.price) this.priceEl.append(creditAmount(cost(it), 20));
     this.priceEl.classList.toggle('short', cost(it) > dollars());
     if (this.buyBtn) { this.buyBtn.setLabel(it.price ? 'Buy' : 'Take'); this.buyBtn.paint(); }
     if (!quiet) this.noteEl.textContent = '';

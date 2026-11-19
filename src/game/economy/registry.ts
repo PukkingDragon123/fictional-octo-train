@@ -79,7 +79,7 @@ export interface Upgrade { key: string; title: string; rp: number; desc: string;
 export const PRESS_UPGRADES: Upgrade[] = [
   { key: 'pr_assay', title: 'Assay Lens', rp: 3, item: 'magnifying_glass', desc: 'A lens over the plate wired to the terminal.', gives: 'the terminal reads the plate before the lever: mass, material, credits' },
   { key: 'pr_cold', title: 'Cold Start', rp: 5, item: 'battery', desc: 'A bypass for the contract interlock.', gives: 'the press runs with no contract (free survival): every load is kept as matter' },
-  { key: 'pr_stamp', title: 'Token Stamp', rp: 6, item: 'coins', desc: 'A faster die in the remittance stamp.', gives: 'the Institute pays you $1 for every 15 credits remitted (was 25)', requires: ['pr_assay'] },
+  { key: 'pr_stamp', title: 'Token Stamp', rp: 6, item: 'coins', desc: 'A faster die in the remittance stamp.', gives: 'the Institute pays you 1 for every 15 credits remitted (was 25)', requires: ['pr_assay'] },
   { key: 'pr_batch', title: 'Batch Former', rp: 8, item: 'steel_frame', desc: 'A wider bed for the printer.', gives: 'patterns print three at a time for one fee', requires: ['pr_stamp'] },
   { key: 'pr_relay', title: 'Seam Relay', rp: 10, item: 'walkie_talkie', desc: 'A relay from a claim beacon down to the seam.', gives: 'use the press terminal at your claim beacon', requires: ['pr_batch'] },
 ];
@@ -164,7 +164,7 @@ treeCategory({ key: 'matter', name: 'The Printer', sub: 'print patterns · filam
 treeCategory({ key: 'farm', name: 'Farming', sub: 'plants · fungus · livestock', code: 'FRM', order: 35 });
 const ITEM_FALLBACK = ['scrap_metal'];
 treeOffers([
-  ...PATTERNS.map((p): TreeOffer => ({ key: p.key, category: 'matter', lane: p.lane, title: 'Pattern: ' + p.item.replace(/_/g, ' '), cost: p.rp, requires: p.requires, item: p.item, alt: ITEM_FALLBACK, desc: p.desc + ' Printed at the printer from filament spools and dollars.', gives: `the printer can make ${p.item.replace(/_/g, ' ')} ($${p.tok})` })),
+  ...PATTERNS.map((p): TreeOffer => ({ key: p.key, category: 'matter', lane: p.lane, title: 'Pattern: ' + p.item.replace(/_/g, ' '), cost: p.rp, requires: p.requires, item: p.item, alt: ITEM_FALLBACK, desc: p.desc + ' Printed at the printer from filament spools and dollars.', gives: `the printer can make ${p.item.replace(/_/g, ' ')} (${p.tok} credits)` })),
   ...PRESS_UPGRADES.map((u): TreeOffer => ({ key: u.key, category: 'device', lane: 'Remittance Press', title: u.title, cost: u.rp, requires: u.requires, item: u.item, alt: ITEM_FALLBACK, desc: u.desc, gives: u.gives })),
   ...HOMESTEAD.filter((p) => p.node).map((p): TreeOffer => ({ key: p.node!, category: 'build', lane: 'Homestead', title: p.name, cost: p.key === 'pen' ? 4 : 3, item: p.key === 'pen' ? 'rope' : 'spawn_ear', alt: ['plank'], desc: p.desc, gives: 'blueprint: ' + p.name })),
   ...HUSBANDRY,

@@ -7,7 +7,8 @@
 // programme, where you are, the debt, the body), SETTINGS (pages turned by the
 // steel gear train), CONTROLS and, in co-op, the CREW. Esc goes back to
 // STATUS, then resumes. (In co-op time keeps moving: "time does not stop".)
-import { purseLine } from '../../game/economy/money';
+import { dollars } from '../../game/economy/money';
+import { researchPoints } from '../../game/research';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { saveGame } from '../../game/save';
@@ -212,7 +213,8 @@ export function statusPage(solo: boolean): HTMLElement[] {
     if (d?.on) {
       // numbers, not sentences
       rows.push(['Debt', 'credit', [creditAmount(-(d.remaining ?? 0), 16), ' · ', creditAmount(d.paid ?? 0, 16), ' paid']]);
-      rows.push(['Purse', 'ledger', d.cleared ? [creditAmount(d.surplus ?? 0, 16), ' · ', purseLine(null)] : purseLine(null)]);
+      const rp = ` · ${researchPoints()} RP`;
+      rows.push(['Purse', 'ledger', d.cleared ? [creditAmount(d.surplus ?? 0, 16), ' · ', creditAmount(dollars(), 16), rp] : [creditAmount(dollars(), 16), rp]]);
       if (!d.cleared) rows.push(['Installment', 'phone', [`${d.installment ?? '?'}/${d.count ?? '?'} · `, creditAmount(d.due ?? 0, 16), ` · ${Math.floor(d.hoursLeft ?? 0)} h`], (d.hoursLeft ?? 99) < 12]);
       else rows.push(['Debt', 'credit', 'CLEARED']);
     }

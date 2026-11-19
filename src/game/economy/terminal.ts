@@ -28,6 +28,7 @@ import {
 } from './matter';
 import { FeedScreen } from './feedScreen';
 import { INSTALLMENT_DOLLARS } from './money';
+import { creditAmount, creditIcon } from '../../ui/creditIcon';
 import { spools } from './fab';
 import { itemValue } from '../debt/values';
 import './terminal.css';
@@ -199,11 +200,17 @@ export function openPressTerminal(o: TermOpen) {
     const d = G?.debt;
     const rows = h('div', 'ptm-acct');
     const row = (code: string, name: string, val: string, note: string) => rows.append(h('div', 'ptm-row', `<span class="ptm-code">${code}</span><b>${name}</b><span class="ptm-v">${val}</span><small>${note}</small>`));
-    if (inRun && d?.on) row('CR', 'Credits', d.cleared ? `${fmt(d.surplus)} surplus` : `${fmt(d.paid)} / ${fmt(d.owed)}`, d.cleared ? 'the debt is discharged; surplus buys passage at the depot' : `paid on the crew debt · ${fmt(d.remaining)} to go`);
-    else row('CR', 'Credits', inRun ? 'no contract' : '—', inRun ? 'nobody is collecting in this world' : 'credits belong to a run: they pay that world\'s debt');
+    if (inRun && d?.on) {
+      row('', 'Credits', '', d.cleared ? 'the debt is discharged; surplus buys passage at the depot' : `paid on the crew debt · ${fmt(d.remaining)} to go`);
+      const r = rows.lastElementChild as HTMLElement | null, v = r?.querySelector('.ptm-v');
+      if (d.cleared) v?.append(creditAmount(d.surplus ?? 0, 16), ' surplus'); else v?.append(creditAmount(d.paid ?? 0, 16), ' / ', creditAmount(d.owed ?? 0, 16));
+    } else row('', 'Credits', inRun ? 'no contract' : '—', inRun ? 'nobody is collecting in this world' : 'credits belong to a run: they pay that world\'s debt');
+    (rows.lastElementChild as HTMLElement | null)?.querySelector('.ptm-code')?.append(creditIcon(14));
     const p = press();
     const rate = SCRIP_PER_TOKEN;
-    row('$', 'Dollars', `$${fmt(tokens())}`, `the researcher's money · $1 per ${rate} credits remitted (${Math.round(rate - p.rem)} to the next) · +$${INSTALLMENT_DOLLARS} per installment · commissary, jukebox, creation`);
+    row('', 'Dollars', '', `the researcher's money · 1 per ${rate} credits remitted (${Math.round(rate - p.rem)} to the next) · +${INSTALLMENT_DOLLARS} per installment · commissary, jukebox, creation`);
+    // round 21: the purse is the credit coin and its number
+    { const r = rows.lastElementChild as HTMLElement | null; r?.querySelector('.ptm-code')?.append(creditIcon(14)); r?.querySelector('.ptm-v')?.append(creditAmount(tokens(), 16)); }
     row('RP', 'Research', `${researchPoints()}`, 'knowledge · buys patterns and upgrades on the lab lattice');
     row('KG', 'Matter', fmtKg(bankTotal()), 'banked in the seam reservoir · the filament maker spins it into spools');
     const sp = spools();

@@ -278,7 +278,7 @@ export class ResearchLab implements StageRoom {
       this.scene.add(g);
       const def = station(k);
       const hot: Hot = { key: 'site:' + k, objs: [g], label: def.name, press: () => this.onSite?.(k, new THREE.Vector3(f.x, 1.0, f.z)) };
-      Object.defineProperty(hot, 'sub', { get: () => { const w = can(k); return w === '' ? `$${def.cost} · build it` : w.startsWith('$') ? `${w} · not enough dollars` : w; } });
+      Object.defineProperty(hot, 'sub', { get: () => { const w = can(k); return w === '' ? `${def.cost} credits · build it` : w.startsWith('$') ? `${w.slice(1)} credits · not enough` : w; } });
       this.hots.push(hot);
       this.sites.set(k, { g, hot });
     });

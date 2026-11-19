@@ -4,18 +4,11 @@
 // runs. When it cannot be built yet the tag says what is missing in a few words and Dr. Calder says why.
 // No box: floating type in the game's ink outline, drawn pixel parts.
 import { sfx } from '../sfx';
+import { creditAmount } from '../../creditIcon';
 import { capEl } from '../guide/tourArt';
 import { playInstall } from '../../bandos/install';
 import { buildStation, can, station, type StationKey } from './stations';
 
-const COIN = (() => {
-  const rows = ['..kkkk..', '.kyyyyk.', 'kyYWyyok', 'kyYyyyok', 'kyyyyyok', 'kyyyyook', '.kooook.', '..kkkk..'];
-  const pal: Record<string, string> = { k: '#2a1a06', y: '#e8b030', Y: '#ffe090', W: '#ffffff', o: '#a8701a' };
-  const cv = document.createElement('canvas'); cv.width = 8; cv.height = 8;
-  const g = cv.getContext('2d')!;
-  rows.forEach((r, y) => [...r].forEach((ch, x) => { const c = pal[ch]; if (c) { g.fillStyle = c; g.fillRect(x, y, 1, 1); } }));
-  return cv.toDataURL();
-})();
 let cur: { el: HTMLElement; done: () => void } | null = null;
 const CALDER: Record<string, string> = {
   money: 'Not enough dollars for that yet. A good run fixes that.',
@@ -34,17 +27,18 @@ export function fundTag(k: StationKey, at: () => { x: number; y: number } | null
   const why = can(k);
   const name = document.createElement('b'); name.textContent = s.name;
   const price = document.createElement('span'); price.className = 'lfund-p';
-  price.innerHTML = `<img src="${COIN}" alt="">${s.cost}`;
+  // round 21: the price is the credit coin (spinning) and its number
+  price.append(creditAmount(s.cost, 18));
   el.append(name, price);
   let hold: HTMLButtonElement | null = null, gauge: HTMLElement | null = null;
   if (why === '') {
-    hold = document.createElement('button'); hold.type = 'button'; hold.className = 'lfund-h'; hold.setAttribute('aria-label', `Hold to build the ${s.name} for ${s.cost} dollars`);
+    hold = document.createElement('button'); hold.type = 'button'; hold.className = 'lfund-h'; hold.setAttribute('aria-label', `Hold to build the ${s.name} for ${s.cost} credits`);
     hold.append(capEl('ok', 3));
     gauge = document.createElement('i'); gauge.className = 'lfund-g'; gauge.innerHTML = '<i></i>';
     el.append(hold, gauge);
   } else {
     // round 21: short of dollars shows as the price itself going red and shaking (Dr. Calder says why); other needs keep their few words
-    if (why.startsWith('$')) { price.classList.add('short'); el.setAttribute('aria-label', 'not enough dollars'); }
+    if (why.startsWith('$')) { price.classList.add('short'); el.setAttribute('aria-label', 'not enough credits'); }
     else { const n = document.createElement('em'); n.textContent = why; el.append(n); }
     say?.(why.startsWith('$') ? CALDER.money : CALDER.need);
     sfx('error', 0.4);

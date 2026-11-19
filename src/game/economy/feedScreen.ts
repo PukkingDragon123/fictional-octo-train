@@ -22,6 +22,7 @@ import { itemIcon } from '../../ui/icons';
 import { sfx } from '../../ui/menus/sfx';
 import { crtScreen, type Crt } from '../../ui/crt/crt';
 import { itemValue } from '../debt/values';
+import { creditAmount, creditIcon } from '../../ui/creditIcon';
 import { itemMatter, matterKg, fmtKg } from './matter';
 import { slagOf } from './crusher';
 
@@ -345,7 +346,9 @@ export class FeedScreen {
       const w = h('span', 'crt-ic-m');
       const sp = this.spin(it.key, size, k);
       if (sp) { w.append(sp.cv); sp.hot(k === this.selKey); } else w.append(still(it.key, size));
-      t.append(w, h('span', 'crt-ic-l', `${g.length > 1 ? `<i>×${g.length}</i>` : ''}<em>${CR}${v > 0 ? fmt(v) : '0'}</em>`));
+      const lab = h('span', 'crt-ic-l', `${g.length > 1 ? `<i>×${g.length}</i>` : ''}<em></em>`);
+      lab.querySelector('em')?.append(creditAmount(v > 0 ? v : 0, 14));
+      t.append(w, lab);
       t.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this.select(it, pack); });
       t.addEventListener('focus', () => this.select(it, pack));
       t.addEventListener('pointerdown', (e) => {
@@ -397,7 +400,7 @@ export class FeedScreen {
     gauge.append(segs, h('span', 'pf-kg', H.queue.length ? fmtKg(kg).toUpperCase() : ''));
     hop.append(gauge);
     const ctr = h('div', 'pf-ctr');
-    ctr.append(h('span', 'pf-crbig', CR), this.counter.cv);
+    { const cb = h('span', 'pf-crbig'); cb.append(creditIcon(26)); ctr.append(cb, this.counter.cv); }
     ctr.addEventListener('pointerdown', () => { if (this.busyShow()) this.skip(); });
     // the counter under the gauge, the output bin below it (what the crusher gives back lands there)
     hop.append(ctr, this.tray);
@@ -455,7 +458,7 @@ export class FeedScreen {
     const m = h('span', 'pf-rm');
     m.append(this.readSpin.s?.cv ?? still(it.key, 44));
     const t = h('span', 'pf-rt');
-    t.append(h('b', 'pf-rn', esc(nameOf(it))), h('span', 'pf-rv', `${CR}${fmt(v)}`));
+    { const rv = h('span', 'pf-rv'); rv.append(creditAmount(v, 16)); t.append(h('b', 'pf-rn', esc(nameOf(it))), rv); }
     r.append(m, t);
     const ys = [...slagOf([it])].sort((a, b) => b[1] - a[1]).slice(0, 4);
     if (ys.length) {

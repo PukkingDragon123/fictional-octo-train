@@ -14,6 +14,7 @@ import { sfx } from '../../ui/menus/sfx';
 import { crtScreen, type Crt } from '../../ui/crt/crt';
 import { itemIcon } from '../../ui/icons';
 import { G } from '../G';
+import { creditAmount } from '../../ui/creditIcon';
 import { MATS, fmtKg, type Matter } from './matter';
 import type { Pattern } from './registry';
 
@@ -86,7 +87,8 @@ export class CreateScreen {
     this.crt.glass.append(root);
     // ---- the top strip: purse, bank, the plate, the upgrades (numbers and lamps)
     const top = h('div', 'pc-top');
-    top.append(h('span', 'pc-num', `<i>$</i>${fmt(H.dollars)}`));
+    // round 21: the purse and the prices are credits: the coin and the number
+    { const pn = h('span', 'pc-num'); pn.append(creditAmount(H.dollars, 16)); top.append(pn); }
     if (H.spools) { const sp = h('span', 'pc-spools'); for (const q of H.spools) sp.append(spoolGlyph(q.color, q.kg)); if (!H.spools.length) sp.append(h('span', 'pc-num', '<i>0</i>')); top.append(sp); }
     else top.append(h('span', 'pc-num', `<i>KG</i>${esc(fmtKg(H.bankKg).toUpperCase())}`));
     if (H.batch > 1) top.append(h('span', 'pc-num', `<i>×</i>${H.batch}`));
@@ -119,7 +121,7 @@ export class CreateScreen {
     const t = h('button', 'pc-t crt-ic' + (locked ? ' locked' : why ? ' cant' : '')) as HTMLButtonElement;
     t.type = 'button';
     const n = q.n * H.batch;
-    t.setAttribute('aria-label', `${iname(q.item)}${n > 1 ? ' ×' + n : ''}, $${q.tok}`);
+    t.setAttribute('aria-label', `${iname(q.item)}${n > 1 ? ' ×' + n : ''}, ${q.tok} credits`);
     const m = h('span', 'crt-ic-m');
     const k = q.item;
     // one turning model per plinth: two patterns can make the same thing (a known one and a locked one), and one
@@ -144,8 +146,10 @@ export class CreateScreen {
     const cost = H.cost(q);
     const kg = MATS.reduce((a, mm) => a + (cost[mm.key] ?? 0), 0);
     const shortMat = MATS.some((mm) => (cost[mm.key] ?? 0) > H.banked(mm.key) + 1e-6);
-    const price = locked ? `<b class="pc-rp">${q.rp}<small>RP</small></b>` : `<b class="${why === 'dollars' || why === 'matter' ? 'no' : ''}">$${q.tok}</b>`;
-    t.append(h('span', 'pc-price', price));
+    const price = locked ? `<b class="pc-rp">${q.rp}<small>RP</small></b>` : '';
+    const pe = h('span', 'pc-price', price);
+    if (!locked) { const a = creditAmount(q.tok, 16); if (why === 'dollars' || why === 'matter') a.classList.add('no'); pe.append(a); }
+    t.append(pe);
     t.append(h('span', 'crt-ic-l', `${n > 1 ? `<i>×${n}</i>` : ''}<em>${esc(iname(q.item))}${locked ? '' : ` · <s class="${shortMat ? 'no' : ''}">${esc(fmtKg(kg).toUpperCase())}</s>`}</em>`));
     const gauge = h('span', 'pc-hold', '<i></i>');
     t.append(gauge);
