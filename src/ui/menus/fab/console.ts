@@ -38,7 +38,7 @@ export function openPrintConsole(printer: Printer3D, ctx: FabCtx, onClose: () =>
   wrap.append(t.el);
   document.body.append(wrap);
   mxArrive(t.el, 'right', { delay: 60 });
-  t.keys.append(mxOk() ? iconKey('bolt', 'Off', () => close(), { w: 70, h: 50, tone: 'red', lamp: 'red', sound: 'relay', hint: 'Esc', nameAt: 'top' }) : plateBtn('Off', () => close(), { finish: 'oxblood', size: 'sm', shape: 'key', tight: true, sound: 'relay' }));
+  t.keys.append(mxOk() ? iconKey('bolt', 'Off', () => close(), { w: 70, h: 50, tone: 'red', lamp: 'red', sound: 'relay', hint: 'Esc', nameAt: 'left' }) : plateBtn('Off', () => close(), { finish: 'oxblood', size: 'sm', shape: 'key', tight: true, sound: 'relay' }));
   if (!document.getElementById('fabc-css')) {
     const st = document.createElement('style'); st.id = 'fabc-css';
     st.textContent = `.ptm.fabc { inset: 5vh 2vw 5vh auto; width: min(50vw, 620px); background: none; display: block; animation: none; pointer-events: none; }

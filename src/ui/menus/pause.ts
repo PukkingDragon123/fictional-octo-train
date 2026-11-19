@@ -73,10 +73,11 @@ export class PauseMenu {
     let pair: HTMLElement | null = null;
     const plate = (label: string, fn: () => void, o: { tone?: 'olive' | 'yellow' | 'red'; lamp?: 'amber' | 'green' | 'red'; icon: IconKind; cls?: string; hint?: string }) => {
       const b = mxOk()
-        ? iconKey(o.icon, label, fn, { w: kw, h: kh, tone: o.tone ?? 'olive', lamp: o.lamp ?? 'amber', sound: o.lamp === 'red' ? 'lever' : 'plate', cls: 'pxb ps2-ik' + (pt ? ' ik-sm' : '') + (o.cls ? ' ' + o.cls : ''), nameAt: pt ? 'bottom' : 'right', hint: o.hint, seed: 80 + col.childElementCount })
+        ? iconKey(o.icon, label, fn, { w: kw, h: kh, tone: o.tone ?? 'olive', lamp: o.lamp ?? 'amber', sound: o.lamp === 'red' ? 'lever' : 'plate', cls: 'pxb ps2-ik' + (pt ? ' ikk-sm' : '') + (o.cls ? ' ' + o.cls : ''), nameAt: pt ? 'bottom' : 'right', hint: o.hint, seed: 80 + col.childElementCount })
         : pxButton(label, fn, { w: 150, h: 30, lamp: o.lamp, icon: o.icon, cls: o.cls });
       if (!pair || pair.childElementCount >= 2) { pair = h('div', 'ps2-pair'); col.append(pair); }
       pair.append(b);
+      if (pair.childElementCount === 1) b.style.setProperty('--ik-push', kw + 8 + 'px');
       return b as unknown as { setOn(on: boolean): void };
     };
     const gap = () => { pair = null; col.append(h('i', 'ps2-gap')); };
@@ -167,7 +168,7 @@ export class PauseMenu {
       onBack: () => (cur === 0 ? this.close() : select(0)),
       // Q/E switch the option sub-pages while on SETTINGS, the file's pages elsewhere
       onTab: (d) => (tabFn && pages[cur] === 'options' ? tabFn(d) : select(cur + d)),
-      autofocus: col.querySelector('.pxb, .ik') as HTMLElement,
+      autofocus: col.querySelector('.pxb, .ikk') as HTMLElement,
     });
     el.addEventListener('pointerdown', (e) => { if (e.target === el) this.close(); });
   }

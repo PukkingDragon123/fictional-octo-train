@@ -95,7 +95,7 @@ const POSES: Record<string, Pose> = {
   // round 20: turned round to the front wall: the fab bay (the filament maker's line, the printer by the door)
   fab: P([0.85, 1.95, 0.4], [0.85, 0.6, 3.2], 62),
   // round 21: the clone vat against the right wall
-  clone: P([0.9, 1.6, 1.3], [W - 0.72, 1.2, 0.42], 54),
+  clone: P([1.0, 1.55, -0.05], [W - 0.72, 1.25, 0.5], 56),
 };
 
 interface Readout { cv: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; draw: (c: CanvasRenderingContext2D, t: number) => void; every: number; acc: number }

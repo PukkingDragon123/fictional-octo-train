@@ -31,7 +31,7 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '
 const btn = (label: string, fn: () => void, cls = '') => { const b = el('button', 'bos-btn ' + cls, esc(label)) as HTMLButtonElement; b.type = 'button'; b.addEventListener('click', fn); return b; };
 /** round 21: a key as a little 3D model, its name on hover, a count on its corner, lit while it is the one picked */
 const ibtn = (kind: IconKind, name: string, fn: () => void, o: { on?: boolean; num?: number | string | null; size?: number; sound?: 'click' | 'toggle' | 'tab' | 'confirm' | 'back' } = {}) => {
-  const c = iconChip(kind, name, fn, { size: o.size ?? 26, below: true, num: o.num ?? null, sound: o.sound ?? 'tab' });
+  const c = iconChip(kind, name, fn, { size: o.size ?? 34, below: true, num: o.num ?? null, sound: o.sound ?? 'tab' });
   if (o.on !== undefined) c.set(o.on);
   return c.el;
 };
@@ -114,11 +114,11 @@ export const APPS: AppDef[] = [
         // round 21: the job's keys are models: take it (a play key), turn it down (the door), settle (a coin), track it
         // (the compass, lit while it is the tracked one), drop it (the canister)
         const keys = el('div', 'bos-keys ic');
-        if (v.status === 'new') keys.append(ibtn('play', 'Accept', () => act(v.key, 'accept'), { size: 32, sound: 'confirm' }), ibtn('door', 'Decline', () => act(v.key, 'decline'), { size: 32, sound: 'back' }));
-        else if (v.status === 'ready') keys.append(ibtn('coin', 'Pay and settle', () => act(v.key, 'pay'), { size: 32, on: !!v.affordable, sound: 'confirm' }));
+        if (v.status === 'new') keys.append(ibtn('play', 'Accept', () => act(v.key, 'accept'), { size: 40, sound: 'confirm' }), ibtn('door', 'Decline', () => act(v.key, 'decline'), { size: 40, sound: 'back' }));
+        else if (v.status === 'ready') keys.append(ibtn('credit', 'Pay and settle', () => act(v.key, 'pay'), { size: 40, on: !!v.affordable, sound: 'confirm' }));
         if (v.status !== 'new' && v.status !== 'done') {
           const tracked = q.focus() === v.key;
-          keys.append(ibtn('compass', tracked ? 'Tracking' : 'Track', () => { trackQuest(tracked ? null : v.key); sig = ''; render(); }, { size: 32, on: tracked, sound: 'toggle' }), ibtn('skull', 'Abandon', () => act(v.key, 'abandon'), { size: 32, sound: 'back' }));
+          keys.append(ibtn('compass', tracked ? 'Tracking' : 'Track', () => { trackQuest(tracked ? null : v.key); sig = ''; render(); }, { size: 40, on: tracked, sound: 'toggle' }), ibtn('skull', 'Abandon', () => act(v.key, 'abandon'), { size: 40, sound: 'back' }));
         }
         out.push(keys);
         return out;

@@ -27,7 +27,7 @@ function style() {
   background: radial-gradient(ellipse at 50% 50%, #fff4c8 0 25%, #ffb030 55%, rgba(255, 176, 48, 0) 100%); box-shadow: 0 0 8px 2px rgba(255, 176, 48, .55); }
 .ic21.off > canvas { filter: grayscale(.8) brightness(.6); }
 .ic21.off:hover > canvas { filter: grayscale(.3) brightness(.9); }
-.ic21.lock > canvas { filter: grayscale(1) brightness(.42) contrast(1.1); }
+.ic21.lock > canvas { filter: grayscale(.85) brightness(.68) contrast(1.05); }
 .ic21.lock::before { content: ''; position: absolute; right: 0; bottom: 1px; width: 9px; height: 11px; z-index: 1; background: var(--ic21-lock) center / 100% 100% no-repeat; image-rendering: pixelated; }
 .ic21.shake { animation: ic21-shake .32s steps(6) both; }
 @keyframes ic21-shake { 20% { translate: -3px 0; } 40% { translate: 3px 0; } 60% { translate: -2px 0; } 80% { translate: 2px 0; } }

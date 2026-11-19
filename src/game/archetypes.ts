@@ -7,7 +7,7 @@
 // Meridian file has earned: three from the start, the rest with runs and losses.
 //   ARCHETYPES  archetype(key)  archetypeOwned(a)  archetypesOwned()  archetypeOf(occupation, traits)
 import { file, deathCount } from './meridian';
-import { occupationByKey, traitByKey } from '../survival/traits';
+import { occupationByKey, traitByKey, SKILLS } from '../survival/traits';
 
 export interface Archetype {
   key: string;
@@ -52,7 +52,7 @@ export function archetypeNeed(a: Archetype): string {
 /** the stats line under the archetype: skills, then the gift and the flaw */
 export function archetypeStats(a: Archetype): string {
   const o = occupationByKey(a.occupation);
-  const sk = Object.entries(o.skills || {}).map(([k, v]) => `${k.slice(0, 3)} ${v}`).slice(0, 3);
+  const sk = Object.entries(o.skills || {}).map(([k, v]) => `${SKILLS.find((q) => q.key === k)?.name ?? k} ${v}`).slice(0, 2);
   const tr = a.traits.map((k) => traitByKey(k)?.name ?? k);
   return [...sk, ...tr].join(' · ') || a.line;
 }

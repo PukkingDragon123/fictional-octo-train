@@ -37,31 +37,29 @@ float h1(float n) { return fract(sin(n) * 43758.5453); }
 void main(){
   float t = pxT(uTime + vSeed * 7.0);
   float fr = floor(t * 12.0);
-  vec2 res = vec2(36.0, 20.0);
+  // about one cell per art pixel at the usual zoom
+  vec2 res = vec2(16.0, 9.0);
   vec2 px = floor(vUv * res);
-  // frame: a one-pixel border with corner ticks
-  float border = step(px.x, 0.0) + step(res.x - 1.0, px.x) + step(px.y, 0.0) + step(res.y - 1.0, px.y);
-  border = min(1.0, border) * step(0.5, h1(fr * 3.1 + vSeed * 9.0) + 0.35);
-  // three rows of data bars, each a different length that ticks over every few frames
-  float a = border * 0.85;
-  for (int r = 0; r < 3; r++) {
-    float y0 = 4.0 + float(r) * 5.0;
-    float len = 6.0 + floor(h1(floor(fr / (3.0 + float(r))) + float(r) * 17.0 + vSeed * 31.0) * 22.0);
-    float on = step(y0, px.y) * step(px.y, y0 + 1.0) * step(3.0, px.x) * step(px.x, 3.0 + len);
-    a = max(a, on * 0.75);
+  // frame: a one-pixel border, its corners brighter
+  float bx = step(px.x, 0.0) + step(res.x - 1.0, px.x), by = step(px.y, 0.0) + step(res.y - 1.0, px.y);
+  float border = min(1.0, bx + by), corner = step(1.5, bx + by);
+  float a = border * 0.7 + corner * 0.3;
+  // two lines of data that tick over every few frames, and a blinking cursor
+  for (int r = 0; r < 2; r++) {
+    float y0 = 5.0 - float(r) * 3.0;
+    float len = 3.0 + floor(h1(floor(fr / (4.0 + float(r) * 3.0)) + float(r) * 17.0 + vSeed * 31.0) * 8.0);
+    float on = step(y0, px.y) * step(px.y, y0) * step(2.0, px.x) * step(px.x, 1.0 + len);
+    a = max(a, on);
   }
-  // a little bishop's mark at the right, blinking amber when the readout refreshes
-  vec2 m = px - vec2(29.0, 6.0);
-  float mark = step(0.0, m.x) * step(m.x, 3.0) * step(0.0, m.y) * step(m.y, 7.0) * step(abs(m.x - 1.5) * 2.0 - m.y * 0.4, 1.6);
-  float warm = step(0.85, h1(fr * 0.37 + vSeed));
-  a = max(a, mark * 0.9);
-  // hard scanlines, the projector's fall-off toward the top, a rare dropped frame
-  a *= 0.35 + 0.65 * step(0.5, mod(px.y, 2.0));
-  a *= 0.55 + 0.45 * (1.0 - vUv.y);
-  a *= step(0.06, h1(fr * 1.7 + vSeed * 3.0));
-  a = pxA(a * 0.8);
+  float cur = step(13.0, px.x) * step(px.x, 13.0) * step(2.0, px.y) * step(px.y, 3.0) * step(0.5, fract(t * 1.5));
+  a = max(a, cur);
+  // hard scanlines, a rare dropped frame, the whole readout breathing in steps
+  a *= 0.6 + 0.4 * step(0.5, mod(px.y, 2.0));
+  a *= step(0.05, h1(fr * 1.7 + vSeed * 3.0));
+  a *= 0.75 + 0.25 * step(0.5, h1(floor(fr / 6.0) + vSeed));
+  a = pxA(a * 0.9);
   if (a <= 0.0) discard;
-  vec3 col = mix(uCol, uWarm, mark * warm);
+  vec3 col = mix(uCol, uWarm, cur);
   gl_FragColor = vec4(col * a, a);
 }`;
 

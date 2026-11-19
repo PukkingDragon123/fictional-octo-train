@@ -58,10 +58,10 @@ void main(){
     float k = clamp(t * 1.25 - float(i) * 0.22, 0.0, 1.0);
     if (k <= 0.0 || k >= 1.0) continue;
     float R = 0.12 + k * 0.86;
-    float w = fwidth(r) * 1.6 + 0.012;
+    float w = fwidth(r) * 1.2 + 0.007;
     float band = step(abs(r - R), w);
     float dash = step(0.35, fract(ang * (5.0 + float(i) * 2.0) / 6.28318 + k * 0.5 * (mod(float(i), 2.0) * 2.0 - 1.0)));
-    a = max(a, band * dash * (1.0 - k) * 1.2);
+    a = max(a, band * dash * (1.0 - k * k) * 0.85);
   }
   a = pxA(a);
   if (a <= 0.0) discard;

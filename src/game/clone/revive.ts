@@ -84,7 +84,9 @@ class ReviveScene {
     this.vat.bay.add(this.rig.root);
     sc.add(this.puffs.mesh);
     // ---- light: bright and clean, the vat's green on the near side
-    sc.add(new THREE.HemisphereLight(0xd8e4ee, 0x4a4a42, 2.4));
+    sc.add(new THREE.HemisphereLight(0xd8e4ee, 0x5a5a50, 3.0));
+    // the fluorescent troughs throw cool light down the bay
+    for (const z of [0.2, 2.0]) { const tl = new THREE.PointLight(0xeef4ff, 7, 6.5, 1.6); tl.position.set(0, H - 0.25, z); sc.add(tl); }
     const key = new THREE.SpotLight(0xf4f6ff, 34, 9, 0.62, 0.55, 1.6);
     key.position.set(1.4, H - 0.15, 1.6); key.target.position.set(0, 0.9, 0);
     key.castShadow = !low; key.shadow.mapSize.set(512, 512); key.shadow.bias = -0.002;
@@ -181,10 +183,10 @@ class ReviveScene {
   private shotAt(t: number, aspect: number): Shot {
     const port = aspect < 1;
     const k: [number, Shot][] = [
-      [0, S([0.15, 1.42, 2.15], [0, 1.25, 0], 40)],
-      [2.2, S([0.05, 1.35, 1.75], [0, 1.2, 0], 40)],
-      [2.6, S([1.55, 0.95, 1.85], [0, 0.85, 0], 46)],
-      [5.2, S([1.35, 0.9, 1.6], [0, 0.6, 0], 46)],
+      [0, S([0.2, 1.55, 3.1], [0, 1.45, 0], 44)],
+      [2.2, S([0.1, 1.5, 2.55], [0, 1.4, 0], 44)],
+      [2.6, S([1.75, 1.3, 2.4], [0, 1.0, 0], 50)],
+      [5.2, S([1.5, 1.15, 2.1], [0, 0.75, 0], 50)],
       [5.6, S([-1.5, 0.55, 2.3], [0, 1.25, 0], 54)],
       [7.0, S([-1.3, 0.6, 2.5], [0, 1.4, 0], 54)],
       [7.4, S([0.1, 1.5, 3.0], [0, 1.35, 0.4], 46)],
@@ -229,7 +231,7 @@ class ReviveScene {
     // steam where the sleeve breaks its seal
     if (t > 5.55 && t < 7.4 && Math.random() < 0.8) {
       const a = Math.random() * Math.PI * 2;
-      this.puffs.emit(new THREE.Vector3(Math.cos(a) * VAT.r, VAT.base + 0.05 + v.lift * 0.4, Math.sin(a) * VAT.r), new THREE.Vector3(Math.cos(a) * 0.35, 0.2, Math.sin(a) * 0.35), { life: 1.6, s0: 0.05, s1: 0.32, color: 0xc8d8d0, rise: 0.18 });
+      this.puffs.emit(new THREE.Vector3(Math.cos(a) * VAT.r, VAT.base + 0.05 + v.lift * 0.4, Math.sin(a) * VAT.r), new THREE.Vector3(Math.cos(a) * 0.45, 0.25, Math.sin(a) * 0.45), { life: 1.1, s0: 0.03, s1: 0.16, color: 0x7a8a84, rise: 0.25 });
     }
     // drips off the body once the medium is gone
     if (t > 5.2 && t < 9.5 && Math.random() < 0.3) {
@@ -343,9 +345,9 @@ export function playRevive(o: { app: Appearance; name: string }): Promise<void> 
       cancelAnimationFrame(raf);
       window.removeEventListener('keydown', key, true);
       sc.root.removeEventListener('pointerdown', tap);
-      bus.emit('subtitle', { who: 'RELAY', text: `${o.name.toUpperCase()} · RELINKED`, dur: 2.6, style: 'radio' });
-      sc.dispose();
+      try { sc.dispose(); } catch (e) { console.warn('revive dispose', e); sc.root.remove(); }
       resolve();
+      bus.emit('subtitle', { who: 'RELAY', text: `${o.name.toUpperCase()} · RELINKED`, dur: 2.6, style: 'radio' });
     };
     const skip = () => { skips++; if (skips === 1 && sc.t < 7.4) sc.skipTo(7.4); else sc.skipTo(sc.LEN - 0.7); };
     const key = (e: KeyboardEvent) => { e.stopImmediatePropagation(); if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); skip(); } };

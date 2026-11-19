@@ -39,7 +39,7 @@ export function iconKey(kind: IconKind, name: string, fn: () => void, o: IconKey
   const b = document.createElement('button') as IconKey;
   b.type = 'button';
   const W = o.w ?? 76, H = o.h ?? 60, S = o.model ?? Math.round(H * 0.74);
-  b.className = 'ik ik-' + (o.nameAt ?? 'top') + (o.lamp === false ? ' ik-nolamp' : '') + (o.cls ? ' ' + o.cls : '');
+  b.className = 'ikk ikk-' + (o.nameAt ?? 'top') + (o.lamp === false ? ' ikk-nolamp' : '') + (o.cls ? ' ' + o.cls : '');
   b.style.width = W + 'px'; b.style.height = H + 'px';
   b.style.setProperty('--ik-s', S + 'px');
   b.setAttribute('aria-label', (o.aria ?? name) + (o.hint ? ` (${o.hint})` : ''));
@@ -47,17 +47,22 @@ export function iconKey(kind: IconKind, name: string, fn: () => void, o: IconKey
   const spin = !o.still && mxOk() ? mxIconSpin(kind, S) : null;
   const still = !spin && mxOk() ? mxIcon(kind, S) : null;
   const cv = spin?.cv ?? still;
-  if (cv) { cv.classList.add('ik-m'); cv.style.width = cv.width + 'px'; cv.style.height = cv.height + 'px'; b.append(cv); }
-  else b.append(Object.assign(document.createElement('b'), { className: 'ik-f', textContent: name.slice(0, 2).toUpperCase() }));
+  if (cv) { cv.classList.add('ikk-m'); cv.style.width = cv.width + 'px'; cv.style.height = cv.height + 'px'; b.append(cv); }
+  else b.append(Object.assign(document.createElement('b'), { className: 'ikk-f', textContent: name.slice(0, 2).toUpperCase() }));
   const n = document.createElement('span');
-  n.className = 'ik-n';
+  n.className = 'ikk-n';
   n.setAttribute('aria-hidden', 'true');
   n.textContent = name;
   if (o.hint) { const k = document.createElement('i'); k.textContent = o.hint; n.append(k); }
   b.append(n);
   const sk = mxSkinKey(b, { tone: o.tone ?? 'olive', lamp: o.lamp === undefined ? 'amber' : o.lamp, seed: o.seed ?? 5, sound: o.sound ?? 'key', screws: false });
+  // the cap's canvas at its own size from the start (a blank canvas is 300 px wide, and a terminal measures its tray
+  // from the keys before the first paint)
+  const kc = b.querySelector('.mxk-cv') as HTMLCanvasElement | null;
+  if (kc) { kc.width = W + 10; kc.height = H + 10; kc.style.width = W + 10 + 'px'; kc.style.height = H + 10 + 'px'; }
   let on = false;
-  const hot = (v: boolean) => { b.classList.toggle('hot', v || on); spin?.hot(v || on); };
+  // the name floats only under the pointer or the keyboard; a latched key (on) keeps its model lifted and lamp lit
+  const hot = (v: boolean) => { b.classList.toggle('hot', v); spin?.hot(v || on); };
   // the pointer takes the focus with it, so only one key in a row is ever hot; a key focused by the room (not by
   // the keyboard) stays quiet until the operator moves to it
   b.addEventListener('pointerenter', (e) => { if (document.activeElement !== b) b.focus({ preventScroll: true }); hot(true); if ((e as PointerEvent).pointerType === 'mouse') sfx('tick', 0.35); });
@@ -65,7 +70,7 @@ export function iconKey(kind: IconKind, name: string, fn: () => void, o: IconKey
   b.addEventListener('focus', () => { if (b.matches(':focus-visible') || b.matches(':hover')) hot(true); });
   b.addEventListener('blur', () => hot(false));
   b.addEventListener('click', () => fn());
-  b.setOn = (v: boolean) => { on = v; b.classList.toggle('on', v); sk?.setOn(v); hot(v || document.activeElement === b); };
+  b.setOn = (v: boolean) => { on = v; b.classList.toggle('on', v); sk?.setOn(v); hot(b.matches(':hover') || b.matches(':focus-visible')); };
   b.hot = hot;
   return b;
 }
@@ -73,7 +78,7 @@ export function iconKey(kind: IconKind, name: string, fn: () => void, o: IconKey
 /** a row of icon keys in a housing-less strip (the keys stand on their own) */
 export function iconRow(cls: string, keys: HTMLElement[]): HTMLElement {
   const d = document.createElement('div');
-  d.className = 'ik-row ' + cls;
+  d.className = 'ikk-row ' + cls;
   d.append(...keys);
   return d;
 }

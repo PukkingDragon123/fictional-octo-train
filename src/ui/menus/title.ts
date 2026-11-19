@@ -361,7 +361,7 @@ class TitleRoom {
     const TITLE_3D: Record<string, IconKind> = { free: 'reel', coop: 'walkie', load: 'clipboard', controls: 'joystick', about: 'dossier' };
     items.forEach((it, i) => {
       if (mxOk() && TITLE_3D[it.key]) {
-        const k = iconKey(TITLE_3D[it.key], it.label, () => this.activate(it), { w: pt ? 72 : 76, h: pt ? 56 : 60, tone: 'olive', lamp: 'amber', sound: 'key', seed: 40 + i, nameAt: pt ? 'top' : 'right', cls: 'ft-item tt-ik' + (pt ? ' ik-sm' : ''), aria: `${it.label} — ${it.sub}` });
+        const k = iconKey(TITLE_3D[it.key], it.label, () => this.activate(it), { w: pt ? 72 : 76, h: pt ? 56 : 60, tone: 'olive', lamp: 'amber', sound: 'key', seed: 40 + i, nameAt: pt ? 'top' : 'right', cls: 'ft-item tt-ik' + (pt ? ' ikk-sm' : ''), aria: `${it.label} — ${it.sub}` });
         k.dataset.k = it.key;
         k.style.setProperty('--ft-i', String(i));
         k.addEventListener('focus', () => { this.lastKey = it.key; this.beacon?.alert(false); });
@@ -662,12 +662,12 @@ class TitleRoom {
     this.hudCam = cam;
     this.tcT = 0;
     // round 21: the room's words are keys now, each with its little model; the name floats only while hot
-    const acts = h('div', 'mr-acts ik-row');
-    const bar = h('div', 'mr-bar ik-row');
+    const acts = h('div', 'mr-acts ikk-row');
+    const bar = h('div', 'mr-bar ikk-row');
     const pt = this.portrait();
     const KW = pt ? 58 : 76, KH = pt ? 48 : 60;
     const key = (kind: IconKind, label: string, cls: string, fn: () => void, o: { hint?: string; tone?: 'olive' | 'yellow' | 'dark'; at?: 'top' | 'bottom' } = {}) => {
-      const b = iconKey(kind, label, () => { if (!this.moving) fn(); }, { w: KW, h: KH, cls: 'mr-ik ' + cls + (pt ? ' ik-sm' : ''), hint: o.hint, tone: o.tone, nameAt: o.at, lamp: o.tone === 'yellow' ? 'green' : 'amber', seed: 60 + bar.childElementCount + acts.childElementCount });
+      const b = iconKey(kind, label, () => { if (!this.moving) fn(); }, { w: KW, h: KH, cls: 'mr-ik ' + cls + (pt ? ' ikk-sm' : ''), hint: o.hint, tone: o.tone, nameAt: o.at, lamp: o.tone === 'yellow' ? 'green' : 'amber', seed: 60 + bar.childElementCount + acts.childElementCount });
       b.style.setProperty('--ik-i', String(acts.childElementCount + bar.childElementCount));
       return b;
     };
@@ -683,7 +683,7 @@ class TitleRoom {
     }
     const prev = ORDER[(i + ORDER.length - 1) % ORDER.length], next = ORDER[(i + 1) % ORDER.length];
     const pf = FEEDS.find((q) => q.key === prev)!, nf = FEEDS.find((q) => q.key === next)!;
-    const arrow = (b: HTMLElement, d: 'l' | 'r') => { b.append(h('span', 'ik-arr ' + d)); return b; };
+    const arrow = (b: HTMLElement, d: 'l' | 'r') => { b.append(h('span', 'ikk-arr ' + d)); return b; };
     if (prev !== next) bar.append(arrow(key(ROOM_ICON[prev], pf.label, 'prev', () => void this.go(prev), { hint: 'Q', tone: 'dark', at: 'bottom' }), 'l'));
     bar.append(key('eye', 'Monitors', 'home', () => void this.back(), { hint: 'Esc', tone: 'yellow', at: 'bottom' }));
     bar.append(arrow(key(ROOM_ICON[next], nf.label, 'next', () => void this.go(next), { hint: 'E', tone: 'dark', at: 'bottom' }), 'r'));
@@ -707,7 +707,7 @@ class TitleRoom {
     this.over.className = 'nx-over on' + (side ? ' with-side' : '');
     const t = terminal({ title, sub, cls: 'tt3-term' });
     t.body.append(el);
-    const back = mxOk() ? iconKey('door', 'Back', () => this.closeOver(), { w: 76, h: 56, tone: 'olive', lamp: 'amber', sound: 'back', hint: 'Esc', nameAt: 'top' }) : plateBtn('Back', () => this.closeOver(), { finish: 'cream', size: 'md', shape: 'arrowL', lamp: false, sound: 'back', aria: 'Back (Esc)' });
+    const back = mxOk() ? iconKey('door', 'Back', () => this.closeOver(), { w: 76, h: 56, tone: 'olive', lamp: 'amber', sound: 'back', hint: 'Esc', nameAt: 'left' }) : plateBtn('Back', () => this.closeOver(), { finish: 'cream', size: 'md', shape: 'arrowL', lamp: false, sound: 'back', aria: 'Back (Esc)' });
     t.keys.append(back);
     if (side) this.over.append(side);
     this.over.append(t.el);

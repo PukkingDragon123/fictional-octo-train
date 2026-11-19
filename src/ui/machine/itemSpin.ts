@@ -6,7 +6,7 @@
 // this way. Units are CSS px, one art pixel each.
 import * as THREE from 'three';
 import { mxOk, sheet, MXU } from './core';
-import { itemGeometry } from '../../items/itemMeshes';
+import { itemGeometry, itemCloseGeometry } from '../../items/itemMeshes';
 import { atlas } from '../../gfx/atlas';
 import { U } from '../../gfx/materials';
 
@@ -58,7 +58,8 @@ function itemMat(): THREE.ShaderMaterial {
 /** the item on its turntable at heading `yaw`, framed in an S x S box (tilted a little towards the viewer) */
 function itemModel(key: string, S: number, yaw: number): THREE.Object3D {
   const root = new THREE.Group();
-  const g = itemGeometry(key);
+  // the close-up build (every small part chamfered, rounder cylinders: src/items/itemMeshes.ts), same frame as the world model
+  const g = itemCloseGeometry(key) ?? itemGeometry(key);
   if (!g) return root;
   (g as unknown as { _keep: boolean })._keep = true; // the game's cached geometry: never disposed here
   if (!g.boundingBox) g.computeBoundingBox();

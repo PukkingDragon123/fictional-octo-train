@@ -30,6 +30,8 @@ const SOFT: Record<string, SoftSpec> = {
   towel_item: { w: 0.42, d: 0.28, nx: 7, nz: 5, top: 'i_knit', back: 'i_knit', color: 0x6ab0d8, backColor: 0x5a98c0, rep: 0.05, kind: 'cloth', drag: 0.4 },
 };
 export const isSoftItem = (key: string) => key in SOFT;
+/** dev: how far a just-dropped sheet falls (hand height) */
+export const SOFT_DEBUG = { fall: 0.85 };
 
 /** something walking about that stirs the air (x, z and its velocity) */
 export interface Draught { x: number; z: number; vx: number; vz: number }
@@ -55,10 +57,30 @@ export class SoftSheet {
   private t = 0;
   private ox = 0; private oy = 0; private oz = 0;
   private seed: number;
+  /** how high each point rests off the floor: the folds a cloth slumps into, the curl a page keeps */
+  private rest: Float32Array;
 
   constructor(key: string, uid: number) {
     const s = this.s = SOFT[key];
     this.seed = (uid * 2654435761) >>> 0;
+    {
+      const W0 = s.nx + 1, H0 = s.nz + 1, f = (this.seed % 1000) / 1000;
+      this.rest = new Float32Array(W0 * H0);
+      for (let k = 0; k < W0 * H0; k++) {
+        const u = (k % W0) / s.nx, v = Math.floor(k / W0) / s.nz;
+        if (s.kind === 'cloth') {
+          // two or three soft ridges running across it, a slump in the middle, a lifted corner
+          const amp = Math.min(0.045, Math.max(s.w, s.d) * 0.11);
+          const r1 = Math.max(0, Math.sin(u * (5 + f * 4) + v * (2 + f * 3) + f * 6.28));
+          const r2 = Math.max(0, Math.sin(v * (4 + f * 3) - u * 1.5 + f * 3.1)) * 0.6;
+          this.rest[k] = amp * (r1 * r1 * 0.8 + r2 * r2 * 0.5) + amp * 0.5 * Math.max(0, 1 - Math.hypot(u - 0.3 - f * 0.4, v - 0.6) * 3);
+        } else {
+          // a page remembers being rolled: its long edges lift, one corner more
+          const e = Math.min(u, 1 - u), c = Math.max(0, u + v - 1.6) / 0.4;
+          this.rest[k] = Math.max(s.w, s.d) * (0.025 * Math.max(0, 0.25 - e) / 0.25 + 0.07 * c * c);
+        }
+      }
+    }
     const W = s.nx + 1, H = s.nz + 1;
     this.n = W * H;
     this.p = new Float32Array(this.n * 3); this.q = new Float32Array(this.n * 3);
@@ -106,7 +128,7 @@ export class SoftSheet {
     const cs = Math.cos(rot), sn = Math.sin(rot);
     // cloth lands bunched (so it folds), paper lands flat
     const bunch = s.kind === 'cloth' ? 0.72 + rnd() * 0.12 : 1;
-    const h0 = fresh ? 0.85 : 0.05;
+    const h0 = fresh ? SOFT_DEBUG.fall : 0.05;
     const tip = fresh ? (rnd() - 0.5) * 0.9 : 0;
     for (let k = 0; k < this.n; k++) {
       const i = k % W, j = Math.floor(k / W);
@@ -172,6 +194,8 @@ export class SoftSheet {
       let ax = nx * fa, ay = ny * fa - G, az = nz * fa;
       // paper sails: a slow rocking flutter while it is off the ground
       if (paper && p[o + 1] - this.oy > 0.06) { const w = Math.sin(this.t * 7 + (k % W) * 0.6) * 2.2; ax += w * ny * 0.6; az += w * 0.4; ay += Math.abs(w) * 0.3; }
+      // a sheet standing on its edge topples (nothing holds paper upright)
+      if (Math.abs(ny) < 0.6 && p[o + 1] - this.oy > 0.015) { const tf = (this.seed & 1 ? 1 : -1) * 4; ax += nx * tf; az += nz * tf; }
       q[o] = p[o]; q[o + 1] = p[o + 1]; q[o + 2] = p[o + 2];
       p[o] += vx + ax * dt2; p[o + 1] += vy + ay * dt2; p[o + 2] += vz + az * dt2;
     }
@@ -190,7 +214,7 @@ export class SoftSheet {
       }
       for (let k = 0; k < n; k++) {
         const o = k * 3;
-        const fy = z.heightAt(Math.floor(p[o]), Math.floor(p[o + 2])) + 0.0012 + (k % 3) * 0.0002;
+        const fy = z.heightAt(Math.floor(p[o]), Math.floor(p[o + 2])) + 0.0012 + (k % 3) * 0.0002 + this.rest[k];
         if (p[o + 1] < fy) {
           p[o + 1] = fy;
           // friction: on the ground it stops sliding

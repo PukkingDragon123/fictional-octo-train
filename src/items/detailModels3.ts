@@ -238,15 +238,16 @@ export const DETAIL3: Record<string, Detail> = {
   },
   coins: {
     build: (mb) => {
+      const SILVER = 0xd8dce0, COPPER = 0xd08a5a, BRASS = 0xf0d070;
       const coin = (x: number, y: number, z: number, r: number, c: number, tilt = 0, ry = 0) => {
         mb.push().translate(x, y, z).rotateY(ry).rotateZ(tilt);
-        mb.cylinder(0, 0, 0, r, 0.0026, 14, { sides: 'i_tin', top: 'i_coin_top', bottom: 'i_coin_top' }, { fit: true, color: c });
+        const face = c === SILVER ? 'i_tin_top' : 'i_coin_top';
+        mb.cylinder(0, 0, 0, r, 0.0026, 14, { sides: 'i_tin', top: face, bottom: face }, { fit: true, color: c === COPPER ? 0xe09060 : 0xffffff });
         // the raised rim, and reeding on the silver ones
         mb.cylinder(0, 0.0026, 0, r, 0.0005, 14, 'i_metal', { color: mix(c, 0xffffff, 0.2), caps: false });
         if (c === SILVER) for (let i = 0; i < 18; i++) { const a = (i / 18) * Math.PI * 2; mb.box(Math.cos(a) * r, 0.0003, Math.sin(a) * r, 0.0007, 0.002, 0.0007, 'i_black', { color: 0x6a6e72, bevel: false }); }
         mb.pop();
       };
-      const SILVER = 0xd8dce0, COPPER = 0xd08a5a, BRASS = 0xf0d070;
       // a short stack, slipped sideways
       [[0, SILVER, 0.0125], [0.0012, COPPER, 0.0105], [-0.001, SILVER, 0.0125], [0.0018, BRASS, 0.0115]].forEach(([dx, c, r], i) => coin(dx as number, i * 0.0027, 0.0006 * i, r as number, c as number));
       // loose ones, one leaning on the stack

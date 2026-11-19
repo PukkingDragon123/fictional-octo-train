@@ -7,6 +7,7 @@ import { DETAIL3 } from './detailModels3';
 // the art pass's models (wave 3) take over from the older entries for the same items
 Object.assign(DETAIL, DETAIL3);
 import { bakeLook } from './itemLook';
+import { isSoftItem } from './softItems';
 
 const geo = new Map<string, THREE.BufferGeometry | null>();
 const closeGeo = new Map<string, THREE.BufferGeometry | null>();
@@ -81,8 +82,10 @@ export function makeHeldMesh(key: string): THREE.Object3D | null {
   const bb = g.boundingBox!;
   const size = new THREE.Vector3(); bb.getSize(size);
   const center = new THREE.Vector3(); bb.getCenter(center);
-  const mesh = new THREE.Mesh(g, worldMaterial({}));
+  const mesh = new THREE.Mesh(isSoftItem(key) ? flutterGeo(key, g) : g, worldMaterial({}));
   mesh.castShadow = true;
+  const fl = mesh.geometry.userData.flutter as { tick(): void } | undefined;
+  if (fl) mesh.onBeforeRender = () => fl.tick();
   const holder = new THREE.Group();
   const inner = new THREE.Group();
   inner.add(mesh);
@@ -101,4 +104,40 @@ export function makeHeldMesh(key: string): THREE.Object3D | null {
     inner.position.y = -0.03;
   }
   return holder;
+}
+
+/**
+ * Paper and cloth in a hand flutter (the art pass, wave 3): a copy of the model whose far edge ripples
+ * in the air, more the further it is from the fingers; the wave moves in whole frames, like a sprite.
+ */
+const flutterCache = new Map<string, THREE.BufferGeometry>();
+/** one fluttering copy per item kind (every hand holding one shares it) */
+function flutterGeo(key: string, g: THREE.BufferGeometry): THREE.BufferGeometry {
+  let f = flutterCache.get(key);
+  if (!f) { f = flutter(g); flutterCache.set(key, f); }
+  return f;
+}
+function flutter(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  const c = g.clone();
+  const pos = c.getAttribute('position') as THREE.BufferAttribute;
+  const base = Float32Array.from(pos.array as Float32Array);
+  const bb = g.boundingBox!;
+  const sx = bb.max.x - bb.min.x, sz = bb.max.z - bb.min.z;
+  const alongX = sx >= sz, L = Math.max(sx, sz, 1e-3);
+  let last = -1;
+  const holder = { tick: () => {
+    const fr = Math.floor(performance.now() / 83);
+    if (fr === last) return;
+    last = fr;
+    const t = fr / 12;
+    const a = pos.array as Float32Array;
+    for (let i = 0; i < a.length; i += 3) {
+      const u = alongX ? (base[i] - bb.min.x) / L : (base[i + 2] - bb.min.z) / L;
+      const w = (alongX ? (base[i + 2] - bb.min.z) : (base[i] - bb.min.x)) / L;
+      a[i + 1] = base[i + 1] + Math.sin(t * 7 + u * 9 + w * 3) * 0.018 * L * u * u + Math.sin(t * 3.1 + w * 5) * 0.01 * L * u;
+    }
+    pos.needsUpdate = true;
+  } };
+  c.userData.flutter = holder;
+  return c;
 }

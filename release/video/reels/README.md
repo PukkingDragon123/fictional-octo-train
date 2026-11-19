@@ -13,6 +13,7 @@
 | `limbo_phobia_reel_worm_train.mp4` | the Worm Train | `reels/worm.json` |
 | `limbo_phobia_reel_stalker.mp4` | the Stalker | `reels/stalker.json` |
 | `limbo_phobia_reel_frog_piranha.mp4` | the Frog-legged Piranha | `reels/piranha.json` |
+| `limbo_phobia_reel_body.mp4` | the unit's body: hurting and sickness | `reels/body.json` |
 
 1080 x 1920, 24 fps, H.264 + AAC, -14 LUFS. Contact sheets: `build/sheets/<id>.jpg`. Credits: `CREDITS.md`.
 Older versions: `v1/`, `v2/`.
@@ -95,6 +96,30 @@ the lens, the creature beyond), `over` (over the unit's shoulder). Options: `on`
 `size` (metres of picture width to fit), `angle` (degrees round the stage), `dist`, `height`, `fov`, `push`,
 `lookY`. Other beat keys: `lead`, `tail`, `hold` (seconds), `dur` (a beat with no line), `quiet` (no creature
 sound), `zone` (film this beat elsewhere). `light` in a shot scales the film lights (dark zones: 1.5).
+
+### Body beats: the game itself
+
+A beat with `"game"` instead of `"shot"` is filmed in the running game (`/?quick`, a portrait 405 x 720 window at
+`REEL_GAME_DPR` device px, default 2), not the studio: `tools/studiopage.mjs` `openGame()` takes over the page's
+clock (`performance.now` and `requestAnimationFrame` advance one frame per step, `Math.random` is seeded) and
+`tools/studio/bodyScenes.ts` drives the unit through the game's own systems, with the body console, its moodles
+and the screen effects as the player sees them (the quest line, hotbar and key hints are hidden):
+
+```jsonc
+"game": {
+  "scene": "punch",            // punch (steel wall: split knuckles, drips, the hands moodle) | fall (a trip at a run,
+                               //   a cracked shin, the limp) | cut (a fist into glass: a bleeding forearm) | sick (food
+                               //   poisoning + fever: retching, the screen's wobble, vomit) | exam (the health check:
+                               //   a tap on the console, hover, pick, a bandage dragged onto the wound) | stand
+  "zone": "lab", "at": [94, 49], // where the unit starts (tiles); walls are found in its room
+  "pre": [["farm_r", "laceration", 0.55, { "bleed": 0.7 }]],   // wounds it already has (Body.addInjury)
+  "t": { "h1": 0.2 },          // the scene's own times (seconds into the beat)
+  "view": [[0, "unit", 1.45], [3.5, "hud", 2.3]],              // the framing: [t, "unit" | "hud" | "full", zoom]
+  "seed": 11
+}
+```
+
+Game beats carry no creature sounds: their effects are the beat's own `sfx` (any file in `src/assets/sfx`).
 
 The opening (Dr. Calder at the Ledge field outpost), the card she hands over (`tools/studio/paperCard.ts`) and
 the recruiting screen (`tools/studio/adScreen.ts`: the lockup, NOW RECRUITING UNITS, a QR code to
