@@ -1,0 +1,32 @@
+/* Settings > DISPLAY and the rebinding list (src/ui/menus/display.ts). Phosphor on the terminal's tube:
+   key caps are little lit caps on the glass (the same caps as the Controls list), nothing is boxed or rounded. */
+.t-seg-row .dp-detect { justify-self: start; margin: 0.2em 0 0 -0.2em; }
+.t-seg-row .dp-detect.busy .fi-ic { animation: dp-spin 0.9s steps(8) infinite; }
+@keyframes dp-spin { to { transform: rotate(360deg); } }
+.dp-lamp { display: flex; align-items: center; gap: 0.5em; margin: 0.2em 0 0.4em; color: var(--ct-ph, #ffb85a); font-size: var(--t-s, 12px); letter-spacing: 0.12em; text-transform: uppercase; }
+.dp-lamp i { width: calc(var(--px, 2px) * 4); height: calc(var(--px, 2px) * 4); background: #ffb040; box-shadow: 0 0 6px #ffa020, inset 0 0 0 1px #6a3a08; animation: dp-blink 1.2s steps(2) infinite; }
+@keyframes dp-blink { 50% { opacity: 0.35; } }
+html.reduce-flash .dp-lamp i { animation: none; }
+
+.t-controls .rb { column-span: all; margin-bottom: 0.6em; }
+.rb-row { display: grid; grid-template-columns: minmax(7.5em, 1fr) 5.2em 5.2em 4.4em; align-items: center; gap: 0.25em 0.6em; padding: 0.06em 0; }
+.rb-head { color: var(--ct-dim, #43a862); font-size: var(--t-s, 12px); }
+.rb-head .rb-col { text-align: center; }
+.rb-n { color: var(--ct-dim, #43a862); font-size: var(--t-s, 12px); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 0 0 3px var(--ct-glow, rgba(70,255,130,.5)); }
+.rb-cap { height: 1.55em; padding: 0 0.35em; border: 0; background: none; font: inherit; font-weight: 600; letter-spacing: 0.06em; color: var(--ct-hi, #dcffe4); cursor: pointer; outline: none;
+  box-shadow: inset 0 0 0 1px var(--ct-dim, #43a862), inset 0 -2px 0 var(--ct-dark, #1a4f2a); text-shadow: 0 0 3px var(--ct-glow, rgba(70,255,130,.5)); transition: transform 0.08s, color 0.1s; }
+.rb-cap.none { color: var(--ct-dark, #1a4f2a); text-shadow: none; }
+.rb-cap:is(:hover, :focus-visible) { color: #fff; box-shadow: inset 0 0 0 1px var(--ct-ph, #72ff98), inset 0 -2px 0 var(--ct-dim, #43a862), 0 0 6px var(--ct-glow, rgba(70,255,130,.5)); transform: translateY(-1px); }
+.rb-cap:active { transform: translateY(1px); box-shadow: inset 0 0 0 1px var(--ct-ph, #72ff98), inset 0 2px 0 var(--ct-dark, #1a4f2a); }
+.rb-cap.listen { color: #12200f; background: var(--ct-ph, #72ff98); box-shadow: 0 0 10px var(--ct-glow, rgba(70,255,130,.5)); animation: dp-blink 0.7s steps(2) infinite; }
+.rb-pad { text-align: center; color: var(--ct-ph, #72ff98); font-size: var(--t-s, 12px); letter-spacing: 0.06em; opacity: 0.85; }
+html.pad-input .rb-pad { color: #fff; opacity: 1; text-shadow: 0 0 6px var(--ct-glow, rgba(70,255,130,.5)); }
+/* conflicts: the row that took a key and the row that gave it flash; a refused key flashes red; duplicates stay amber */
+.rb-row.set .rb-n, .rb-row.moved .rb-n { animation: rb-flash 0.9s steps(6); }
+.rb-row.bad .rb-n, .rb-row.bad .rb-cap { animation: rb-bad 0.9s steps(6); }
+.rb-row.dup .rb-cap:not(.none) { color: #ffcf5a; box-shadow: inset 0 0 0 1px #c98a1e, inset 0 -2px 0 #5a3a08; }
+@keyframes rb-flash { 0%, 50% { color: #fff; text-shadow: 0 0 8px var(--ct-ph, #72ff98); } }
+@keyframes rb-bad { 0%, 50% { color: #ff6a4a; text-shadow: 0 0 8px #ff3a1a; } }
+.rb-reset { margin: 0.5em 0 0.2em; }
+.rb-padx { margin-top: 0.3em; }
+@media (max-width: 720px) { .rb-row { grid-template-columns: 1fr 4.4em 4.4em 3.4em; } }

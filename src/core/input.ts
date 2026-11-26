@@ -2,6 +2,8 @@
 // On-screen controls (src/ui/touch) feed the same actions through press /
 // release / tap and an analog move vector, so every system reads one path.
 
+import { pollGamepad, inputDevice, padGlyph } from './gamepad';
+
 export type Action =
   | 'up' | 'down' | 'left' | 'right' | 'run' | 'sneak' | 'shove' | 'interact' | 'flashlight'
   | 'scanner' | 'inventory' | 'map' | 'reload' | 'shout' | 'camLeft' | 'camRight' | 'talk' | 'chat'
@@ -40,7 +42,34 @@ export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   roll: [],
 };
 /** bump when the defaults move: saved bindings from an older layout are dropped (round 19 moved most keys) */
-const BINDINGS_VERSION = 19;
+export const BINDINGS_VERSION = 19;
+
+/** keys other screens read directly (not rebindable): binding an action to one is a conflict */
+export const RESERVED_KEYS: Record<string, string> = {
+  KeyJ: 'task board', KeyM: 'survey map', KeyO: 'inspect yourself', KeyP: 'photo mode', KeyL: 'resync the link', KeyU: 'second thing in reach',
+  Tab: 'wrist terminal', PageUp: 'camera pitch', PageDown: 'camera pitch', Delete: 'build: take down', BracketLeft: 'build: piece', BracketRight: 'build: piece',
+  Backspace: 'back', F11: 'fullscreen', MetaLeft: 'system', MetaRight: 'system', AltLeft: 'orbit', AltRight: 'orbit',
+};
+/** the actions the Controls page lets the player rebind, in the order shown, with their names */
+export const REBINDABLE: [Action, string][] = [
+  ['up', 'walk up'], ['down', 'walk down'], ['left', 'walk left'], ['right', 'walk right'], ['run', 'sprint'], ['sneak', 'crouch'], ['crawl', 'crawl'], ['jump', 'vault · hop'],
+  ['interact', 'use'], ['grab', 'carry · grip'], ['rotate', 'turn'], ['shove', 'shove · throw'], ['toolDraw', 'draw tool'],
+  ['hot1', 'hotbar 1'], ['hot2', 'hotbar 2'], ['hot3', 'hotbar 3'], ['hot4', 'hotbar 4'], ['hot5', 'hotbar 5'],
+  ['inventory', 'backpack'], ['flashlight', 'suit lamp'], ['scan', 'scan'], ['breathe', 'lung pump'], ['command', 'order thralls'],
+  ['camLeft', 'camera left'], ['camRight', 'camera right'], ['whistle', 'whistle'], ['emote', 'emotes'], ['talk', 'talk'], ['chat', 'chat'], ['walkToggle', 'walk toggle'], ['pause', 'pause'],
+];
+/** the saved bindings (defaults for anything missing), for screens that run without a game (the title) */
+export function savedBindings(): Record<Action, string[]> {
+  const b: Record<Action, string[]> = JSON.parse(JSON.stringify(DEFAULT_BINDINGS));
+  try {
+    const saved = localStorage.getItem('noclip.bindings');
+    const ver = Number(localStorage.getItem('noclip.bindings.v') || 0);
+    if (saved && ver >= BINDINGS_VERSION) Object.assign(b, JSON.parse(saved));
+  } catch { /* storage unavailable */ }
+  for (const k of Object.keys(DEFAULT_BINDINGS) as Action[]) if (!Array.isArray(b[k])) b[k] = [...DEFAULT_BINDINGS[k]];
+  return b;
+}
+export function storeBindings(b: Record<Action, string[]>) { try { localStorage.setItem('noclip.bindings', JSON.stringify(b)); localStorage.setItem('noclip.bindings.v', String(BINDINGS_VERSION)); } catch { /* ignore */ } }
 
 /** combined movement input: unit direction (x right, y forward) plus strength 0..1 */
 export interface MoveAxis { x: number; y: number; mag: number; analog: boolean }
@@ -114,7 +143,9 @@ export class Input {
     } catch { /* storage unavailable */ }
   }
 
-  saveBindings() { try { localStorage.setItem('noclip.bindings', JSON.stringify(this.bindings)); localStorage.setItem('noclip.bindings.v', String(BINDINGS_VERSION)); } catch { /* ignore */ } }
+  saveBindings() { storeBindings(this.bindings); }
+  /** the controller, once a frame before anything reads the input */
+  beginFrame() { pollGamepad(this); }
 
   down(a: Action): boolean {
     if (this.textFocus) return false;
@@ -180,6 +211,7 @@ export class Input {
   }
 
   keyName(a: Action): string {
+    if (inputDevice() === 'pad') { const g = padGlyph(a); if (g) return g; }
     const c = this.bindings[a][0] || '?';
     return keyLabel(c);
   }
@@ -187,7 +219,8 @@ export class Input {
 
 /** a key code as printed on the cap ('KeyB' -> 'B', 'ControlLeft' -> 'Ctrl', 'Comma' -> ',') */
 export function keyLabel(code: string): string {
-  const named: Record<string, string> = { Space: 'Space', Comma: ',', Period: '.', Backquote: '`', Enter: 'Enter', Escape: 'Esc', CapsLock: 'Caps', Tab: 'Tab' };
+  const named: Record<string, string> = { Space: 'Space', Comma: ',', Period: '.', Backquote: '`', Enter: 'Enter', Escape: 'Esc', CapsLock: 'Caps', Tab: 'Tab',
+    Slash: '/', Backslash: '\\', Semicolon: ';', Quote: "'", Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' };
   if (named[code]) return named[code];
   return code.replace('Key', '').replace('Digit', '').replace('Control', 'Ctrl').replace('Left', '').replace('Right', '');
 }

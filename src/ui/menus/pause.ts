@@ -27,6 +27,7 @@ import { mxOk } from '../machine/core';
 import { mxMount, mxIcon, type IconKind } from '../machine/decor';
 import { iconKey, iconBanner } from './iconKey';
 import { creditAmount } from '../creditIcon';
+import { isDesktop, desktopQuit } from '../../platform/desktop';
 import './diegetic.css';
 import './noir.css';
 import './pause.css';
@@ -83,7 +84,7 @@ export class PauseMenu {
     };
     const gap = () => { pair = null; col.append(h('i', 'ps2-gap')); };
     plate('Resume', () => this.close(), { tone: 'yellow', lamp: 'green', icon: 'play', hint: 'Esc' });
-    if (G.role !== 'client') plate('Save tape', async () => { const ok = await saveGame(); G.ui?.toast?.(ok ? 'TAPE SAVED' : 'COULD NOT SAVE', ok ? 'progress written to this browser' : '', 2); this.close(); }, { icon: 'tape' });
+    if (G.role !== 'client') plate('Save tape', async () => { const ok = await saveGame(); G.ui?.toast?.(ok ? 'TAPE SAVED' : 'COULD NOT SAVE', '', 2); this.close(); }, { icon: 'tape' });
     gap();
     const PAGE_ICON: Record<Page, IconKind> = { main: 'clipboard', options: 'gear', controls: 'joystick', coop: 'walkie' };
     for (const pg of pages) pageBtns.set(pg, plate(NAMES[pg][0], () => select(pages.indexOf(pg)), { icon: PAGE_ICON[pg] }));
@@ -96,6 +97,13 @@ export class PauseMenu {
       if (G.role !== 'client') await saveGame();
       location.reload();
     }, { tone: 'red', lamp: 'red', cls: 'danger', icon: 'door' });
+    // the desktop build: save and close the program
+    if (isDesktop()) plate('Quit', async () => {
+      const ok = await confirmDialog({ title: 'Quit to desktop', body: G.role === 'client' ? 'Leave the room and close the game?' : 'Saved first, then the game closes.', ok: 'Quit', cancel: 'Stay', danger: true });
+      if (!ok) return;
+      if (G.role !== 'client') await saveGame();
+      desktopQuit();
+    }, { tone: 'red', lamp: 'red', cls: 'danger', icon: 'plug' });
     pair = null;
 
     let tabFn: ((d: -1 | 1) => void) | null = null;
@@ -208,7 +216,7 @@ export function statusPage(solo: boolean): HTMLElement[] {
       // the talent marbles weighed on the bench (survival/talents.ts)
       ['Talent', 'scale', talentLine(p.body)],
       ['Location', 'map', z?.name || p.zoneKey],
-      ['Condition', 'eye', p.body.dead ? 'DELETED' : p.body.downed ? 'DOWN' : 'ALIVE', p.body.downed],
+      ['Condition', 'crt', p.body.dead ? 'DELETED' : p.body.downed ? 'DOWN' : 'ALIVE', p.body.downed],
     ];
     if (d?.on) {
       // numbers, not sentences

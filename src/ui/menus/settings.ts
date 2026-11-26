@@ -15,7 +15,9 @@ export interface UiSettings { theme: UiTheme; scale: number; reduceFlash: boolea
   /** round 17: keep the build ghost's key caps (they retire after the first few times the kit comes out) */
   buildHints?: boolean;
   /** round 18: spoken lines in the subtitle strip at the bottom instead of as world text beside the speaker */
-  subStrip?: boolean }
+  subStrip?: boolean;
+  /** round 23: losing the window (alt-tab, the Steam overlay) opens the pause (default on) */
+  focusPause?: boolean }
 
 const KEY = 'noclip.ui';
 const DEF: UiSettings = { theme: 'green', scale: 1, reduceFlash: false, px: 0 };

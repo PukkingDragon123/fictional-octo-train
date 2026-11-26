@@ -176,6 +176,8 @@ export class PixelRenderer {
   fx = { glitch: 0, panic: 0, hurt: 0, desat: 0, wobble: 0, blink: 0, corruptFlash: 0, dream: 0, outline: 1, edgeLight: 0.2, /** heat shimmer (the Ledge, src/world/anomalies/ledgeFx.ts) */ heat: 0 };
   /** user setting: target internal height in px (the chunky picture at full pixel filter) */
   targetLowH = 360;
+  /** backing-store scale 0.5..1 (Settings > Display) */
+  renderScale = 1;
   /**
    * Pixel filter strength (Options, default low): 0 renders near native resolution (the preset's cap) with a
    * smooth upscale, no posterise and fine, soft ink; 1 is the classic chunky picture at targetLowH (whole
@@ -284,7 +286,8 @@ export class PixelRenderer {
   resize() {
     // the backing store matches the device pixels exactly (fractional DPR laptops, 3x phones): the
     // browser must never resample the finished frame, or every pixel edge goes soft
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    // renderScale (Settings > Display) renders fewer backing pixels and lets the canvas stretch them (slow GPUs)
+    const dpr = Math.min(window.devicePixelRatio || 1, 3) * this.renderScale;
     this.dpr = dpr;
     const W = Math.max(1, Math.floor(window.innerWidth * dpr)), H = Math.max(1, Math.floor(window.innerHeight * dpr));
     this.renderer.setPixelRatio(1);
@@ -334,7 +337,8 @@ export class PixelRenderer {
     return sc < 1.12 ? 1 : sc;
   }
 
-  applySettings(s: { quality?: QualitySetting; grain?: number; pixelFilter?: number; motionBlur?: BlurLevel }) {
+  applySettings(s: { quality?: QualitySetting; grain?: number; pixelFilter?: number; motionBlur?: BlurLevel; renderScale?: number }) {
+    if (typeof s.renderScale === 'number' && Math.abs(clamp(s.renderScale, 0.5, 1) - this.renderScale) > 1e-3) { this.renderScale = clamp(s.renderScale, 0.5, 1); this.resize(); }
     if (s.motionBlur) this.motion.level = s.motionBlur;
     if (s.quality) this.qualitySetting = s.quality;
     if (typeof s.grain === 'number') this.film = clamp(s.grain, 0, 2);

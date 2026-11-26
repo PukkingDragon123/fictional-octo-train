@@ -4,6 +4,8 @@
 // partition slabs, phones that ring for nobody, buckets under a dripping
 // ceiling, a stack of televisions showing the back of your head, the same
 // poster over and over (the man in it gets closer), black doorways.
+import { blitPrint, printRGBA, type PrintKey } from '../../gfx/prints';
+import { atlasRepaint } from '../../entities/portrait';
 import * as THREE from 'three';
 import { defObj, buildObjGeometry, objDef } from '../../world/objects';
 import { WALL_H } from '../../world/defs';
@@ -101,7 +103,13 @@ function samePoster(pc: PixelCanvas, k: number) {
 addTextureModule(() => {
   const A = atlas();
   for (let k = 0; k < 6; k++) A.add('zw_back_' + k, 40, 30, (pc) => backOfYou(pc, k));
-  for (let k = 0; k < 6; k++) A.add('zw_same_' + k, 26, 38, (pc) => samePoster(pc, k));
+  // the poster is a real photograph of a hallway with a HumanRig render standing in it, printed (gfx/prints.ts);
+  // the drawn one stands in until the print sheet is in
+  for (let k = 0; k < 6; k++) {
+    const key = ('same_' + k) as PrintKey;
+    A.hdSource('zw_same_' + k, (w, h) => printRGBA(key, w, h));
+    A.add('zw_same_' + k, 26, 38, (pc) => { if (!blitPrint(pc, 0, 0, 26, 38, key, atlasRepaint('zw_same_' + k))) samePoster(pc, k); });
+  }
   // the crack: a ragged black slit in plaster
   A.add('zw_crack_tex', 12, 64, (pc) => {
     pc.wrap = false; pc.clear();

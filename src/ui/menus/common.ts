@@ -7,6 +7,7 @@ import { G } from '../../game/G';
 import { sfx, Sfx } from './sfx';
 import { FocusNav } from './nav';
 import { uiSettings, saveUiSettings, calm, UiTheme, currentPx } from './settings';
+import { displayPage, rebindPanel } from './display';
 import { getTouchSetting, setTouchSetting, TouchSetting } from '../touch/mode';
 import { plateBtn } from './btnKit';
 import { terminal } from './terminal';
@@ -286,6 +287,8 @@ export interface GfxSettings {
   keepOrbit: boolean;
   /** motion blur on camera moves, rolls, sprints, fast inhabitants and hits (src/gfx/motionFx.ts) */
   motionBlur: 'off' | 'low' | 'normal' | 'heavy';
+  /** Settings > Display: backing-store scale 0.5..1 and the frame cap (0 = off) */
+  renderScale?: number; fpsCap?: number;
 }
 export function gfxSettings(): GfxSettings {
   let rm = false;
@@ -308,7 +311,7 @@ const GFX_LABELS: Record<string, [string, string]> = {
   comfort: ['Motion comfort', 'almost no shake or sway, gentler camera moves'],
   keepOrbit: ['Keep camera angle', 'after a free orbit, stay there instead of snapping back'],
 };
-const GFX_HANDLED = new Set(['pixelHeight', 'pixelFilter', 'shake', 'shakeAmt', 'grain', 'quality', 'peek', 'comfort', 'keepOrbit', 'motionBlur']);
+const GFX_HANDLED = new Set(['pixelHeight', 'pixelFilter', 'shake', 'shakeAmt', 'grain', 'quality', 'peek', 'comfort', 'keepOrbit', 'motionBlur', 'renderScale', 'fpsCap']);
 const humanizeKey = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
 /** PICTURE: every field of GfxSettings gets a control (fields added later show up as generic switches / sliders) */
@@ -345,7 +348,7 @@ function picturePage(f: DocumentFragment) {
 export interface OptionsApi { pages: string[]; select: (i: number) => void; readonly index: number; onChange: (fn: (i: number) => void) => void }
 export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) => void) => void; hideTabs?: boolean; onApi?: (api: OptionsApi) => void } = {}): HTMLElement {
   const box = h('div', 't-options');
-  const pages = ['SOUND', 'PICTURE', 'INTERFACE', ...(opts.inGame ? ['GAME'] : [])];
+  const pages = ['SOUND', 'DISPLAY', 'PICTURE', 'INTERFACE', ...(opts.inGame ? ['GAME'] : [])];
   const page = h('div', 't-opt-page');
   let cur = 0;
   try { cur = Math.min(pages.length - 1, Number(sessionStorage.getItem('noclip.optTab') || 0)); } catch { /* ignore */ }
@@ -359,6 +362,8 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
       for (const [k, lbl] of [['master', 'Master'], ['sfx', 'Effects'], ['amb', 'Ambience'], ['music', 'Music'], ['voice', 'Voices'], ['ui', 'Scanner & UI']] as const) {
         f.append(slider(lbl, (vol as any)[k], 0, 1, 0.05, pct, (v) => G?.audio?.setVolume?.(k, v)));
       }
+    } else if (name === 'DISPLAY') {
+      displayPage(f, () => render(cur, 0));
     } else if (name === 'PICTURE') {
       picturePage(f);
     } else if (name === 'INTERFACE') {
@@ -436,6 +441,13 @@ export const CONTROLS: [string, string][] = [
   [', (comma)', 'whistle (hold: shout)'], ['. (period)', 'emote wheel'], ['T (hold)', 'talk (co-op voice)'], ['Enter', 'chat (co-op)'], ['Esc', 'close · pause'],
   ['Build kit in hand', 'build mode: R turn · [ ] piece · Tab shelf · U upgrade · Delete take down'],
 ];
+/** what the rebinding list does not cover: the mouse and the keys other screens own */
+export const FIXED_CONTROLS: [string, string][] = [
+  ['Right mouse', 'everything you can do to it'], ['Right mouse (hold)', 'grab · push · pull'], ['Left mouse', 'use what is in hand · attack (hold to charge)'],
+  ['U', 'the second thing in reach'], ['O', 'inspect yourself'], ['J', 'Dr. Calder\'s task board'], ['M', 'map'], ['Tab', 'wrist terminal'], ['L', 'resync the link'], ['P', 'photo mode'],
+  ['Mouse wheel', 'zoom'], ['Middle mouse / Alt+drag', 'orbit the camera'], ['PageUp / PageDown', 'camera pitch'], ['F11 · Alt+Enter', 'fullscreen'],
+  ['Build kit in hand', 'R turn · [ ] piece · Tab shelf · U upgrade · Delete take down'],
+];
 export const TOUCH_CONTROLS: [string, string][] = [
   ['Stick', 'move · push fully or double-tap to run'], ['Tap a floating name', 'do what it says (tap a small verb under it for the others)'], ['Tap', 'act on a thing · walk to a spot'], ['Hold', 'grab it · its other verbs'],
   ['CROUCH · CRAWL · VAULT', 'crouch (running: slide) · down flat · over what is in front'],
@@ -445,7 +457,10 @@ export const TOUCH_CONTROLS: [string, string][] = [
 export const MENU_CONTROLS: [string, string][] = [['↑ ↓ ← →', 'move the cursor'], ['Enter', 'select'], ['Esc', 'back'], ['Q / E', 'switch tabs'], ['Gamepad', 'd-pad, A select, B back, LB/RB tabs']];
 export function controlsPanel(): HTMLElement {
   const box = h('div', 't-controls');
-  for (const [k, v] of CONTROLS) box.append(h('div', 't-ctl', `<kbd>${esc(k)}</kbd><span>${esc(v)}</span>`));
+  // round 23: the keys are rebindable (src/ui/menus/display.ts); the fixed keys and the mouse follow
+  box.append(rebindPanel());
+  box.append(h('div', 't-ctl-h', 'FIXED'));
+  for (const [k, v] of FIXED_CONTROLS) box.append(h('div', 't-ctl', `<kbd>${esc(k)}</kbd><span>${esc(v)}</span>`));
   box.append(h('div', 't-ctl-h', 'TOUCH'));
   for (const [k, v] of TOUCH_CONTROLS) box.append(h('div', 't-ctl', `<kbd>${esc(k)}</kbd><span>${esc(v)}</span>`));
   box.append(h('div', 't-ctl-h', 'MENUS'));

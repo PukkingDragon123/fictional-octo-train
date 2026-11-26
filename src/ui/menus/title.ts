@@ -56,6 +56,8 @@ import { currentGuide } from './guide/guide';
 import { flag } from './deco/store';
 import { isLoading } from '../loading';
 import { built, onLab } from './lab/stations';
+import { creditsPanel } from './credits';
+import { isDesktop, desktopQuit } from '../../platform/desktop';
 import { fundTag } from './lab/fund';
 import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePanel, type PanelHost } from './research/panel';
 import * as THREE from 'three';
@@ -428,6 +430,8 @@ class TitleRoom {
     if (this.saves.length) items.push({ key: 'load', label: 'Case files', sub: `${this.saves.length} unit${this.saves.length === 1 ? '' : 's'} on file`, act: () => this.loads(), size: pt ? 'sm' : 'md' });
     items.push({ key: 'controls', label: 'Controls', sub: 'keys · touch · gamepad', act: () => this.controls(), size: pt ? 'sm' : 'md' });
     items.push({ key: 'about', label: 'About', sub: 'what this place is', act: () => this.about(), size: pt ? 'sm' : 'md' });
+    // the desktop build: a clean way back to the desktop (everything is already saved)
+    if (isDesktop()) items.push({ key: 'quit', label: 'Quit', sub: 'back to the desktop', act: () => desktopQuit(), size: pt ? 'sm' : 'md' });
     // a rebuild (the saves came in) keeps the console's housing and its little things: only the keys are replaced
     for (const c of [...this.menu.children]) if (!c.matches('.mxf-cv, .mxd, .tt-pro')) c.remove();
     this.menu.classList.add('ft-menu');
@@ -436,7 +440,7 @@ class TitleRoom {
     // round 21: the way in stays a worded key; the rest are square keys three to a row, each with its little
     // model turning on the cap and its name floating beside it only while hot
     let row: HTMLElement | null = null;
-    const TITLE_3D: Record<string, IconKind> = { free: 'reel', coop: 'walkie', load: 'clipboard', controls: 'joystick', about: 'dossier' };
+    const TITLE_3D: Record<string, IconKind> = { free: 'reel', coop: 'walkie', load: 'clipboard', controls: 'joystick', about: 'dossier', quit: 'door' };
     items.forEach((it, i) => {
       if (mxOk() && TITLE_3D[it.key]) {
         const k = iconKey(TITLE_3D[it.key], it.label, () => this.activate(it), { model: pt ? 40 : 46, sound: 'key', cls: 'ft-item tt-ik', aria: `${it.label} — ${it.sub}` });
@@ -828,11 +832,7 @@ class TitleRoom {
   }
   controls() { this.openOver(controlsPanel(), 'Controls', ''); }
   about() {
-    const note = h('div', 'tt3-about', `
-<p>A survival sandbox. You are an operator at the Meridian Institute of Liminality. In the chair beside the link rig sits a unit: a debtor whose body you take over, with a shock, and walk through a wall that turns to liquid, into rooms that never end.</p>
-<p>A band on the unit's wrist counts what it owes. Dr. Iris Calder talks you through the job: carry the furniture to the presses, find the data, scan the inhabitants. Pay the debt, buy a way out. Or don't.</p>
-<p>This booth watches three rooms. The codex archive, where every file is pulled and projected. The control room, where the main computer holds the research tree and the benches process the samples you bring back. Unit room 4, where the next unit is shaped, dressed and fitted with chips and limbs. Click a monitor, or press 1, 2 or 3.</p>
-<p class="ct-dim">Inspired by the systemic survival of <i>Project Zomboid</i>, the 2019 "noclip" creepypasta, liminal-space photography and VHS-era found footage. All names, places, creatures and story here are original. Built with three.js. Type: Alagard (SIL Open Font License). Every texture, model, sound and pixel is generated in code.</p>`);
+    const note = creditsPanel();
     this.openOver(note, 'About', '');
   }
 
@@ -918,7 +918,8 @@ class TitleRoom {
     const remember = () => { try { localStorage.setItem('noclip.server', srv.value.trim()); } catch { /* ignore */ } };
     const lbl = (t: string) => h('div', 'tt3-lbl', esc(t));
     box.append(lbl('Exchange (relay server)'), srv);
-    box.append(h('p', 'ct-dim tt3-small', 'Co-op runs through a relay (<code>npm start</code> in the project folder serves the game and the relay on port 8787). Everyone dials the same exchange. Up to 8 units.'));
+    if (!import.meta.env.VITE_DESKTOP) box.append(h('p', 'ct-dim tt3-small', 'Co-op runs through a relay (<code>npm start</code> in the project folder serves the game and the relay on port 8787). Everyone dials the same exchange. Up to 8 units.'));
+    if (import.meta.env.VITE_DESKTOP) box.append(h('p', 'ct-dim tt3-small', 'Co-op is the only part of the game that uses the network: it connects to the relay you type here and nothing else. Single player never goes online.'));
     if (import.meta.env.VITE_SANDBOXED) box.append(h('p', 'ct-warn tt3-small', 'This copy runs in a sandboxed page that cannot open network connections, so co-op is unavailable here. Run the project with <code>npm start</code> to play together.'));
     const cols = h('div', 'tt3-cols');
     const hostBox = h('div', 'tt3-col', '<h4>Open a line · host</h4>');

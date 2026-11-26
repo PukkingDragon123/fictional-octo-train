@@ -17,6 +17,7 @@ import { U } from '../../gfx/materials';
 import { SPOTU } from '../../gfx/postfx';
 import { bitText } from '../../gfx/bitfont';
 import { drawPortrait } from '../../entities/portrait';
+import { drawPrint, whenPrint } from '../../gfx/prints';
 import { facetMats, disposeFacetMats, plateTex, type FMats, type FKey } from '../menus/scene/pixtex';
 import { FacetBuilder, at, cbox, prism, lathe, extrude, tube, band, gem, bolt, hull, jitter } from '../menus/scene/facet';
 import { makePost } from '../menus/scene/post';
@@ -306,8 +307,18 @@ export class ObsRoom {
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const c = cv.getContext('2d')!;
     const r = seeded(77);
+    // the board itself is a real pin-board photograph (gfx/prints.ts); speckled cork stands in until it is in
     const cork = ['#5a3c22', '#6e4a2a', '#7e5834', '#8e6a40', '#4a301c'];
     for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) { c.fillStyle = cork[Math.floor(r() * r() * 5)]; c.fillRect(xx, yy, 1, 1); }
+    if (!drawPrint(c, 0, 0, W, H, 'board')) whenPrint('board', () => {
+      // under what is pinned: only the bare board shows through where nothing sits
+      const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+      const tc = tmp.getContext('2d')!; drawPrint(tc, 0, 0, W, H, 'board');
+      const cur = c.getImageData(0, 0, W, H), bd = tc.getImageData(0, 0, W, H);
+      for (let i = 0; i < W * H; i++) if (corkPx[i]) for (let k = 0; k < 3; k++) cur.data[i * 4 + k] = bd.data[i * 4 + k];
+      c.putImageData(cur, 0, 0);
+      if (texRef) texRef.needsUpdate = true;
+    });
     c.fillStyle = '#2a1a0e'; c.fillRect(0, 0, W, 2); c.fillRect(0, H - 2, W, 2); c.fillRect(0, 0, 2, H); c.fillRect(W - 2, 0, 2, H);
     c.fillStyle = '#9a7a4a'; c.fillRect(2, 2, W - 4, 1);
     // header on a strip of masking tape
@@ -333,6 +344,9 @@ export class ObsRoom {
     c.fillStyle = '#a01810';
     const link = (a: number, b2: number) => { const [ax, ay] = photos[a], [bx, by] = photos[b2]; const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay)); for (let k = 0; k <= n; k++) c.fillRect(Math.round(ax + 9 + (bx - ax) * k / n), Math.round(ay + (by - ay) * k / n + Math.sin(k / n * Math.PI) * 3), 1, 1); };
     link(1, 8); link(8, 4); link(3, 10);
+    // which pixels are still bare board (for the late board print)
+    const snap = c.getImageData(0, 0, W, H).data, corkPx = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) { const R = snap[i * 4], G = snap[i * 4 + 1], B = snap[i * 4 + 2]; corkPx[i] = cork.some((h) => parseInt(h.slice(1, 3), 16) === R && parseInt(h.slice(3, 5), 16) === G && parseInt(h.slice(5, 7), 16) === B) ? 1 : 0; }
     const tex = new THREE.CanvasTexture(cv);
     tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace;
     this.texs.push(tex);

@@ -2,7 +2,7 @@
   "name": "noclip",
   "version": "0.1.0",
   "private": true,
-  "description": "NOCLIP — an isometric low-poly pixel-art survival sandbox set inside a liminal, collapsing simulation.",
+  "description": "NOCLIP \u2014 an isometric low-poly pixel-art survival sandbox set inside a liminal, collapsing simulation.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,15 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p .",
     "server": "node server/server.mjs",
-    "start": "npm run build && node server/server.mjs"
+    "start": "npm run build && node server/server.mjs",
+    "desktop": "cd desktop && npm install --no-audit --no-fund",
+    "desktop:dev": "VITE_DESKTOP=1 npx vite build --outDir desktop/game --emptyOutDir && cd desktop && npx electron . --dev-tools",
+    "steam": "node scripts/steam.mjs win linux",
+    "steam:linux": "node scripts/steam.mjs linux",
+    "steam:win": "node scripts/steam.mjs win",
+    "steam:mac": "node scripts/steam.mjs mac",
+    "steam:all": "node scripts/steam.mjs win linux mac --zip",
+    "steam:achievements": "node scripts/steam-ach.mjs"
   },
   "dependencies": {
     "three": "0.186.1",

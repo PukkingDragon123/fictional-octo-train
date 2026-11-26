@@ -1,0 +1,31 @@
+api_name,display_name,description,hidden,icon,icon_gray
+ACH_FIRST_LINK,"First Link","Link into your first unit and walk it through the wall.",0,ach_first_link.jpg,ach_first_link_gray.jpg
+ACH_DEAD_AIR,"Dead Air","Answer Dr. Calder's first signal.",0,ach_dead_air.jpg,ach_dead_air_gray.jpg
+ACH_FIRST_CRAFT,"Bench Work","Craft your first item.",0,ach_first_craft.jpg,ach_first_craft_gray.jpg
+ACH_FIRST_SCAN,"First Look","Scan your first inhabitant.",0,ach_first_scan.jpg,ach_first_scan_gray.jpg
+ACH_CENSUS,"Complete Census","Scan every inhabitant on file.",0,ach_census.jpg,ach_census_gray.jpg
+ACH_CUSTODY,"Chain of Custody","Bring a sample back to the lab.",0,ach_custody.jpg,ach_custody_gray.jpg
+ACH_UNIT_LOST,"Unit Lost","Lose your first unit.",0,ach_unit_lost.jpg,ach_unit_lost_gray.jpg
+ACH_CLONE_REVIVE,"Spare Body","Walk out of the clone vat after a death.",0,ach_clone_revive.jpg,ach_clone_revive_gray.jpg
+ACH_LAB_FIRST,"Facilities Management","Build your first lab station.",0,ach_lab_first.jpg,ach_lab_first_gray.jpg
+ACH_LAB_ARCHIVE,"Records Office","Build the codex archive.",0,ach_lab_archive.jpg,ach_lab_archive_gray.jpg
+ACH_LAB_LATTICE,"Lattice Work","Build the research lattice.",0,ach_lab_lattice.jpg,ach_lab_lattice_gray.jpg
+ACH_LAB_FRIDGE,"Cold Chain","Build the sample fridge.",0,ach_lab_fridge.jpg,ach_lab_fridge_gray.jpg
+ACH_LAB_TALENT,"Gifted","Build the talent bench.",0,ach_lab_talent.jpg,ach_lab_talent_gray.jpg
+ACH_LAB_PRINTER,"Print Shop","Build the filament maker and the printer.",0,ach_lab_printer.jpg,ach_lab_printer_gray.jpg
+ACH_LAB_CLONE,"Vat Grown","Build the clone vat.",0,ach_lab_clone.jpg,ach_lab_clone_gray.jpg
+ACH_LAB_ALL,"Fully Equipped","Build every station in the lab.",0,ach_lab_all.jpg,ach_lab_all_gray.jpg
+ACH_RESEARCH,"Grant Approved","Research your first node on the lattice.",0,ach_research.jpg,ach_research_gray.jpg
+ACH_CODEX,"Peer Reviewed","Research a codex entry to 100%.",0,ach_codex.jpg,ach_codex_gray.jpg
+ACH_BUILD,"Squatter's Rights","Weld your first piece of a camp in the backrooms.",0,ach_build.jpg,ach_build_gray.jpg
+ACH_UPGRADE,"Home Improvement","Upgrade a piece of your camp.",0,ach_upgrade.jpg,ach_upgrade_gray.jpg
+ACH_HARVEST,"Grow Op","Harvest a crop you planted.",0,ach_harvest.jpg,ach_harvest_gray.jpg
+ACH_COOK,"Staff Canteen","Cook and plate a dish.",0,ach_cook.jpg,ach_cook_gray.jpg
+ACH_TAME,"Pet Policy","Tame an inhabitant.",0,ach_tame.jpg,ach_tame_gray.jpg
+ACH_SURGEON,"Field Surgeon","Stitch a wound shut.",0,ach_surgeon.jpg,ach_surgeon_gray.jpg
+ACH_JACKPOT,"Jackpot","Hit a jackpot at the Remittance Press.",0,ach_jackpot.jpg,ach_jackpot_gray.jpg
+ACH_PAID,"Paid in Full","Clear a unit's debt.",0,ach_paid.jpg,ach_paid_gray.jpg
+ACH_WAY_OUT,"Way Out","End a run alive.",0,ach_way_out.jpg,ach_way_out_gray.jpg
+ACH_FACILITY,"Off the Map","Find a hidden facility.",1,ach_facility.jpg,ach_facility_gray.jpg
+ACH_NOISE,"Noise Complaint","Kill a Driller.",1,ach_noise.jpg,ach_noise_gray.jpg
+ACH_HR,"HR-Compliant","Survive two days without killing anything.",0,ach_hr.jpg,ach_hr_gray.jpg

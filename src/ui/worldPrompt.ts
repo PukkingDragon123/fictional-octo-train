@@ -15,6 +15,15 @@ import './worldPrompt.css';
 import * as THREE from 'three';
 import { G } from '../game/G';
 import type { CtxAction, V3 } from './hotbar/context';
+import { inputDevice, padGlyph } from '../core/gamepad';
+import { keyLabel, type Action } from '../core/input';
+
+/** a printed key cap ("E", "G") as the controller button bound to the same action, while the pad is in use */
+function padFor(k: string): string {
+  const b = G.input?.bindings as Record<Action, string[]> | undefined;
+  if (b) for (const a of Object.keys(b) as Action[]) if (b[a].some((c) => keyLabel(c).toUpperCase() === k.toUpperCase())) { const g = padGlyph(a); if (g) return g; }
+  return KEYCAP[k] ?? k;
+}
 
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 const KEYCAP: Record<string, string> = { Space: 'Space', Shift: 'Shift' };
@@ -114,9 +123,9 @@ export class WorldPrompt {
 
   // ------------------------------------------------------------------ drawing
   private sigOf(acts: CtxAction[], prim: boolean) {
-    return (this.touch ? 'T' : 'D') + (prim ? 'p' : 'd') + acts.map((a) => a.id + '|' + a.key + '|' + (a.head ?? a.label) + '|' + (a.name ?? '') + '|' + (a.why ?? '')).join('/');
+    return (this.touch ? 'T' : inputDevice() === 'pad' ? 'P' : 'D') + (prim ? 'p' : 'd') + acts.map((a) => a.id + '|' + a.key + '|' + (a.head ?? a.label) + '|' + (a.name ?? '') + '|' + (a.why ?? '')).join('/');
   }
-  private keyCap(k: string) { return this.touch || !k ? '' : `<b class="wp-key">[${esc(KEYCAP[k] ?? k)}]</b>`; }
+  private keyCap(k: string) { return this.touch || !k ? '' : `<b class="wp-key">[${esc(inputDevice() === 'pad' ? padFor(k) : KEYCAP[k] ?? k)}]</b>`; }
   private html(acts: CtxAction[], prim: boolean): string {
     const a = acts[0];
     const verb = a.head ?? a.label, name = a.name ?? '';

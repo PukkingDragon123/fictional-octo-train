@@ -107,9 +107,21 @@ export class TextureAtlas {
   hdOf(r: AtlasRect): HdRect | null {
     if (r.hd !== undefined) return r.hd;
     r.hd = null;
-    if (!this.hdEnabled || !HD_RULE.test(r.name)) return null;
+    const src = this.hdSrc.get(r.name);
+    if (!this.hdEnabled || (!src && !HD_RULE.test(r.name))) return null;
     const hdA = (this.hdAtlas ??= new HdAtlas());
     if (hdA.full) return null;
+    if (src) {
+      // a close-up drawn from its own high-resolution source (a printed photograph, gfx/prints.ts) at 4x
+      const W = r.w * 4, H = r.h * 4, big = src(W, H);
+      if (!big) { r.hd = undefined; return null; }
+      const pos = hdA.alloc(W, H);
+      if (!pos) return null;
+      hdA.write(big, W, H, pos[0], pos[1]);
+      const N = hdA.size;
+      r.hd = { u0: pos[0] / N, v0: pos[1] / N, du: W / N, dv: H / N, s: 4 };
+      return r.hd;
+    }
     const px = this.pixelsOf(r);
     for (let i = 3; i < px.length; i += 4) if (px[i] < 250) return null;      // cut-outs keep the base texture
     const S: 2 | 4 = r.w * r.h > 4096 ? 2 : 4;
@@ -153,6 +165,10 @@ export class TextureAtlas {
     ctx.putImageData(img, 0, 0);
     return this.dbgCanvas;
   }
+
+  /** close-up sources: textures whose 4x version comes from real high-resolution art, not the upscaler */
+  private hdSrc = new Map<string, (w: number, h: number) => Uint8Array | null>();
+  hdSource(name: string, src: (w: number, h: number) => Uint8Array | null) { this.hdSrc.set(name, src); }
 
   add(name: string, w: number, h: number, draw: TexDraw, mw?: number, mh?: number) {
     const p = { name, w, h, draw, mw, mh };
@@ -224,7 +240,11 @@ export class TextureAtlas {
     // animated textures keep their close-up version in step (same place in the hd atlas)
     const nr = this.rects.get(name)!;
     nr.hd = hd;
-    if (hd && this.hdAtlas) {
+    const hs = this.hdSrc.get(name);
+    if (hd && this.hdAtlas && hs) {
+      const N = this.hdAtlas.size, big = hs(nr.w * 4, nr.h * 4);
+      if (big) this.hdAtlas.write(big, nr.w * 4, nr.h * 4, Math.round(hd.u0 * N), Math.round(hd.v0 * N));
+    } else if (hd && this.hdAtlas) {
       const N = this.hdAtlas.size;
       this.hdAtlas.write(paintHd(this.pixelsOf(nr), nr.w, nr.h, name, hd.s as 2 | 4), nr.w * hd.s, nr.h * hd.s, Math.round(hd.u0 * N), Math.round(hd.v0 * N));
     }

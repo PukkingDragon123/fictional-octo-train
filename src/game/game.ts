@@ -21,6 +21,8 @@ import { CameraController } from './camera';
 import { SceneFx } from '../gfx/scenefx';
 import { gfxSettings } from '../ui/menus/common';
 import { timeScale } from '../gfx/juice';
+import { fpsCap } from '../gfx/frameCap';
+import { setPadAim, setPadMenuCheck } from '../core/gamepad';
 
 export interface GameSystem {
   name: string;
@@ -157,6 +159,14 @@ export class Game {
     setGame(this);
     this.pr = new PixelRenderer(canvas);
     this.input = new Input(canvas);
+    // the backpack and the item panel read the pad themselves (a cursor on the stick)
+    setPadMenuCheck(() => !!(this.ui as { inventory?: { open?: boolean } } | undefined)?.inventory?.open || !!document.querySelector('.ipnl'));
+    // the controller's right stick aims three metres out from the unit, in the camera's frame
+    setPadAim((rx, ry) => {
+      const p = this.local; if (!p) return null;
+      const yaw = this.pr.yaw;
+      return { x: p.x + (-Math.sin(yaw) * ry + Math.cos(yaw) * rx) * 3, z: p.z + (-Math.cos(yaw) * ry - Math.sin(yaw) * rx) * 3 };
+    });
     atlas().flush();
     const s = this.pr.scene;
     s.add(this.ambient); s.add(this.hemi); s.add(this.sun); s.add(this.sun.target);
@@ -286,8 +296,11 @@ export class Game {
   // ---------------- main loop ----------------
   start() {
     let last = performance.now();
+    // the frame cap (Settings > Display, src/ui/menus/display.ts): a frame is skipped until its slot comes round
     const frame = () => {
       const now = performance.now();
+      const cap = fpsCap();
+      if (cap > 0 && now - last < 1000 / cap - 1.5) { requestAnimationFrame(frame); return; }
       const dt = Math.min(0.05, (now - last) / 1000) * timeScale();
       last = now;
       try { this.step(dt); } catch (e) { console.error(e); }
@@ -303,6 +316,7 @@ export class Game {
   step(dt: number) {
     this.dt = dt;
     const tStart = performance.now();
+    this.input.beginFrame();
     this.time += dt;
     U.uTime.value = this.time;
     const sim = !this.paused;

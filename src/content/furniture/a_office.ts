@@ -7,6 +7,7 @@ import {
 } from './a_lib';
 import type { ModelBuilder } from './a_lib';
 import { blitPortrait, atlasRepaint } from '../../entities/portrait';
+import { blitPrint, printRGBA, type PrintKey } from '../../gfx/prints';
 
 const T = (...t: string[]) => ['setA', ...t];
 const scrOn = (s: any) => !(s.on === false || s.broken || s.unpowered);
@@ -202,8 +203,13 @@ addTextureModule(() => {
     // gloss streaks
     for (let k = 0; k < 2; k++) for (let i = 0; i < 26; i++) { pc.blend(8 + k * 22 + i, 30 - i, 0xffffff, 0.28); pc.blend(9 + k * 22 + i, 30 - i, 0xffffff, 0.14); }
   });
+  // the notice board and the posters are real photographs printed in the institute's look (gfx/prints.ts); the
+  // drawn versions below stand in for the moment until the print sheet is in
+  const printed = (name: string, key: PrintKey) => A.hdSource(name, (w, h) => printRGBA(key, w, h));
+  printed('p_corkboard', 'cork');
   A.add('p_corkboard', 26, 19, (pc, rng) => {
     pc.wrap = false;
+    if (blitPrint(pc, 0, 0, 26, 19, 'cork', atlasRepaint('p_corkboard'))) return;
     const C = makeRamp(0xb08654, 6, { hueShift: 0.03 });
     pc.fillRamp(C, (x, y) => 0.5 + (ph(x, y, 13) - 0.5) * 0.5 + (tileFbm(x, y, 32, 32, 4, 2, 4) - 0.5) * 0.3, 1);
     pc.speckle(rng, [C[0], C[1]], 0.06);
@@ -313,7 +319,18 @@ addTextureModule(() => {
   });
 
   // ---------- posters (22x30)
+  for (const k of ['specimen', 'crossing'] as const) {
+    printed('p_poster_' + k, ('poster_' + k) as PrintKey);
+    A.add('p_poster_' + k, 22, 30, (pc) => {
+      pc.wrap = false;
+      if (blitPrint(pc, 0, 0, 22, 30, ('poster_' + k) as PrintKey, atlasRepaint('p_poster_' + k))) return;
+      pc.fill(k === 'crossing' ? 0x1e2416 : 0xe6dcbc); pc.rect(2, 4, 18, 18, k === 'crossing' ? 0x56603c : 0x8a7e60);
+    });
+  }
+  printed('p_poster_focus', 'poster_focus');
   A.add('p_poster_focus', 22, 30, (pc) => {
+    pc.wrap = false;
+    if (blitPrint(pc, 0, 0, 22, 30, 'poster_focus', atlasRepaint('p_poster_focus'))) return;
     pc.wrap = false;
     pc.fill(0x101012);
     fillR(pc, 2, 2, 18, 15, [0x3a2a5a, 0x7a3a6a, 0xc0546a, 0xe88a5a, 0xf4c46a], (x, y) => 1 - y / 15 * 0.95 + (ph(x, y, 4) - 0.5) * 0.08, 1);
@@ -323,7 +340,10 @@ addTextureModule(() => {
     txtC(pc, 'FOCUS', 11, 20, 0xf0ece0);
     scribble(pc, 4, 27, 14, 1, 0x8a8a90, 8);
   });
+  printed('p_poster_missing', 'poster_missing');
   A.add('p_poster_missing', 22, 30, (pc, rng) => {
+    pc.wrap = false;
+    if (blitPrint(pc, 0, 0, 22, 30, 'poster_missing', atlasRepaint('p_poster_missing'))) return;
     pc.wrap = false;
     const P = makeRamp(0xe8e2c8, 4, { spread: 0.2 });
     pc.fillRamp(P, (x, y) => 0.6 + (ph(x, y, 8) - 0.5) * 0.2 - (y > 25 ? 0.1 : 0), 1);
@@ -339,7 +359,10 @@ addTextureModule(() => {
     pc.grime(0x8a7a50, 0.5, 3, 5, 0.6);
     void rng;
   });
+  printed('p_poster_calm', 'poster_calm');
   A.add('p_poster_calm', 22, 30, (pc) => {
+    pc.wrap = false;
+    if (blitPrint(pc, 0, 0, 22, 30, 'poster_calm', atlasRepaint('p_poster_calm'))) return;
     pc.wrap = false;
     pc.fill(0xf0c828);
     for (let y = 0; y < 30; y++) for (let x = 0; x < 22; x++) {
@@ -352,7 +375,10 @@ addTextureModule(() => {
     pc.vline(10, 24, 25, 0x141414); pc.vline(12, 24, 25, 0x141414);
     pc.hline(3, 18, 17, 0xc8a018);
   });
+  printed('p_poster_kind', 'poster_kind');
   A.add('p_poster_kind', 22, 30, (pc) => {
+    pc.wrap = false;
+    if (blitPrint(pc, 0, 0, 22, 30, 'poster_kind', atlasRepaint('p_poster_kind'))) return;
     pc.wrap = false;
     pc.fill(0xf8e0e8);
     const bands = [0xf4a0a8, 0xf8c898, 0xf8ec9c, 0xb4e4a8, 0xa8d0f0, 0xc8b0e8];
@@ -909,13 +935,13 @@ defObj({
   },
 });
 
-const POSTERS = ['p_poster_focus', 'p_poster_missing', 'p_poster_calm', 'p_poster_kind'];
+const POSTERS = ['p_poster_focus', 'p_poster_missing', 'p_poster_calm', 'p_poster_kind', 'p_poster_specimen', 'p_poster_crossing'];
 defObj({
   key: 'poster', name: 'Poster', height: 1.95, block: 'none', onWall: true, movable: 0.2,
   sound: 'paper', flammable: 1, tags: T('office', 'school', 'poster', 'wall', 'decor'),
-  variant: (s) => 'v' + (Math.abs(Math.floor(s.v ?? 0)) % 4),
+  variant: (s) => 'v' + (Math.abs(Math.floor(s.v ?? 0)) % POSTERS.length),
   model: (mb, s) => {
-    const v = Math.abs(Math.floor(s.v ?? 0)) % 4;
+    const v = Math.abs(Math.floor(s.v ?? 0)) % POSTERS.length;
     const W = 0.69, H = 0.94, y0 = 1.0;
     mb.box(0, y0, WZ + 0.004, W, H, 0.006, { south: POSTERS[v], all: 'paper' }, { fit: { south: true } });
     const tape = v === 1 ? 'metal_grey' : 'paper';

@@ -4,6 +4,7 @@
 // (gamepad B) goes back, Q/E (gamepad LB/RB) switch tabs. Keys a FocusNav
 // handles never reach the game's own input.
 import { sfx } from './sfx';
+import { setPadMenuCheck } from '../../core/gamepad';
 
 export interface NavOpts {
   onBack?: () => void;
@@ -102,6 +103,9 @@ function top(): FocusNav | null {
   return null;
 }
 
+// while a (non-passive) menu has the focus, the pad drives the menu, not the unit (src/core/gamepad.ts)
+setPadMenuCheck(() => { const n = top(); return !!n && !n.opts.passive; });
+
 let hooked = false;
 function ensureListeners() {
   if (hooked) return;
@@ -111,7 +115,12 @@ function ensureListeners() {
   try { if ([...(navigator.getGamepads?.() || [])].some(Boolean)) startPad(); } catch { /* no gamepad api */ }
 }
 
+/** a screen that wants the very next key itself (the Controls page while a binding listens): menus stay out of it */
+let hold: ((e: KeyboardEvent) => void) | null = null;
+export function navHoldKeys(fn: ((e: KeyboardEvent) => void) | null) { hold = fn; ensureListeners(); }
+
 function onKey(e: KeyboardEvent) {
+  if (hold) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); hold(e); return; }
   const n = top();
   if (!n) return;
   const t = e.target as HTMLElement | null;

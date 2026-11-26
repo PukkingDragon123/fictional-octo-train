@@ -1,3 +1,4 @@
+import './platform/boot';
 import './ui/fonts.css';
 import { registerContent } from './content/index';
 import { bootLoader, loaderStage } from './ui/loading';

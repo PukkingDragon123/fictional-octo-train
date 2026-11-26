@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { DecoBuilder, type DMats, at, along, cbox, prism, lathe, extrude, ngon, tube, hull, jitter, printMat, paintPix, makeRamp } from './kit';
 import { ball, limb, knob, leafGeo, labelCanvas, Glint, Spring, scaled, type DecoModel, type V3 } from './parts';
 import { bitText, bitMeasure, INK } from '../../../gfx/bitfont';
+import { drawPrint } from '../../../gfx/prints';
 
 /** give a built group's glow mesh its own material (so it can flicker alone) */
 function ownGlow(g: THREE.Group): THREE.MeshBasicMaterial | null {
@@ -112,6 +113,8 @@ export function decoPoster(mats: DMats): DecoModel {
     const t = 'SPECIMEN 02';
     bitText(ctx, t, 48 - Math.round(bitMeasure(t) / 2), 4, { color: '#2a2018', outline: null });
     bitText(ctx, 'cowerling', 48 - Math.round(bitMeasure('cowerling') / 2), 18, { color: '#7a2a20', outline: null });
+    // the real plate: a render of the inhabitant printed as a specimen plate (gfx/prints.ts); the drawn one stands in till then
+    drawPrint(ctx, 0, 0, 96, 128, 'anatomy', () => { drawPrint(ctx, 0, 0, 96, 128, 'anatomy'); const m = art as THREE.MeshStandardMaterial; if (m.map) m.map.needsUpdate = true; });
     return cv;
   }, { rough: 0.85 });
   // the frame (four mitred bars), the print behind glass, a foot block; leaning back on the wall

@@ -17,6 +17,7 @@ import { bitText, bitMeasure, bitIsReady, bitReady } from '../../../gfx/bitfont'
 import type { SinRank } from '../../../creatures/lore';
 import { RANK_INFO } from '../../../creatures/lore';
 import { drawPortrait } from '../../../entities/portrait';
+import { drawPrint, type PrintKey } from '../../../gfx/prints';
 import { drawEmblemMono } from '../../brand/logo';
 
 export const RANK_COL: Record<SinRank, number> = { sloth: 0x7a9a86, gluttony: 0xb08a3a, lust: 0xc85a86, greed: 0xd8b02a, envy: 0x3aa860, wrath: 0xc8321e, pride: 0x7a4ab8 };
@@ -212,7 +213,7 @@ export function signTex(kind: SignKind): THREE.CanvasTexture {
       case 'decon': { g(cx - 12, icy - 14, 24, 3); g(cx - 2, icy - 20, 4, 6); for (let i = 0; i < 7; i++) for (let k = 0; k < 4; k++) g(cx - 11 + i * 4, icy - 8 + k * 5 + (i % 2) * 2, 1, 3); g(cx - 4, icy + 12, 8, 2); break; }
       case 'breath': { for (let y = -10; y <= 10; y++) for (let x = -12; x <= 12; x++) { const d = Math.hypot(x / 12, y / 10); if (d <= 1 && d > 0.78) g(cx + x, icy + y); } g(cx - 4, icy + 2, 8, 6); for (const s of [-1, 1]) for (let y = -4; y <= 4; y++) for (let x = -4; x <= 4; x++) if (Math.hypot(x, y) <= 4) g(cx + s * 13 + x, icy + 6 + y); break; }
       case 'look': case 'touch': case 'auth': {
-        if (kind === 'look') { for (let x = -16; x <= 16; x++) { const y = Math.round(9 * (1 - (x / 16) ** 2)); g(cx + x, icy - y, 1, 2); g(cx + x, icy + y - 1, 1, 2); } for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (Math.hypot(x, y) <= 5) g(cx + x, icy + y); R_(c, cx - 1, icy - 4, 1, 2, '#f4efe2'); }
+        if (kind === 'look') { for (let y = -12; y <= 12; y++) for (let x = -12; x <= 12; x++) { const d = Math.hypot(x, y); if (d <= 11 && d >= 8) g(cx - 3 + x, icy - 3 + y); } for (let k = 0; k < 10; k++) g(cx + 5 + k, icy + 5 + k, 4, 4); R_(c, cx - 8, icy - 9, 3, 2, '#f4efe2'); }
         else if (kind === 'touch') { g(cx - 6, icy - 4, 13, 16); for (let i = 0; i < 4; i++) g(cx - 6 + i * 3 + (i > 1 ? 1 : 0), icy - 16 + (i === 0 || i === 3 ? 4 : 0), 2, 14); g(cx + 7, icy, 7, 3); }
         else { drawCrest(c, cx, icy, 16, ink); }
         for (let k = -20; k <= 20; k++) R_(c, cx + k - 1, icy + k - 1, 4, 3, '#c8261a');
@@ -464,7 +465,13 @@ export function evidenceTex(seed: number, W = 192, H = 120): THREE.CanvasTexture
     for (let i = 0; i < 11; i++) {
       const kind = R(), w = kind < 0.45 ? 22 : kind < 0.8 ? 26 : 30, h = kind < 0.45 ? 26 : kind < 0.8 ? 18 : 22;
       const x = 6 + R() * (W - w - 12), y = 6 + R() * (H - h - 12);
-      if (kind < 0.45) { // a photograph: white border, a grim grey print of somebody (a HumanRig render, entities/portrait.ts)
+      if (kind < 0.45 && i % 2 === 1) { // a field photograph: a real place (or an inhabitant in one), printed (gfx/prints.ts)
+        const pw = Math.min(w + 8, W - x - 3), phh = h - 4;
+        R_(c, x, y, pw, phh, '#ece8dc'); R_(c, x + 2, y + 2, pw - 4, phh - 7, '#4a4e44');
+        const sk = ('snap_' + ((seed * 3 + i) % 8)) as PrintKey;
+        drawPrint(c, x + 2, y + 2, pw - 4, phh - 7, sk, () => (t.userData.repaint as (() => void) | undefined)?.());
+        R_(c, x + 3, y + phh - 4, 10, 1, '#6a6458');
+      } else if (kind < 0.45) { // a photograph: white border, a grim grey print of somebody (a HumanRig render, entities/portrait.ts)
         R_(c, x, y, w, h, '#ece8dc'); R_(c, x + 2, y + 2, w - 4, h - 7, '#3a3e3a');
         for (let k = 0; k < 30; k++) R_(c, x + 2 + R() * (w - 4), y + 2 + R() * (h - 7), 2, 1, R() < 0.5 ? '#5a5e56' : '#2a2c28');
         drawPortrait(c, x + 2, y + 2, w - 4, h - 7, { seed: 320 + ((seed + i) % 7), outfit: i % 3 ? 'civilian' : 'jumpsuit', light: 'dim', frame: 'chest', tone: 'grey', bg: null }, () => (t.userData.repaint as (() => void) | undefined)?.());
@@ -492,7 +499,7 @@ export function evidenceTex(seed: number, W = 192, H = 120): THREE.CanvasTexture
 
 // ------------------------------------------------------------------ the redacted terminal
 const LINES = [
-  'ACCESS LEVEL 3 CONFIRMED', 'RETRIEVING FILE', 'SUBJECT', 'CONTAINMENT STATUS NOMINAL', 'CELL PRESSURE', 'OBSERVATION LOG', 'INCIDENT REPORT',
+  'ACCESS LEVEL 3 CONFIRMED', 'RETRIEVING FILE', 'UNIT FILE', 'CONTAINMENT STATUS NOMINAL', 'CELL PRESSURE', 'OBSERVATION LOG', 'INCIDENT REPORT',
   'UNIT RECOVERED', 'DO NOT RELEASE', 'PROTOCOL AMENDED BY', 'DR CALDER', 'FEEDING SCHEDULE', 'SPLITTING EVENT', 'MASS REDUCED', 'THE SEAM',
   'LEVEL 0 BREACH', 'TISSUE SAMPLE FILED', 'PERSONNEL LOST', 'AUDIO REMOVED', 'TRANSCRIPT FOLLOWS', 'SEE ADDENDUM', 'IT ASKED FOR', 'REASSIGNED',
 ];
