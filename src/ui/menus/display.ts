@@ -16,6 +16,7 @@ import { isDesktop, displayGet, displaySet, browserFullscreen, type DisplayInfo 
 import { DEFAULT_BINDINGS, REBINDABLE, RESERVED_KEYS, keyLabel, savedBindings, storeBindings, type Action } from '../../core/input';
 import { padGlyph, PAD_EXTRA } from '../../core/gamepad';
 import { floatIcon } from '../floatIcon';
+import { mxIcon } from '../machine/decor';
 import { navHoldKeys } from './nav';
 import './display.css';
 
@@ -141,7 +142,9 @@ export function rebindPanel(): HTMLElement {
     });
   };
 
-  const head = h('div', 'rb-row rb-head', '<span></span><span class="rb-col">⌨</span><span class="rb-col">⌨</span><span class="rb-col">◎</span>');
+  // the column heads are little models (a key, a key, the pad), no words
+  const head = h('div', 'rb-row rb-head', '<span></span>');
+  for (const k of ['key', 'key', 'joystick'] as const) { const c = h('span', 'rb-col'); const cv = mxIcon(k, 18); if (cv) c.append(cv); head.append(c); }
   box.append(head);
   for (const [a, name] of REBINDABLE) {
     const r = h('div', 'rb-row');

@@ -330,7 +330,7 @@ addTextureModule(() => {
   printed('p_poster_focus', 'poster_focus');
   A.add('p_poster_focus', 22, 30, (pc) => {
     pc.wrap = false;
-    if (blitPrint(pc, 0, 0, 22, 30, 'poster_focus', atlasRepaint('p_poster_focus'))) return;
+    if (blitPrint(pc, 0, 0, 22, 30, 'poster_focus', atlasRepaint('p_poster_focus'))) { pc.rect(1, 21, 20, 8, 0x3b4428); txtC(pc, 'FOCUS', 11, 22, 0xe8bc3a); return; }
     pc.wrap = false;
     pc.fill(0x101012);
     fillR(pc, 2, 2, 18, 15, [0x3a2a5a, 0x7a3a6a, 0xc0546a, 0xe88a5a, 0xf4c46a], (x, y) => 1 - y / 15 * 0.95 + (ph(x, y, 4) - 0.5) * 0.08, 1);
@@ -343,7 +343,12 @@ addTextureModule(() => {
   printed('p_poster_missing', 'poster_missing');
   A.add('p_poster_missing', 22, 30, (pc, rng) => {
     pc.wrap = false;
-    if (blitPrint(pc, 0, 0, 22, 30, 'poster_missing', atlasRepaint('p_poster_missing'))) return;
+    if (blitPrint(pc, 0, 0, 22, 30, 'poster_missing', atlasRepaint('p_poster_missing'))) {
+      pc.rect(0, 1, 22, 7, 0xece6d2);
+      let mx = 1;
+      for (const ch of 'MISSING') { if (ch === 'I') { for (let j = 0; j < 5; j++) pc.set(mx, 2 + j, 0x1a1414); mx += 2; } else { mx += txt(pc, ch, mx, 2, 0x1a1414) + 1; } }
+      return;
+    }
     pc.wrap = false;
     const P = makeRamp(0xe8e2c8, 4, { spread: 0.2 });
     pc.fillRamp(P, (x, y) => 0.6 + (ph(x, y, 8) - 0.5) * 0.2 - (y > 25 ? 0.1 : 0), 1);
@@ -362,7 +367,7 @@ addTextureModule(() => {
   printed('p_poster_calm', 'poster_calm');
   A.add('p_poster_calm', 22, 30, (pc) => {
     pc.wrap = false;
-    if (blitPrint(pc, 0, 0, 22, 30, 'poster_calm', atlasRepaint('p_poster_calm'))) return;
+    if (blitPrint(pc, 0, 0, 22, 30, 'poster_calm', atlasRepaint('p_poster_calm'))) { pc.rect(1, 16, 20, 12, 0xe8bc3a); txtC(pc, 'STAY', 11, 16, 0x141414); txtC(pc, 'CALM', 11, 22, 0x141414); return; }
     pc.wrap = false;
     pc.fill(0xf0c828);
     for (let y = 0; y < 30; y++) for (let x = 0; x < 22; x++) {
@@ -378,7 +383,7 @@ addTextureModule(() => {
   printed('p_poster_kind', 'poster_kind');
   A.add('p_poster_kind', 22, 30, (pc) => {
     pc.wrap = false;
-    if (blitPrint(pc, 0, 0, 22, 30, 'poster_kind', atlasRepaint('p_poster_kind'))) return;
+    if (blitPrint(pc, 0, 0, 22, 30, 'poster_kind', atlasRepaint('p_poster_kind'))) { pc.rect(0, 0, 22, 7, 0xf0e6cc); txtC(pc, 'KIND', 11, 1, 0x3b4428); return; }
     pc.wrap = false;
     pc.fill(0xf8e0e8);
     const bands = [0xf4a0a8, 0xf8c898, 0xf8ec9c, 0xb4e4a8, 0xa8d0f0, 0xc8b0e8];

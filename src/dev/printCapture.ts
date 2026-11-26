@@ -26,7 +26,7 @@ export function humanShot(o: { seed?: number; calder?: boolean; shirt?: number; 
   const w = o.w ?? 512, h = o.h ?? 768;
   const scene = new THREE.Scene(); lit(scene);
   const rig = o.calder ? createResearcher({ glasses: true, name: 'Dr. Iris Calder' }) : new HumanRig(stockLook(o.seed ?? 3), worldMaterial({ noVis: true, noFog: true, noGrid: true }), { secondary: true, hd: true });
-  if (!o.calder) rig.setOutfit({ torso: { tex: 'c_jumpsuit', color: o.shirt ?? 0xc87a2a, sleeve: 'long' } } as never);
+  if (!o.calder) rig.setOutfit({ torso: { tex: 'c_jumpsuit', color: o.shirt ?? 0xc87a2a, sleeve: 'long' }, legs: { tex: 'c_jumpsuit', color: o.shirt ?? 0xc87a2a }, feet: { tex: 'c_shoes_boot', color: 0x1c1a18 } } as never);
   scene.add(rig.root);
   if (o.expr) rig.setExpression(o.expr, 99);
   for (let i = 0; i < 4; i++) rig.update(1 / 30);

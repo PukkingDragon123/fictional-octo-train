@@ -61,8 +61,19 @@ export function printPixels(key: PrintKey, w: number, h: number): ImageData | nu
   const c = cv.getContext('2d', { willReadFrequently: true })!; c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
   c.drawImage(src, x, y, cw, ch, 0, 0, w, h);
   const d = c.getImageData(0, 0, w, h);
+  // tiny prints (atlas tiles) get a light sharpen so they read as pixel art, not a blur
+  if (w * h <= 64 * 64) sharpen(d, 0.55);
   cache.set(ck, d);
   return d;
+}
+
+function sharpen(d: ImageData, k: number) {
+  const { width: W, height: H, data: s } = d, src = new Uint8ClampedArray(s);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) for (let c = 0; c < 3; c++) {
+    const at = (xx: number, yy: number) => src[((Math.min(H - 1, Math.max(0, yy)) * W) + Math.min(W - 1, Math.max(0, xx))) * 4 + c];
+    const v = at(x, y), avg = (at(x - 1, y) + at(x + 1, y) + at(x, y - 1) + at(x, y + 1)) / 4;
+    s[(y * W + x) * 4 + c] = v + (v - avg) * k * 2;
+  }
 }
 
 /**

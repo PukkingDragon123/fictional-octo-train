@@ -37,7 +37,7 @@ CC0 needs no attribution; the authors are credited with thanks. Full table with 
 | Car Sound Effects Pack (Low Quality) | GGBotNet | <https://opengameart.org/content/car-sound-effects-pack-low-quality> |
 | Chain winch sounds | bart | <https://opengameart.org/content/chain-winch-sounds> |
 | Children voices | Yaroslav_Novikov | <https://opengameart.org/content/children-voices> |
-| Creaky Door Hinge Spooky | w.forster.1@gmail.com | <https://opengameart.org/content/creaky-door-hinge-spooky> |
+| Creaky Door Hinge Spooky | w.forster | <https://opengameart.org/content/creaky-door-hinge-spooky> |
 | Crickets Ambient Noise - loopable | Wolfgang_ | <https://opengameart.org/content/crickets-ambient-noise-loopable> |
 | Crowd Shouting/Speaking Ambience | StarNinjas | <https://opengameart.org/content/crowd-shoutingspeaking-ambience> |
 | Dark Ambiences | Ogrebane | <https://opengameart.org/content/dark-ambiences> |

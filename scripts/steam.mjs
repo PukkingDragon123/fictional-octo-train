@@ -6,7 +6,7 @@
 // Each folder is a SteamPipe content root (upload it as that OS's depot). The first run downloads the
 // Electron runtime for each target into the Electron cache; after that it works offline.
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync, readFileSync, copyFileSync, chmodSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, lstatSync, writeFileSync, readFileSync, copyFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -59,7 +59,7 @@ const require = createRequire(join(desk, 'package.json'));
 const { packager } = require('@electron/packager');
 const electronVersion = JSON.parse(readFileSync(join(desk, 'node_modules', 'electron', 'package.json'), 'utf8')).version;
 mkdirSync(out, { recursive: true });
-const dirSize = (d) => { let n = 0; const w = (p) => { for (const f of readdirSync(p)) { const q = join(p, f); const s = statSync(q, { throwIfNoEntry: false }); if (!s) continue; if (s.isDirectory()) w(q); else n += s.size; } }; w(d); return n; };
+const dirSize = (d) => { let n = 0; const w = (p) => { for (const f of readdirSync(p)) { const q = join(p, f); const s = lstatSync(q, { throwIfNoEntry: false }); if (!s || s.isSymbolicLink()) continue; if (s.isDirectory()) w(q); else n += s.size; } }; w(d); return n; };
 const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
 for (const [platform, arch] of targets) {
   const os = platform === 'win32' ? 'win' : platform === 'darwin' ? 'mac' : 'linux';

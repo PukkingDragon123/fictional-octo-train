@@ -25,7 +25,7 @@ export function creditsPanel(): HTMLElement {
   box.append(h('p', 'ct-dim', 'All names, places, inhabitants and story are original. Inspired by systemic survival games, the 2019 "noclip" creepypasta, liminal-space photography and VHS-era found footage.'));
   const sec = (t: string) => box.append(h('div', 't-ctl-h', esc(t)));
   sec('SOUND · CC0 1.0');
-  const authors = [...new Set(AUDIO_CREDITS.map((a) => a.author))].sort((a, b) => a.localeCompare(b));
+  const authors = [...new Set(AUDIO_CREDITS.map((a) => a.author.replace(/@.*/, '')))].sort((a, b) => a.localeCompare(b));
   box.append(h('p', '', `Every sound effect, ambience and music track is a recording from OpenGameArt.org, dedicated to the public domain (CC0). With thanks to ${authors.map(esc).join(', ')}.`));
   sec('VOICE');
   box.append(h('p', '', 'Dr. Iris Calder\'s lines are synthesised speech (Kokoro-82M text-to-speech, Apache 2.0).'));

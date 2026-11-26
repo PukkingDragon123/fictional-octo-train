@@ -108,7 +108,12 @@ addTextureModule(() => {
   for (let k = 0; k < 6; k++) {
     const key = ('same_' + k) as PrintKey;
     A.hdSource('zw_same_' + k, (w, h) => printRGBA(key, w, h));
-    A.add('zw_same_' + k, 26, 38, (pc) => { if (!blitPrint(pc, 0, 0, 26, 38, key, atlasRepaint('zw_same_' + k))) samePoster(pc, k); });
+    A.add('zw_same_' + k, 26, 38, (pc) => {
+      if (!blitPrint(pc, 0, 0, 26, 38, key, atlasRepaint('zw_same_' + k))) { samePoster(pc, k); return; }
+      // the words stay crisp at this size: the pixel font over the print's own bands
+      pc.rect(0, 0, 26, 7, 0x1a1a1a); textC(pc, 'SEEN?', 13, 1, 0xf0e8c8);
+      pc.rect(0, 31, 26, 7, 0xf0ead6); textC(pc, 'HALL', 13, 32, 0x1a1a1a);
+    });
   }
   // the crack: a ragged black slit in plaster
   A.add('zw_crack_tex', 12, 64, (pc) => {

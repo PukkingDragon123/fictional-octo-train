@@ -1,6 +1,7 @@
 /* Settings > DISPLAY and the rebinding list (src/ui/menus/display.ts). Phosphor on the terminal's tube:
    key caps are little lit caps on the glass (the same caps as the Controls list), nothing is boxed or rounded. */
-.t-seg-row .dp-detect { justify-self: start; margin: 0.2em 0 0 -0.2em; }
+.ct-scr .t-seg-row:has(.dp-detect), .t-seg-row:has(.dp-detect) { grid-template-columns: minmax(7.5em, 34%) 1fr auto; }
+.t-seg-row .dp-detect { justify-self: end; margin: -0.4em 0 -0.4em 0.4em; }
 .t-seg-row .dp-detect.busy .fi-ic { animation: dp-spin 0.9s steps(8) infinite; }
 @keyframes dp-spin { to { transform: rotate(360deg); } }
 .dp-lamp { display: flex; align-items: center; gap: 0.5em; margin: 0.2em 0 0.4em; color: var(--ct-ph, #ffb85a); font-size: var(--t-s, 12px); letter-spacing: 0.12em; text-transform: uppercase; }
@@ -11,7 +12,8 @@ html.reduce-flash .dp-lamp i { animation: none; }
 .t-controls .rb { column-span: all; margin-bottom: 0.6em; }
 .rb-row { display: grid; grid-template-columns: minmax(7.5em, 1fr) 5.2em 5.2em 4.4em; align-items: center; gap: 0.25em 0.6em; padding: 0.06em 0; }
 .rb-head { color: var(--ct-dim, #43a862); font-size: var(--t-s, 12px); }
-.rb-head .rb-col { text-align: center; }
+.rb-head .rb-col { display: flex; justify-content: center; }
+.rb-head canvas { image-rendering: pixelated; }
 .rb-n { color: var(--ct-dim, #43a862); font-size: var(--t-s, 12px); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 0 0 3px var(--ct-glow, rgba(70,255,130,.5)); }
 .rb-cap { height: 1.55em; padding: 0 0.35em; border: 0; background: none; font: inherit; font-weight: 600; letter-spacing: 0.06em; color: var(--ct-hi, #dcffe4); cursor: pointer; outline: none;
   box-shadow: inset 0 0 0 1px var(--ct-dim, #43a862), inset 0 -2px 0 var(--ct-dark, #1a4f2a); text-shadow: 0 0 3px var(--ct-glow, rgba(70,255,130,.5)); transition: transform 0.08s, color 0.1s; }
