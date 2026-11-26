@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { FS_VERT } from './postfx';
 import type { QualityLevel } from './fxconfig';
+import { impactK } from './juice';
 
 export type BlurLevel = 'off' | 'low' | 'normal' | 'heavy';
 /** shutter (s of motion smeared), the history kept for moving bodies, taps along the motion, the longest streak (px),
@@ -278,13 +279,17 @@ export class MotionFx {
     const fdt = Math.max(1 / 240, Math.min(0.1, dt || 1 / 60));
     this.bodies(bodies, fdt);
     u.uDt.value = fdt;
-    u.uMaxBlur.value = Math.max(L.max, 12);
+    // round 24: an impact's camera jolt (shake, zoom punch, kick, hit-stop) stays a snap: a few pixels at most
+    const ik = impactK();
+    u.uMaxBlur.value = Math.max(L.max, 12) * (1 - ik) + Math.min(4, L.max) * ik;
     u.uCurVP.value.copy(this.vp);
-    u.uRotMax.value = Math.max(L.rot, 0.01) * this.W;
+    u.uRotMax.value = Math.max(L.rot, 0.01) * this.W * (1 - 0.85 * ik);
     u.uShutterK.value = L.shutter > 0 ? Math.min(4, L.shutter / fdt) : 0;
     u.uTaps.value = Math.min(L.taps, TAPS_CAP[this.quality] ?? 8, 16) || (MINDFX.panic > 0.05 ? Math.min(6, TAPS_CAP[this.quality] ?? 6) : 0);
     // the trail lasts the same time at any frame rate
-    u.uKeep.value = this.hasPrev && L.keep > 0 ? Math.pow(L.keep, Math.max(0.25, Math.min(4, fdt * 60))) : 0;
+    u.uKeep.value = this.hasPrev && L.keep > 0 ? Math.pow(L.keep, Math.max(0.25, Math.min(4, fdt * 60))) : 0
+    // (round 24: and no ghosting trail while an impact jolts the camera)
+    u.uKeep.value *= 1 - 0.7 * ik;
     u.uHistOn.value = this.hasPrev && (L.keep > 0 || MINDFX.panic > 0.05 || MINDFX.mind > 0.05) ? 1 : 0;
     u.uTime.value = this.time;
     u.uPanic.value = MINDFX.panic;
