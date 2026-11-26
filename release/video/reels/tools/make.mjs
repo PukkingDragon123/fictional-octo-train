@@ -112,7 +112,7 @@ function plan(R) {
     const id = b.id ?? `b${i + 1}`;
     const v = b.line ? V(b.line) : null;
     const lead = b.lead ?? 0.25, tail = b.tail ?? 0.35;
-    if (v) say(b.line, lead, tail);
+    if (v && !b.mute) say(b.line, lead, tail);   // a muted line only times the shot (the trailer's silent beats)
     const d = b.dur ?? (v ? lead + v.dur + tail + (b.hold ?? 0) : 3);
     if (b.game) add(id, 'game', b.game.zone ?? 'lab', d, { spec: b.game, sfx: b.sfx ?? [], beat: b });
     else add(id, 'beat', b.zone ?? zone, d, { spec: b.shot ?? {}, sfx: b.sfx ?? [], beat: b });

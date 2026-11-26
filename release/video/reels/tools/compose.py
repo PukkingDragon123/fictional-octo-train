@@ -28,7 +28,7 @@ MAXW = int(round((930 if not WIDE else 1300) * k))
 ACCENT = [a.lower() for a in TL.get('accent', [])]
 
 # ------------------------------------------------------------------ captions from the lines' word times
-def chunks(ws, max_len=26):
+def chunks(ws, max_len=18):
     """clauses (split after . ? ! , : but not after an abbreviation), long ones cut evenly, no orphans"""
     clauses, cur = [], []
     for i, x in enumerate(ws):
@@ -47,11 +47,13 @@ def chunks(ws, max_len=26):
         if acc: out.append(acc)
     i = 0
     while i < len(out) - 1:
-        if (L(out[i]) < 9 or L(out[i + 1]) < 7) and L(out[i]) + 1 + L(out[i + 1]) <= max_len + 6: out[i:i + 2] = [out[i] + out[i + 1]]
+        if (L(out[i]) < 9 or L(out[i + 1]) < 7) and L(out[i]) + 1 + L(out[i + 1]) <= max_len + 2: out[i:i + 2] = [out[i] + out[i + 1]]
         else: i += 1
     return out
 
 def two_lines(ws):
+    # one line only: a caption never stacks over another
+    return [list(range(len(ws)))]
     words = [x[2] for x in ws]
     if len(' '.join(words)) <= 14 or len(words) < 2: return [list(range(len(ws)))]
     best = None
@@ -128,14 +130,22 @@ for ln in TL['lines']:
         if 0 <= f < len(env): env[f] = max(env[f], e)
     if ln.get('nocap'): continue
     cs = chunks(ws)
-    for c in cs: caps.append([c, None])
+    # one line each, and every line fits the width: split a wide one at its middle word
+    fit, q = [], list(cs)
+    while q:
+        c = q.pop(0)
+        if len(c) > 1 and FONT.getlength(' '.join(x[2] for x in c)) > MAXW * 0.96: m = len(c) // 2; q[0:0] = [c[:m], c[m:]]
+        else: fit.append(c)
+    for c in fit: caps.append([c, None])
 caps.sort(key=lambda c: c[0][0][0])
 built = []
 for i, (c, _) in enumerate(caps):
     a = c[0][0] - 0.03
     end = c[-1][1] + 0.55
-    if i + 1 < len(caps): end = min(end, caps[i + 1][0][0][0] - 0.05)
-    built.append(Caption(c, accent_marks(c), a, max(end, c[-1][1] + 0.12)))
+    end = max(end, c[-1][1] + 0.12)
+    # the next caption starts only once this one is gone (its exit fade ends here): a hard cut when speech runs on
+    if i + 1 < len(caps): end = min(end, caps[i + 1][0][0][0] - 0.03 - 0.03)
+    built.append(Caption(c, accent_marks(c), a, max(a + 0.05, end)))
 # the loudness, smoothed (a quick rise, a slower fall): no flicker
 es, v = [], 0.0
 for e in env:
@@ -181,7 +191,7 @@ def draw_captions(frame, t):
 LOGO = TL.get('logo')
 if LOGO:
     src = Image.open(os.path.join(ROOT, 'public/brand/lockup-stacked@1x.png')).convert('RGBA')
-    LS = max(1, int(round(TL.get('logoScale', 3 if PORTRAIT else 2.4 if not WIDE else 2) * k)))
+    LS = max(1, int(round(TL.get('logoScale', 3 if PORTRAIT else 2.4 if not WIDE else 3) * k)))
     lk = src.resize((src.width * LS, src.height * LS), Image.NEAREST)
     LX, LY = (OW - lk.width) // 2, int(TL.get('logoY', 96 if PORTRAIT else 60) * k) + LB
     bh = int(TL.get('logoBand', 640) * k)
