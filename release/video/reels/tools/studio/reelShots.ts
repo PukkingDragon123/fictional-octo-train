@@ -14,7 +14,8 @@ export interface ShotCtx { S: Studio; actors: Actor[]; lights: ReturnType<typeof
 export interface Shot { id: string; setup(c: ShotCtx, dur: number): (u: number, dt: number) => void }
 
 // ---------------------------------------------------------------- places (tiles = metres)
-const OUT = { x: 74.6, z: 90.6 };          // the Meridian field outpost: bench, terminal, specimen tank behind her
+let OUT = { x: 74.6, z: 90.6 };            // the Meridian field outpost: bench, terminal, specimen tank behind her (or the lab set)
+let SET = 'ledge';
 const HIVE = { x: 63.5, z: 80.5 };
 const REMAINS = { x: 69.5, z: 85.5 };      // rm_unit: what is left of an earlier unit
 const PITCH = Math.PI;                      // facing north (-z)
@@ -23,6 +24,49 @@ function key(c: ShotCtx, at: THREE.Vector3, i = 1.6, fill = 0.5, fillAt?: THREE.
   c.lights.key.position.copy(at); c.lights.key.intensity = i;
   if (fillAt) c.lights.fill.position.copy(fillAt);
   c.lights.fill.intensity = fill;
+}
+
+// ---------------------------------------------------------------- the lab set (Facility 4's labs, dressed)
+/** the reels' home set: a bright white lab in Facility 4 (the game's own zone), Dr. Calder in open floor with the
+ *  Institute's equipment round her (the lab's Poly Haven props, public/props/lab): steel shelving stocked behind,
+ *  a glassware cart and a gas bottle at her side, a stool, a radio. Picks the most open floor in the east labs. */
+export async function useLabSet(S: Studio) {
+  const z = S.zone;
+  const free = (x: number, y: number) => z.inb(x, y) && !!z.floor[z.idx(x, y)] && !z.solid[z.idx(x, y)] && !(z.objectsAt?.(x, y)?.length);
+  const clear = (x0: number, y0: number, x1: number, y1: number) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!free(x, y)) return false; return true; };
+  const room = (x: number, y: number) => z.room[z.idx(x, y)];
+  let best: { x: number; z: number; sc: number } | null = null;
+  // furniture can be bigger than its tile: keep every object's anchor out of the lens' side and from under her
+  const objs = [...(z.objects?.values?.() ?? [])].map((o: any) => [o.x + 0.5, o.y + 0.5] as [number, number]);
+  const near = (cx: number, cz: number) => objs.some(([ox, oz]) => Math.abs(ox - cx) < 2.2 && oz > cz - 4.2 && oz < cz + 0.8);
+  for (let y = 40; y <= 70; y++) for (let x = 84; x <= 104; x++) {
+    if (!clear(x - 2, y - 3, x + 2, y + 2) || near(x + 0.5, y + 0.5)) continue;
+    const r0 = room(x, y); let same = true;
+    for (let k = -3; k <= 1; k++) if (room(x, y + k) !== r0) same = false;
+    if (!same) continue;
+    const sc = -Math.abs(x - 94) * 0.2 + (clear(x - 2, y - 3, x + 2, y + 2) ? 3 : 0);
+    if (!best || sc > best.sc) best = { x: x + 0.5, z: y + 0.5, sc };
+  }
+  OUT = best ? { x: best.x, z: best.z } : { x: 94.5, z: 52.5 };
+  SET = 'lab';
+  (window as any).__set = OUT;
+  const { loadProp } = await import('/src/ui/menus/props/glb');
+  const DEG = Math.PI / 180;
+  const put: [string, number, number, number, number][] = [
+    // [model, x (her left +), y, z (behind her +), yaw]
+    ['shelves', -1.45, 0, 1.55, 180], ['carton', -1.45, 0.135, 1.55, 90], ['gallon', -1.6, 0.625, 1.53, 200], ['kettle', -1.3, 0.625, 1.55, 150],
+    ['toolbox', -1.45, 1.155, 1.55, 184], ['bunsen', -1.2, 1.155, 1.53, 180], ['plant_small', -1.32, 1.635, 1.53, 180], ['clipboard', -1.58, 1.635, 1.55, 172],
+    ['tool_cart', 1.3, 0, 0.55, 75], ['chem_set', 1.3, 0.955, 0.55, 75], ['gas_tank', 1.95, 0, 1.5, 0], ['stool_tall', -0.95, 0, 0.75, 30],
+    ['radio', 1.42, 0.955, 0.85, 200], ['tool_chest', 0.55, 0, 2.1, 180], ['microscope_old', 0.55, 1.0, 2.05, 160],
+  ];
+  const base = import.meta.env?.BASE_URL ?? '/';
+  await Promise.all(put.map(async ([a, x, y, dz, r]) => {
+    try {
+      const m = await loadProp(`${base}props/lab/${a}.glb`);
+      m.position.set(OUT.x - x, y, OUT.z + dz); m.rotation.y = r * DEG;
+      S.scene.add(m);
+    } catch (e) { console.warn('lab prop', a, e); }
+  }));
 }
 
 /** Calder at the outpost greeting the camera, gesturing at the pools: the opening of every reel */
@@ -39,9 +83,10 @@ export function intro(id: string): Shot {
         if (!waved && u > 0.25) { waved = true; r.gesture('wave', { dur: 2.2 }); }
         if (!pres && u > dur * 0.62) { pres = true; r.gesture('present', { dur: 2.4, dir: [-0.7, 0.1, 0.7] }); }
         r.lookAt(c.S.cam.position);
-        key(c, V(OUT.x + 0.9, 2.3, OUT.z - 2.0), 2.2, 0.8, V(OUT.x - 1.4, 1.6, OUT.z - 1.6));
-        const d = keys(u, [[0, 2.5], [dur, 1.95]]);
-        aim(c.S, V(OUT.x + keys(u, [[0, 0.3], [dur, 0.12]]), 1.52, OUT.z - d), V(OUT.x, 1.3, OUT.z), 38);
+        key(c, V(OUT.x + 0.9, 2.3, OUT.z - 2.0), SET === 'lab' ? 3.4 : 2.2, SET === 'lab' ? 1.5 : 0.8, V(OUT.x - 1.4, 1.6, OUT.z - 1.6));
+        // a slow eased dolly in with a crane up to her eye line, swinging a little round her
+        const d = keys(u, [[0, 2.9], [dur, 1.9]]);
+        aim(c.S, V(OUT.x + keys(u, [[0, 0.55], [dur, 0.1]]), keys(u, [[0, 1.12], [dur, 1.55]]), OUT.z - d), V(OUT.x, keys(u, [[0, 1.3], [dur, 1.52]]), OUT.z), 38, 0.6);
       };
     },
   };

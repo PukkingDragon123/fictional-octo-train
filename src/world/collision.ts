@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { Zone, TileObject } from './zone';
 import { wallDef, WALL_H } from './defs';
 import { objDef, objectGeometry, ObjDef } from './objects';
@@ -65,7 +66,7 @@ const footCache = new WeakMap<TileObject, { key: string; x0: number; z0: number;
 
 /** the world-space footprint (x0, z0, x1, z1) of a piece of furniture: its model's box, turned with it */
 export function objFootprint(z: Zone, ob: TileObject, d: ObjDef): { x0: number; z0: number; x1: number; z1: number } {
-  const key = `${ob.x},${ob.y},${ob.rot},${ob.ox ?? 0},${ob.oz ?? 0},${ob.state?.yaw ?? 0},${ob.state?.dmg ?? 0},${d.variant ? d.variant(ob.state || {}) : ''}`;
+  const key = `${ob.x},${ob.y},${ob.rot},${ob.ox ?? 0},${ob.oz ?? 0},${ob.state?.yaw ?? 0},${ob.state?.tq ?? ''},${ob.state?.dmg ?? 0},${d.variant ? d.variant(ob.state || {}) : ''}`;
   const c = footCache.get(ob);
   if (c && c.key === key) return c;
   const w = d.w ?? 1, dd = d.d ?? 1;
@@ -80,7 +81,16 @@ export function objFootprint(z: Zone, ob: TileObject, d: ObjDef): { x0: number; 
     const bb = g.boundingBox!;
     const a = -ob.rot * Math.PI / 2 + (ob.state?.yaw ?? 0), ca = Math.cos(a), sa = Math.sin(a);
     let mx0 = Infinity, mz0 = Infinity, mx1 = -Infinity, mz1 = -Infinity;
-    for (const lx of [bb.min.x, bb.max.x]) for (const lz of [bb.min.z, bb.max.z]) {
+    const tq = ob.state?.tq as number[] | undefined;
+    if (tq && tq.length === 4) {
+      // lying over: the box of its turned model (src/world/propPhys.ts)
+      const q = new THREE.Quaternion(tq[0], tq[1], tq[2], tq[3]), v = new THREE.Vector3();
+      for (const lx of [bb.min.x, bb.max.x]) for (const ly of [bb.min.y, bb.max.y]) for (const lz of [bb.min.z, bb.max.z]) {
+        v.set(lx, ly, lz).applyQuaternion(q);
+        const wx = cx + v.x * ca + v.z * sa, wz = cz - v.x * sa + v.z * ca;
+        if (wx < mx0) mx0 = wx; if (wx > mx1) mx1 = wx; if (wz < mz0) mz0 = wz; if (wz > mz1) mz1 = wz;
+      }
+    } else for (const lx of [bb.min.x, bb.max.x]) for (const lz of [bb.min.z, bb.max.z]) {
       const wx = cx + lx * ca + lz * sa, wz = cz - lx * sa + lz * ca;
       if (wx < mx0) mx0 = wx; if (wx > mx1) mx1 = wx; if (wz < mz0) mz0 = wz; if (wz > mz1) mz1 = wz;
     }

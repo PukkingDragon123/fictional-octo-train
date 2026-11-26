@@ -114,6 +114,8 @@ function generateStairwell(z: Zone, seed: number) {
   doorPortal(4, 'r_stair_lobby', 'lobby', 'p_stair', 'Go through the door marked 0', 'exit');
   doorPortal(0, 'r_office_stair', 'office', 'p_office_stair', 'Go through the door marked 4', 'office');
   doorPortal(6, 'p_stair_parking', 'parking', 'r_stair_parking', 'Go through the door marked P2', 'staff');
+  // landing 3: the Halcyon's fire stairs (src/world/gen/z_hotel.ts)
+  doorPortal(1, 'p_stair_hotel', 'hotel', 'r_stair_hotel', 'Go through the door marked 3', 'stairs');
 
   // ------------------------------------------------------------ env
   for (let c = 1; c <= LABELS.length + 2; c++) z.power.set(c, true);
@@ -165,7 +167,7 @@ function buildModule(z: Zone, b: ZoneBuilder, m: number, seed: number) {
   b.addRoom('Stairs ' + label, 'stairs', FB0, yB0, FB1, yB1, { circuit, temp: 14 });
 
   // ---- the numbered door (portal doors are set afterwards by the zone)
-  const hasPortal = label === '4' || label === '0' || label === 'P2';
+  const hasPortal = label === '4' || label === '0' || label === 'P2' || (label === '3' && m === 1);
   if (!hasPortal) {
     if (label === '1') b.door(DOOR_X, y0, 0, 'door_metal', { locked: true, barricade: 3, barricadeSide: 1, sign: 'staff' });
     else b.door(DOOR_X, y0, 0, 'door_metal', { locked: true, sign: 'staff' });

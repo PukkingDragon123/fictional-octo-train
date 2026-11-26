@@ -132,7 +132,7 @@ export function buildSkillTree(host: HTMLElement, o: { lab: boolean; onClose?: (
     for (const ne of nodes) {
       const n = ne.n, st = stateOf(n), r = rankOf(n);
       ne.b.className = 'st-node s-' + st + (r > 0 ? ' own' : '') + (n.key === sel ? ' sel' : '');
-      (ne.b.querySelector('.st-pips') as HTMLElement).innerHTML = Array.from({ length: n.ranks }, (_, i) => `<i class="${i < r ? 'on' : ''}"></i>`).join('') + (r < n.ranks ? `<em>${n.costs[r]} RP</em>` : '');
+      (ne.b.querySelector('.st-pips') as HTMLElement).innerHTML = (n.ranks > 1 ? `<b class="${r ? 'on' : ''}">${r}/${n.ranks}</b>` : '') + (r < n.ranks ? `<em>${n.costs[r]} RP</em>` : ''); // a number, never a row of pips
       const q = r < n.ranks ? questReq(n, r) : null;
       const qe = ne.b.querySelector('.st-q') as HTMLElement;
       qe.textContent = q ?? ''; qe.classList.toggle('on', !!q);

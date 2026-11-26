@@ -483,6 +483,14 @@ function elevatorCore(c: Ctx, T: Torus, blk: Block) {
   T.light(cu0 + 3, cv1 + 2, 'fluoro', C_CORE, { color: 0xe8f0ff, flicker: 0.25 });
   T.obj('bench_park', cu0 - 2, cv1 + 1, 0, {});
   T.obj('trash_can_outdoor', cu1 + 1, cv1 + 1, 0, {});
+  if (blk.m === 0) {
+    // the second car of the core runs: up to the Halcyon's third floor (src/world/gen/z_hotel.ts)
+    const { b, z } = c;
+    const x = mx(cu0 + 5), y = my(cv1 + 1);
+    for (const o of z.objectsAt(x, y)) if (o.key === 'elevator_door') o.state.portal = 'p_parking_hotel';
+    b.portal({ id: 'p_parking_hotel', x, y, kind: 'elevator', to: 'hotel', tx: 84, ty: 31, label: 'Take the lift up to the Halcyon' });
+    arrive(b, 'r_parking_hotel', x, y + 2, 's', 3);
+  }
   if (blk.m === 5) {
     // world stream 3: a steel door in the core's east face, stencilled BUSES, up to Interchange 0
     const { b } = c;

@@ -17,7 +17,7 @@ import type { Studio } from './reelStudio';
 import { Calder, Unit, aim, keys, V, lerp, smooth, clamp01, type Actor } from './reelActors';
 
 /** bump to render every cached beat again (make.mjs keys beats on it, not on every edit of this file) */
-export const SPEC_REV = 'a6c5662c8b7519';
+export const SPEC_REV = 'v4-cine-1';
 
 type P2 = [number, number];
 export interface Stage { x: number; z: number; y: number; yaw: number; kind: string; room: number }
@@ -36,7 +36,7 @@ export interface BeatSpec {
   unit?: { at: P2; to?: P2; do?: string; face?: string | number; seed?: number };
   /** the creature catches the unit at t: it ends its path on the unit, switches to `pose`, the unit goes down */
   caught?: { t: number; pose?: string; then?: string; hide?: number; drag?: P2; by?: number };
-  camera?: { move?: string; on?: string; angle?: number; dist?: number; height?: number; fov?: number; push?: number; hand?: number; lookY?: number };
+  camera?: { move?: string; on?: string; angle?: number; dist?: number; height?: number; fov?: number; push?: number; hand?: number; lookY?: number; crane?: number; orbit?: number };
   light?: number;
 }
 export interface Spec { stage?: Partial<Stage> & { find?: string }; shots: Record<string, BeatSpec> }
@@ -344,11 +344,13 @@ export function beatShot(spec: BeatSpec, st: Stage) {
       if (mv === 'orbit') a += ((cm.orbit ?? 50) * Math.PI / 180) * (smooth(f) - 0.5);
       if (mv === 'track') a += lerp(-0.12, 0.12, f);
       let dist = dist0;
-      dist *= 1 - (cm.push ?? (mv === 'push' ? 0.4 : 0.07)) * smooth(f);
+      dist *= 1 - (cm.push ?? (mv === 'push' ? 0.4 : 0.13)) * smooth(f);
       let camP = T.clone().add(V(-Math.sin(a) * dist, 0, -Math.cos(a) * dist));
       let look = T.clone();
       if (cm.lookY !== undefined) look.y = ground(S, look) + cm.lookY;
       let hgt = cm.height !== undefined ? cm.height : mv === 'low' ? 0.3 : Math.max(0.5, look.y - ground(S, look) + dist * Math.tan(0.1));
+      // the cinematic move under every shot: a slow eased crane (down onto the subject, or up for a low shot)
+      if (mv !== 'two' && mv !== 'over') hgt += (cm.crane ?? (mv === 'low' ? 0.18 : -0.3)) * (smooth(f) - 0.5);
       if (mv === 'two' && cal) {
         // the presenter shot: the camera in front of her, she in the near half of the frame turned to the lens,
         // the creature behind her, beyond

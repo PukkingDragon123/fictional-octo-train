@@ -334,7 +334,12 @@ export class SleepAction extends TimedAction {
       const long = (d.d ?? 1) >= (d.w ?? 1);
       const along = long ? [Math.PI / 2, Math.PI, -Math.PI / 2, 0][this.o.rot & 3] : [0, Math.PI / 2, Math.PI, -Math.PI / 2][this.o.rot & 3];
       p.facing = p.targetFacing = along;
-    }
+      // the rig lies back from its feet: feet to the foot end, so the head lands on the pillow
+      const len = Math.max(w, dd);
+      if (len >= 1.6) { const k = len / 2 - 0.18; p.x += Math.cos(along) * k; p.z += Math.sin(along) * k; }
+      // the mattress height (a tent or a bag on the floor: none)
+      (p as unknown as { bedLift: number }).bedLift = /tent|bag|roll/.test(this.o.key) || (d.height ?? 0) < 0.35 ? 0 : Math.min(0.62, (d.height ?? 0) * 0.55);
+    } else (p as unknown as { bedLift: number }).bedLift = 0;
     p.vx = p.vz = 0;
     p.sleeping = true;
     (p as unknown as { bedQuality: number }).bedQuality = this.quality;

@@ -14,7 +14,9 @@ const mainOnly = process.argv.includes('--main-only');
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
-let failed = 0;
+let failed = 0, passed = 0;
+/** steps in a full run (main chain + side chain); update when a step is added */
+const EXPECT = 38;
 
 async function session() {
   const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
@@ -103,7 +105,7 @@ async function session() {
 }
 
 const step = async (page, name, fn, arg) => {
-  try { const r = await page.evaluate(fn, arg); log('OK  ', name, r !== undefined ? JSON.stringify(r) : ''); return true; }
+  try { const r = await page.evaluate(fn, arg); passed++; log('OK  ', name, r !== undefined ? JSON.stringify(r) : ''); return true; }
   catch (e) { failed++; log('FAIL', name, e.message.split('\n')[0]); return false; }
 };
 
@@ -352,6 +354,15 @@ if (!mainOnly) {
   await S('lab: director\'s log + keycard', async () => { const T = window.T; T.lore('log_director'); const r = T.take('lab', 'keycard_lab') || T.takeFloor('lab', 'keycard_lab'); if (!r) throw new Error('keycard_lab not found'); return r; });
   await S('lab: swipe SRV-2 reader', async () => { const T = window.T, o = T.obj('lab', (o) => o.state.card === 'keycard_lab', 'reader'); await T.use(o, 'Swipe a card'); const d = o.state.door; if (d) await T.until(() => !T.g.getZone('lab').edge(d[0], d[1], d[2])?.locked); });
   await S('lab: disable SRV-2', async () => { const T = window.T, o = T.obj('lab', (o) => o.state.node === 'SRV-2', 'SRV-2'); await T.use(o, 'Disable node SRV-2'); await T.until(() => T.has('node:SRV-2')); return { stage: T.g.missions.stage }; });
+  await S('stairwell landing 3 → the Halcyon (hotel): the keeper walks its round, Late Checkout is posted', async () => {
+    const T = window.T; await T.go('stairwell');
+    const r = await T.through('p_stair_hotel', 'hotel');
+    if (!r.walkable) throw new Error('arrived on an unwalkable tile');
+    await T.until(() => [...T.g.creatures.creatures.values()].some((c) => c.zoneKey === 'hotel' && c.sp.key === 'unclaimed'), 60000, 'the Unclaimed');
+    await T.until(() => !!T.Q.status('ht_checkout'), 30000, 'Late Checkout offered');
+    const c = [...T.g.creatures.creatures.values()].find((c) => c.zoneKey === 'hotel' && c.sp.key === 'unclaimed');
+    return { ...r, keeper: [Math.round(c.x), Math.round(c.z)], quest: T.Q.status('ht_checkout'), press: !!T.objs('hotel', (o) => o.key === 'hopper').length };
+  });
   await S('stairwell landing 13 → corrupt: root key', async () => { const T = window.T; await T.go('stairwell'); await T.through('p_stair_13', 'corrupt'); const r = T.takeFloor('corrupt', 'root_key') || T.take('corrupt', 'root_key'); if (!r) throw new Error('root_key not found'); await T.sleep(1500); return [r, T.has('got:root_key')]; });
   await S('lab → core: disable SRV-3, the bands go dead', async () => { const T = window.T; await T.go('lab'); await T.through('p_lab_core', 'server'); const o = T.obj('server', (o) => o.state.node === 'SRV-3', 'SRV-3'); await T.use(o, 'Disable node SRV-3'); await T.until(() => T.has('node:SRV-3')); await T.until(() => T.has('band:removed'), 60000, 'band:removed'); return { band: T.g.band.get(T.p.id), cut: T.p.allItems().some((i) => i.key === 'bailiff_band_cut') }; });
   await S('server → exit → the ending (no band, no detonation)', async () => { const T = window.T; await T.through('p_core_exit', 'exit'); const pt = T.portal('p_exit_final'); T.g.usePortal(T.p, pt); await T.sleep(1500); return { escaped: T.has('escaped'), overlay: !!document.querySelector('.k-ending'), band: T.g.band.get(T.p.id) }; });
@@ -359,5 +370,7 @@ if (!mainOnly) {
 }
 
 await browser.close();
+console.log(`${passed} OK` + (mainOnly ? '' : ` of ${EXPECT} expected`));
+if (!mainOnly && !failed && passed !== EXPECT) { console.log(`expected ${EXPECT} steps, ran ${passed}`); failed++; }
 console.log(failed ? `${failed} step(s) failed` : 'walkthrough complete');
 process.exit(failed ? 1 : 0);

@@ -14,7 +14,7 @@ import { over, blob } from '../content/textures/kit';
 const DARK = 0x140e0a, GAP = 0x24180f;
 
 /** a jagged crack from (x, y) heading `a`, forking now and then */
-function crack(pc: PixelCanvas, rng: Rng, x: number, y: number, a: number, len: number, col: number, lip: number, depth = 0, alpha = 240) {
+export function crack(pc: PixelCanvas, rng: Rng, x: number, y: number, a: number, len: number, col: number, lip: number, depth = 0, alpha = 240) {
   let px = x, py = y;
   for (let i = 0; i < len; i++) {
     a += rng.float(-0.45, 0.45);
@@ -27,7 +27,7 @@ function crack(pc: PixelCanvas, rng: Rng, x: number, y: number, a: number, len: 
   }
 }
 
-function disc(pc: PixelCanvas, cx: number, cy: number, r: number, c: number, a = 255) {
+export function disc(pc: PixelCanvas, cx: number, cy: number, r: number, c: number, a = 255) {
   for (let y = Math.floor(cy - r - 1); y <= cy + r + 1; y++) for (let x = Math.floor(cx - r - 1); x <= cx + r + 1; x++) {
     const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
     if (dx * dx + dy * dy <= r * r) over(pc, x, y, c, a);

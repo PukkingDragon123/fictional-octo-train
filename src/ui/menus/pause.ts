@@ -95,6 +95,9 @@ export class PauseMenu {
       const ok = await confirmDialog({ title: 'Back to the lab', body: G.role === 'client' ? 'Leave the room and go back to the lab?' : 'Saved first. The link drops and you are back in the lab.', ok: 'Go back', cancel: 'Stay', danger: true });
       if (!ok) return;
       if (G.role !== 'client') await saveGame();
+      // round 24: the link drops on screen first (src/game/cine/actcine.ts)
+      this.close();
+      try { await (await import('../../game/cine/actcine')).playUnlink(); } catch { /* straight out */ }
       location.reload();
     }, { tone: 'red', lamp: 'red', cls: 'danger', icon: 'door' });
     // the desktop build: save and close the program

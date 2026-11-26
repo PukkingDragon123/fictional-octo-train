@@ -172,26 +172,102 @@ def draw_captions(frame, t):
             frame.alpha_composite(core, (max(0, x0), max(0, y0)), (max(0, -x0), max(0, -y0)))
 
 # ------------------------------------------------------------------ the lockup in the opening
+# The Institute's stacked lockup (the bishop crest over the name), whole-pixel scaled so it stays crisp, revealed
+# once: it swings in from a slight 3D tilt while it fades up, a light sweep runs across the brass, then it holds
+# perfectly still (no blink, no jitter) until it fades with the opening.
 LOGO = TL.get('logo')
 if LOGO:
-    lk = Image.open(os.path.join(ROOT, 'public/brand/lockup-horizontal@1x.png')).convert('RGBA')
-    lk = lk.resize((int(lk.width * 3 * k), int(lk.height * 3 * k)), Image.NEAREST)
-    bh = int(520 * k)
+    src = Image.open(os.path.join(ROOT, 'public/brand/lockup-stacked@1x.png')).convert('RGBA')
+    LS = max(1, int(round(TL.get('logoScale', 3) * k)))
+    lk = src.resize((src.width * LS, src.height * LS), Image.NEAREST)
+    LX, LY = (OW - lk.width) // 2, int(TL.get('logoY', 96) * k)
+    bh = int(TL.get('logoBand', 640) * k)
     band = Image.new('RGBA', (OW, bh), (0, 0, 0, 0))
-    band.putalpha(Image.frombytes('L', (1, bh), bytes(int(215 * (1 - y / bh) ** 1.2) for y in range(bh))).resize((OW, bh)))
+    band.putalpha(Image.frombytes('L', (1, bh), bytes(int(205 * (1 - y / bh) ** 1.3) for y in range(bh))).resize((OW, bh)))
+    # a soft green glow behind it (the crest's own light)
+    gl = Image.new('RGBA', (lk.width + 160, lk.height + 160), (0, 0, 0, 0))
+    gl.paste(Image.new('RGBA', lk.size, (90, 255, 160, 255)), (80, 80), lk)
+    gl = gl.filter(ImageFilter.GaussianBlur(int(34 * k) + 1))
+    gl.putalpha(gl.getchannel('A').point(lambda v: int(v * 0.55)))
+    LA = lk.getchannel('A')
+
+def tilt(im, ang):
+    """a rotation about the vertical axis, in perspective (ang radians)"""
+    w, h = im.size
+    c, sn = math.cos(ang), math.sin(ang)
+    f = 1.6 * w
+    def P(x, y):
+        X, Z = (x - w / 2) * c, (x - w / 2) * sn
+        s_ = f / (f + Z)
+        return (w / 2 + X * s_, h / 2 + (y - h / 2) * s_)
+    q = [P(0, 0), P(w, 0), P(w, h), P(0, h)]
+    # PIL wants the inverse: output corners -> input corners
+    import numpy as np
+    A_ = []; B_ = []
+    for (x, y), (u, v) in zip(q, [(0, 0), (w, 0), (w, h), (0, h)]):
+        A_.append([x, y, 1, 0, 0, 0, -u * x, -u * y]); B_.append(u)
+        A_.append([0, 0, 0, x, y, 1, -v * x, -v * y]); B_.append(v)
+    co = np.linalg.solve(np.array(A_, float), np.array(B_, float))
+    return im.transform((w, h), Image.PERSPECTIVE, tuple(co), Image.BICUBIC)
+
+def ease_out(x):
+    x = max(0.0, min(1.0, x)); return 1 - (1 - x) ** 3
 
 def draw_logo(frame, t):
     A, Z = LOGO['from'], LOGO['to']
     if t < A or t > Z: return
     fade = min(1.0, (Z - t) / 0.45)
-    ba = min(1.0, (t - A) / 0.3) * fade
+    ba = min(1.0, (t - A) / 0.35) * fade
     b = band if ba >= 0.999 else band.copy()
     if ba < 0.999: b.putalpha(b.getchannel('A').point(lambda v: int(v * ba)))
     frame.alpha_composite(b, (0, 0))
-    if t < A + 0.4 and math.sin((t - A) * 110) <= 0.1: return
-    l = lk if fade >= 0.999 else lk.copy()
-    if fade < 0.999: l.putalpha(l.getchannel('A').point(lambda v: int(v * fade)))
-    frame.alpha_composite(l, ((OW - lk.width) // 2, int(118 * k)))
+    r = ease_out((t - A) / 0.8)                       # the reveal: 0 -> 1 over 0.8 s
+    a = min(fade, r)
+    g = gl if a >= 0.999 else gl.copy()
+    if a < 0.999: g.putalpha(g.getchannel('A').point(lambda v: int(v * a)))
+    frame.alpha_composite(g, (LX - 80, LY - 80))
+    l = lk
+    sw = (t - A - 0.35) / 0.9                          # the light sweep: 0.35 s in, 0.9 s across
+    if 0 < sw < 1:
+        l = lk.copy()
+        x0 = -0.3 * l.width + sw * 1.6 * l.width
+        m = Image.new('L', l.size, 0)
+        d = ImageDraw.Draw(m)
+        wB = 0.16 * l.width
+        d.polygon([(x0, 0), (x0 + wB, 0), (x0 + wB - 0.35 * l.height, l.height), (x0 - 0.35 * l.height, l.height)], fill=200)
+        m = m.filter(ImageFilter.GaussianBlur(int(10 * k) + 1))
+        from PIL import ImageChops
+        m = ImageChops.multiply(m, LA)
+        hi = Image.new('RGBA', l.size, (255, 246, 214, 0)); hi.putalpha(m)
+        l.alpha_composite(hi)
+        l.putalpha(LA)
+    if r < 0.999:
+        l = tilt(l, (1 - r) * 0.32)
+        sc = 0.94 + 0.06 * r
+        l = l.resize((max(1, int(l.width * sc)), max(1, int(l.height * sc))), Image.BICUBIC)
+    if a < 0.999:
+        l = l.copy(); l.putalpha(l.getchannel('A').point(lambda v: int(v * a)))
+    frame.alpha_composite(l, (LX + (lk.width - l.width) // 2, LY + (lk.height - l.height) // 2))
+
+# ------------------------------------------------------------------ the film look: grade, vignette, grain
+import numpy as np
+FILM = TL.get('film', True)
+if FILM:
+    xs = np.linspace(0, 1, 256)
+    curve = xs + 0.10 * np.sin((xs - 0.5) * np.pi) * (1 - np.abs(xs - 0.5) * 2) * 0.9  # a gentle S
+    LUT = [np.clip(255 * (curve + d), 0, 255).astype(np.uint8) for d in (0.012 * xs, 0.004 * xs, -0.02 * xs + 0.012 * (1 - xs))]
+    yy, xx = np.mgrid[0:OH, 0:OW]
+    rr = np.sqrt(((xx - OW / 2) / (OW / 2)) ** 2 * 0.8 + ((yy - OH / 2) / (OH / 2)) ** 2)
+    VIG = (1 - 0.30 * np.clip(rr - 0.55, 0, 1) ** 1.6)[..., None].astype(np.float32)
+    rng = np.random.default_rng(7)
+    GRAIN = [rng.normal(0, 5.5 * (1 if k >= 1 else 0.7), (OH // 2, OW // 2)).astype(np.float32) for _ in range(6)]
+def film(im, i):
+    if not FILM: return im
+    a = np.asarray(im.convert('RGB')).copy()
+    for c in range(3): a[..., c] = LUT[c][a[..., c]]
+    g = GRAIN[i % len(GRAIN)].repeat(2, 0).repeat(2, 1)[:OH, :OW, None]
+    out = np.clip(a.astype(np.float32) * VIG + g, 0, 255).astype(np.uint8)
+    return Image.fromarray(out, 'RGB')
 
 # ------------------------------------------------------------------ frames
 FR = TL['frames']
@@ -206,7 +282,7 @@ def base(i):
 
 def frame_at(i):
     t = i / FPS
-    im = base(i).convert('RGBA')
+    im = film(base(i), i).convert('RGBA')
     if LOGO: draw_logo(im, t)
     draw_captions(im, t)
     return im.convert('RGB')

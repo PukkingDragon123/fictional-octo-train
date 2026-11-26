@@ -278,7 +278,7 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
 /** is the game in a state where the adaptive buttons speak (no close-up, menu, cutscene, car) */
 export function ctxAllowed(): boolean {
   const p = G.local; const g: any = G;
-  if (!p || p.body.dead || p.inVehicle) return false;
+  if (!p || p.body.dead || p.inVehicle || p.sleeping) return false;
   if (fpOwner() || G.ui?.modal || G.ui?.menuEl || G.ui?.readerEl) return false;
   if (g.intro?.running || g.transitioning) return false;
   return true;

@@ -21,6 +21,7 @@ import type { Item } from '../items/item';
 import type { Player } from '../entities/player';
 import { objMat, objMass, objMaxHp } from './debris';
 import { shake, hitstop } from '../gfx/juice';
+import { wallToolClass } from './destruction';
 
 export type Target =
   | { kind: 'obj'; o: TileObject }
@@ -157,7 +158,7 @@ export class SmashAction extends TimedAction {
       const at = targetPoint(p, t);
       noise(p, at.x, at.z, this.kick ? 12 : heavy ? 20 : 15, 'smash');
       try { (p as any).anim?.impact?.(this.kick ? 0.5 : heavy ? 0.9 : 0.7); } catch { /* older rigs */ }
-      op('wallSmash', { z: z.key, x: t.x, y: t.y, side: t.side, d: Math.round(base * k * overhead * (1 + str * 0.05) * 10) / 10, how: this.kick ? 'kick' : 'smash', by: p.id, u: Math.round((t.u + (Math.random() - 0.5) * 0.3) * 100) / 100, h: Math.round((this.kick ? 0.45 : t.h + (Math.random() - 0.5) * 0.4) * 100) / 100, n: t.n });
+      op('wallSmash', { z: z.key, x: t.x, y: t.y, side: t.side, d: Math.round(base * k * overhead * (1 + str * 0.05) * 10) / 10, how: this.kick ? 'kick' : 'smash', by: p.id, u: Math.round((t.u + (Math.random() - 0.5) * 0.3) * 100) / 100, h: Math.round((this.kick ? 0.45 : t.h + (Math.random() - 0.5) * 0.4) * 100) / 100, n: t.n, t: this.kick ? '' : wallToolClass(it) });
       if (!it || this.kick) bareStrike(p, surfaceOfWall(wd?.sound), { kick: this.kick, force: this.kick ? 1.2 : base / 3 });
     } else {
       strikeObject(p, t.o, this.tool, it, this.kick ? 'kick' : this.tool === 'axe' ? 'chop' : this.tool === 'crowbar' ? 'pry' : this.tool === 'knife' ? 'slash' : 'smash', this.kick);

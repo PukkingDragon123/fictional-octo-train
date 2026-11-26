@@ -170,6 +170,7 @@ export class Player {
   private look: LookTarget = { x: 0, y: 0, z: 0, w: 0, until: 0, kind: '', id: '' };
   private lookOn = false; private lookT = 0;
   private visY = NaN;
+  private sleepLift = 0;
   private wasDead = false; private wasDown = false;
   private lastSteps = 0;
   private oneShot: { name: string; dur: number } | null = null;
@@ -566,7 +567,10 @@ export class Player {
     const yaw = Math.PI / 2 - this.facing;
     if (Number.isNaN(this.visY) || Math.abs(this.visY - this.y) > 1.5 || local) this.visY = this.y;
     else this.visY += (this.y - this.visY) * (1 - Math.exp(-14 * dt));
-    this.rig.root.position.set(this.x, this.visY, this.z);
+    // round 24: a sleeper lies on the mattress, not inside the bed (SleepAction sets bedLift; eased up as it lies back)
+    const lift = this.sleeping ? (this as { bedLift?: number }).bedLift ?? 0 : 0;
+    this.sleepLift += (lift - this.sleepLift) * (1 - Math.exp(-(lift > this.sleepLift ? 2.2 : 7) * dt));
+    this.rig.root.position.set(this.x, this.visY + this.sleepLift, this.z);
     this.rig.root.rotation.y = yaw;
     const lod = lodFor(this);
     // something worth looking at (a few times a second)

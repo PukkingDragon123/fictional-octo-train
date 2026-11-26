@@ -228,6 +228,9 @@ export function startSession(o: SessionOpts): Game {
   // round 15 (WORLD): checkpoints (the presses, the relay booths) and the first-person cinematics (src/game/checkpoint.ts, src/game/cine)
   try { installCheckpoints(g, s ?? null); } catch (e) { console.warn('checkpoints', e); }
   try { installCine(g, { reentry: !!o.reentry }); } catch (e) { console.warn('cine', e); }
+  // round 24: the sleep cut and the time skip (./sleep), the close-ups on the hands' work (./cine/actcine.ts)
+  import('./sleep').then((m) => m.installSleep(g)).catch((e) => console.warn('sleep', e));
+  import('./cine/actcine').then((m) => m.installActionCine(g)).catch((e) => console.warn('action cine', e));
 
   // ---- the world: mission state, then every change ever made (op log)
   const mstate = w?.missions ?? s?.missions;

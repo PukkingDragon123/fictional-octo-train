@@ -69,3 +69,5 @@
 .st-bar small { flex: 1; color: rgba(150,255,176,.6); }
 .st-x { border: 0; cursor: pointer; padding: 4px 14px; color: #ffd2b8; background: linear-gradient(#8c3020, #5a1810); box-shadow: inset 0 0 0 2px #0a0b08; font-family: inherit; font-size: 16px; }
 @media (max-width: 760px) { .st-main { flex-direction: column; } .st-side { width: auto; max-height: 34%; } }
+.st-pips b { font-weight: normal; font-size: 16px; color: #8a928e; text-shadow: 1px 1px 0 #050605; }
+.st-pips b.on { color: #7affa0; }

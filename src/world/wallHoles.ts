@@ -15,7 +15,7 @@ import type { Zone } from './zone';
 
 export const HOLE_STYLE = 'hole_ragged';
 
-function faceTex(z: Zone, x: number, y: number, fallback: string, noPaper: boolean): string {
+export function faceTex(z: Zone, x: number, y: number, fallback: string, noPaper: boolean): string {
   if (noPaper || !z.inb(x, y)) return fallback;
   const p = z.paper[z.idx(x, y)];
   return p ? wallpaperTex(p) : fallback;
@@ -32,7 +32,9 @@ export function buildHole(mb: ModelBuilder, z: Zone, x: number, y: number, side:
   const ox = side === 1 ? x - 1 : x, oy = side === 0 ? y - 1 : y;
   const tIn = faceTex(z, x, y, w.tex, !!w.noWallpaper), tOut = faceTex(z, ox, oy, w.tex, !!w.noWallpaper);
   const rng = new Rng(hash3(x * 7 + side, y * 13, 4242));
-  const G = 'dmg_gypsum';
+  // what the wall is made of decides the lip: torn board, broken masonry with rebar, snapped planks
+  const kind = w.key === 'brick' ? 'brick' : w.sound === 'concrete' ? 'concrete' : w.sound === 'wood' ? 'wood' : 'board';
+  const G = kind === 'brick' ? 'dmg_brick_core' : kind === 'concrete' ? 'dmg_concrete_core' : kind === 'wood' ? 'dbr_splinter' : 'dmg_gypsum';
   const spec: TexSpec = side === 0 ? { south: tIn, north: tOut, east: G, west: G, top: G, bottom: G } : { east: tIn, west: tOut, north: G, south: G, top: G, bottom: G };
   mb.swayDefault = side === 0 ? 1 : 2;
   // a piece of board between along a0..a1 and height h0..h1 (local), inset `d` from both faces
@@ -43,11 +45,13 @@ export function buildHole(mb: ModelBuilder, z: Zone, x: number, y: number, side:
   };
   const A0 = 0.05, A1 = 0.95, TOP = Math.min(2.2, H);
   // jagged lips: short columns of random height
+  const CH = 0.0825;
   const cols = (from: number, to: number, base: number, lo: number, hi: number, up: boolean) => {
     let a = from;
     while (a < to - 1e-3) {
-      const wv = Math.min(to - a, rng.float(0.045, 0.1));
-      const h = rng.float(lo, hi);
+      // brick breaks along the courses (stepped), concrete in coarse lumps, board in fine tears
+      const wv = Math.min(to - a, kind === 'brick' ? 0.11 : kind === 'concrete' ? rng.float(0.07, 0.15) : kind === 'wood' ? rng.float(0.1, 0.24) : rng.float(0.045, 0.1));
+      const h = kind === 'brick' ? Math.max(1, Math.round(rng.float(lo, hi) / CH)) * CH : rng.float(lo, hi);
       if (up) piece(a, a + wv, base, base + h); else piece(a, a + wv, base - h, base);
       // a loose flake hanging off the lip
       if (rng.chance(0.25)) { const fh = rng.float(0.02, 0.05); if (up) piece(a + wv * 0.2, a + wv * 0.8, base + h, base + h + fh); else piece(a + wv * 0.2, a + wv * 0.8, base - h - fh, base - h); }
@@ -60,14 +64,43 @@ export function buildHole(mb: ModelBuilder, z: Zone, x: number, y: number, side:
   const rows = (lo: number, hi: number, fromA: number, dir: 1 | -1) => {
     let h = lo;
     while (h < hi - 1e-3) {
-      const hv = Math.min(hi - h, rng.float(0.06, 0.16));
-      const d = rng.float(0.05, 0.2);
+      const hv = Math.min(hi - h, kind === 'brick' ? CH : kind === 'wood' ? 0.15 : rng.float(0.06, 0.16));
+      const d = kind === 'brick' ? 0.11 * rng.int(0, 2) + 0.05 : kind === 'wood' ? rng.float(0.04, 0.3) : rng.float(0.05, 0.2);
       if (dir > 0) piece(fromA, fromA + d, h, h + hv); else piece(fromA - d, fromA, h, h + hv);
       h += hv;
     }
   };
   rows(0.1, TOP - 0.25, A0, 1);
   rows(0.1, TOP - 0.25, A1, -1);
+  if (kind !== 'board') {
+    const R = 'dmg_rebar';
+    if (kind === 'concrete' && w.key !== 'tile') {
+      // rebar left standing in the hole: bars across from the sides, bent where the concrete let go, and hanging from the top
+      for (let k = 0; k < 3; k++) {
+        const hh = 0.45 + k * 0.5 + rng.float(-0.08, 0.08), left = rng.chance(0.5);
+        const a0 = left ? A0 : A1, len = rng.float(0.15, 0.4), a1 = left ? a0 + len : a0 - len, drop = rng.float(0.04, 0.16);
+        piece(Math.min(a0, a1), Math.max(a0, a1), hh, hh + 0.014, R, T / 2 - 0.022);
+        const ae = left ? a1 : a1 - 0.014;
+        piece(ae, ae + 0.014, hh - drop, hh, R, T / 2 - 0.022);
+      }
+      for (let k = 0; k < 2; k++) {
+        const aa = rng.float(0.25, 0.75), len = rng.float(0.2, 0.55);
+        piece(aa, aa + 0.014, TOP - 0.3 - len, TOP - 0.3, R, T / 2 - 0.022);
+      }
+    }
+    if (kind === 'wood') {
+      // splinters standing out of the snapped board ends
+      for (let k = 0; k < 10; k++) {
+        const left = rng.chance(0.5), hh = rng.float(0.2, TOP - 0.4), len = rng.float(0.05, 0.16);
+        const a0 = left ? A0 + rng.float(0.04, 0.3) : A1 - rng.float(0.04, 0.3);
+        piece(left ? a0 : a0 - len, left ? a0 + len : a0, hh, hh + 0.012, 'dbr_splinter', rng.float(0, T * 0.35));
+      }
+      const sa = rng.chance(0.5) ? A0 + 0.04 : A1 - 0.08;
+      piece(sa, sa + 0.045, 0, rng.float(0.5, 1.2), 'dmg_stud', T * 0.12);
+    }
+    mb.swayDefault = 0;
+    return;
+  }
   // a stud standing in the cavity by one side, pink insulation pushing out round it
   const sa = rng.chance(0.5) ? A0 + 0.04 : A1 - 0.08;
   piece(sa, sa + 0.045, 0, TOP, 'dmg_stud', T * 0.12);

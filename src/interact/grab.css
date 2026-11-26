@@ -50,3 +50,6 @@ html.nc-touch #gx-hint { display: none !important; }
 .gx-tag.dis .gx-cyc b { color: #9a937f; text-decoration: line-through; text-decoration-color: #e0634f; }
 .gx-tag.danger .gx-cyc b { color: #ff9b84; }
 @keyframes gx-in { from { transform: scale(0.9); opacity: 0.3; } }
+
+/* round 24: no rows of pips anywhere (CLAUDE.md); the verb tag cycles with its arrows */
+.gx-pips { display: none !important; }

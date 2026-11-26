@@ -35,6 +35,7 @@ export const INHABITANTS: Record<string, [string, string]> = {
   frog_piranha: ['The frog-legged piranha. Teeth at one end, frog legs at the other.', 'Keep your boots out of the water, and it stays in it.'],
   balloon_puffer: ['The balloon puffer. A party balloon with human eyes.', 'Do not startle it. If it pops, everything in the water hears.'],
   worm_train: ['The worm train. Sixteen metres of animal that runs the loop like a service.', 'Stand behind the line on the platform, and wait for it to leave. It always leaves.'],
+  unclaimed: ['The Unclaimed. A stack of luggage that walks the Halcyon\'s corridor and rings for service at every corner.', 'It cannot take a corner and it cannot fit through a door. When it knocks, go and sit in the bath.'],
   stalker: ['The stalker. The level\'s copy of you, a little wrong.', 'When it crouches, you crouch. When it waves, you wave. Play along.'],
 };
 export const HINTS = [

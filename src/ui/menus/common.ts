@@ -9,6 +9,7 @@ import { FocusNav } from './nav';
 import { uiSettings, saveUiSettings, calm, UiTheme, currentPx } from './settings';
 import { displayPage, rebindPanel } from './display';
 import { getTouchSetting, setTouchSetting, TouchSetting } from '../touch/mode';
+import { CUT_KINDS, cutMode, setCutMode, type CutMode } from '../../game/cuts';
 import { plateBtn } from './btnKit';
 import { terminal } from './terminal';
 
@@ -386,6 +387,9 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
       }
       f.append(seg<TouchSetting>('Touch controls', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], getTouchSetting(), (v) => setTouchSetting(v),
         { tip: (v) => v === 'auto' ? 'Show on-screen controls on touch screens' : v === 'on' ? 'Always show on-screen controls' : 'Never show on-screen controls' }));
+      // round 24: the short cuts (the sleep, the close-ups on the hands' work, back to the lab): full, short or off
+      f.append(h('div', 't-ctl-h', 'CUTSCENES'));
+      for (const [k, lbl] of CUT_KINDS) f.append(seg<CutMode>(lbl, [['full', 'Full'], ['short', 'Short'], ['off', 'Off']], cutMode(k), (v) => setCutMode(k, v)));
     } else if (name === 'GAME' && G?.sandbox) {
       const client = G.role === 'client';
       const sbx = G.sandbox as Record<string, number>;

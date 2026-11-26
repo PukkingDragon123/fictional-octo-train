@@ -84,6 +84,12 @@ interface AmbProfile { beds: Bed[]; events: AmbEvent[]; music: string; reverb: s
 
 const FAR_THINGS = ['thud_distant', 'door_far', 'steps_far'];
 const AMB: Record<string, AmbProfile> = {
+  // the Halcyon (src/world/gen/z_hotel.ts): air handling under the carpet hush, the ice machines, a television behind a door
+  hotel: {
+    beds: [{ key: 'mall_air', vol: 0.12, lp: 520 }, { key: 'fridge_hum', vol: 0.05, lp: 900 }, { key: 'tv_hum', vol: 0.025, lp: 1400 }, { key: 'hum_fluoro', vol: 0.12, when: 'lit' }],
+    events: [{ keys: ['door_far', 'knock', 'elevator_ding', 'steps_far', 'cough', 'phone_ring'], every: [22, 60], vol: 0.3, dist: [14, 40] }],
+    music: 'muzak', reverb: 'office',
+  },
   hum: {
     beds: [{ key: 'hum_fluoro', vol: 0.5, when: 'lit' }, { key: 'mall_air', vol: 0.09, lp: 380 }],
     events: [{ keys: [...FAR_THINGS, 'scrape_wall', 'carpet_rustle'], every: [22, 70], vol: 0.4, dist: [18, 42] }],

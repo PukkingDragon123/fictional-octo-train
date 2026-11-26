@@ -34,6 +34,7 @@ export interface GameSystem {
 export interface ZoneView { zone: Zone; zr: ZoneRenderer; lg: LightGrid; vis: Visibility; }
 
 export const GRADES: Record<string, Partial<Grade>> = {
+  hotel: { lift: [0.03, 0.02, 0.01], gain: [1.05, 1.0, 0.92], sat: 0.95, tint: [1.02, 0.99, 0.94], vignette: 0.34 },
   lobby: { lift: [0.02, 0.018, 0.0], gain: [1.02, 1.0, 0.86], gamma: 1.0, sat: 0.92, tint: [1, 0.99, 0.9], vignette: 0.42 },
   office: { lift: [0.0, 0.01, 0.02], gain: [0.95, 1.0, 1.02], sat: 0.8, vignette: 0.45 },
   pool: { lift: [0.02, 0.04, 0.05], gain: [0.95, 1.04, 1.08], sat: 0.95, tint: [0.96, 1.02, 1.04], vignette: 0.3 },

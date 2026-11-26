@@ -297,7 +297,11 @@ export class PushDrag {
    * narrow things go over. One piece at a time (false: too heavy, fixed, or already moving one).
    */
   knock(p: Player, o: TileObject, vx: number, vz: number, bodyKg = 70): boolean {
-    if (this.st || !p.isLocal) return false;
+    if (!p.isLocal) return false;
+    // real bodies now: it tumbles in the solver (src/world/propPhys.ts), several at once
+    const pp = G.destruct?.props;
+    if (pp && o.state?.held === undefined) return pp.knock(p, o, vx, vz, bodyKg);
+    if (this.st) return false;
     const z = G.getZone(p.zoneKey);
     const d = objDef(o.key);
     if (!d || !z.objects.has(o.uid) || !pushable(d, o) || o.state?.held) return false;
@@ -384,6 +388,8 @@ export class PushDrag {
   /** someone took hold of o: show a proxy (here) */
   private held(z: Zone, o: TileObject, by: string) {
     if (z !== G.view?.zone) return;
+    // a loose body this machine is simulating draws itself (src/world/propPhys.ts)
+    if (by?.startsWith?.('phys:') && G.destruct?.props?.owns?.(o.uid)) return;
     const d = objDef(o.key); if (!d) return;
     if (this.proxies.has(o.uid)) return;
     const g = objectGeometry(d, o);

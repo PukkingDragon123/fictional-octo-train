@@ -126,6 +126,8 @@ export const DEFAULT_ZONEFX: ZoneFx = {
 };
 
 export const ZONEFX: Record<string, Partial<ZoneFx>> = {
+  // the Halcyon: warm sconce light pooling on patterned carpet, a little gold haze, polished brass glints
+  hotel: { exposure: 1.85, rim: 0.8, blob: 0.5, haze: [1.08, 0.96, 0.8], hazeDens: 0.012, volTop: 2.8, gridMul: 0.9, mist: [0.4, 0.34, 0.26], mistDens: 0.015, bloom: 0.75, bloomTh: 0.78, reflect: 0.55, sheen: 0.7, motes: 0.7, dirt: 0.45, contrast: 0.14, keyShadow: 0.75, glow: 2.0 },
   // the yellow rooms: buzzing tubes, damp air, a sickly olive cast in the shade
   // graded like the intake drag (src/game/introKit/stage.ts LOOKS.wing): cold fluorescent shade, amber in the light
   lobby: { haze: [1.0, 0.94, 0.62], hazeDens: 0.017, hazeFall: 0.05, gridMul: 1.0, mist: [0.42, 0.38, 0.2], mistDens: 0.02, mistFall: 1.4, mistLit: 0.8, mistMax: 0.14, bloom: 0.7, bloomTh: 0.75, ao: 1.0, sick: 0.35, motes: 0.8, blob: 0.62, rim: 1.15, rimTint: [0.06, 0.075, 0.1],

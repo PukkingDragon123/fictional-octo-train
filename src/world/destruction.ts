@@ -37,6 +37,12 @@ export function wallTool(it: Item | null | undefined): boolean {
   const d = itemDef(it.key), t = d.tags || [];
   return t.includes('sledge') || t.includes('axe') || d.weapon?.kind === 'axe' || t.includes('crowbar');
 }
+/** which wall tool it is ('' none): brick and concrete give only to a sledgehammer */
+export function wallToolClass(it: Item | null | undefined): string {
+  if (!wallTool(it)) return '';
+  const d = itemDef(it!.key), t = d.tags || [];
+  return t.includes('sledge') ? 'sledge' : t.includes('crowbar') ? 'crowbar' : 'axe';
+}
 import { defLoot } from '../items/loot';
 import type { Player } from '../entities/player';
 import { Particles, PK } from '../gore/particles';
@@ -46,8 +52,12 @@ import { Mat, objMat, objMaxHp, objColor, fracture, simulate, damageGeometry, cr
 import { buildHolesMesh, HOLE_STYLE } from './wallHoles';
 import { PushDrag } from './pushDrag';
 import './destructTextures';
+import './fractureTextures';
 import './destructSounds';
 import './destructActions';
+import { RigidWorld } from './rigid';
+import { PropPhysics } from './propPhys';
+import { fractureWall, spallWall, wallMatOf } from './wallFracture';
 
 // ================================================================ rules
 /** things that never break or move (mission hardware, portals, the remittance kit) */
@@ -98,6 +108,8 @@ function wallHpOf(w: WallDef): number {
   if (w.key === 'cubicle') return 45;
   if (w.sound === 'drywall') return 95;
   if (w.sound === 'wood' && !w.low && w.key !== 'hedge') return 170;
+  // masonry: a sledgehammer gets through, slowly (low walls and the lab's steel panels never give)
+  if (w.sound === 'concrete' && !w.low) return w.key === 'brick' ? 240 : w.key === 'cinder' ? 220 : w.key === 'tile' ? 200 : 300;
   return Infinity;
 }
 const wallHp = new WeakMap<Zone, Map<number, number>>();
@@ -120,8 +132,10 @@ defLoot('debris_flesh', [0, 1], [['rag', 1]], 0.8);
 interface DmgArgs { z: string; uid: number; d: number; how: string; by: string | null; hx: number; hy: number; hz: number; dx: number; dz: number }
 interface BreakArgs { z: string; uid: number; by: string | null; how: string; seed: number; dx: number; dz: number; pu: number }
 interface HoldArgs { z: string; uid: number; by: string }
-interface ReleaseArgs { z: string; uid: number; by: string; x: number; y: number; ox: number; oz: number; /** carried and turned a quarter (src/world/pushDrag.ts) */ rot?: number }
-interface WallArgs { z: string; x: number; y: number; side: 0 | 1; d: number; how: string; by: string | null; u: number; h: number; n: 1 | -1 }
+interface ReleaseArgs { z: string; uid: number; by: string; x: number; y: number; ox: number; oz: number; /** carried and turned a quarter (src/world/pushDrag.ts) */ rot?: number; /** came to rest in the solver: fine yaw, the tilt of a knocked-over piece (quaternion) and its lift */ phys?: 1; yaw?: number; tq?: number[]; sy?: number }
+interface WallArgs { z: string; x: number; y: number; side: 0 | 1; d: number; how: string; by: string | null; u: number; h: number; n: 1 | -1; /** the survivor's wall tool ('' none; absent: not a survivor's blow) */ t?: string }
+/** a wall's crack stage from its remaining hit points */
+const wallStage = (hp: number, max: number) => { const r = hp / max; return r > 0.75 ? 0 : r > 0.45 ? 1 : r > 0.2 ? 2 : 3; };
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -240,6 +254,15 @@ defOp('objRelease', (a: ReleaseArgs) => {
   o.x = a.x; o.y = a.y; o.ox = a.ox || undefined; o.oz = a.oz || undefined;
   if (!o.ox) delete o.ox; if (!o.oz) delete o.oz;
   if (a.rot !== undefined && a.rot >= 0 && a.rot <= 3) o.rot = a.rot as typeof o.rot;
+  if (a.phys) {
+    // where the solver left it (src/world/propPhys.ts): turned, or lying over on its side
+    if (a.yaw !== undefined) { if (a.yaw) o.state.yaw = a.yaw; else delete o.state.yaw; }
+    if (a.tq) { o.state.tq = a.tq; o.state.y = a.sy ?? 0; o.state.ty = 1; }
+    else if (o.state.tq) { delete o.state.tq; if (o.state.ty) { delete o.state.y; delete o.state.ty; } }
+  } else if (o.state.tq) {
+    // picked up and set down by hand: it stands the right way up again
+    delete o.state.tq; if (o.state.ty) { delete o.state.y; delete o.state.ty; }
+  }
   const ls = z.lights.filter((l) => l.objUid === o.uid);
   z.addObject(o);
   const w = d.w ?? 1, dd = d.d ?? 1;
@@ -259,7 +282,13 @@ defOp('wallSmash', (a: WallArgs, ctx) => {
   const max = wallHpOf(w);
   const key = i * 2 + a.side;
   let hm = wallHp.get(z); if (!hm) wallHp.set(z, hm = new Map());
-  const hp = (hm.get(key) ?? max) - (a.how === 'bullet' && !w.glass ? 0 : a.d);
+  const wm = wallMatOf(w);
+  let dd = a.how === 'bullet' && !w.glass ? 0 : a.d;
+  // round 19: a survivor's blow goes through a wall only with a tool for it; brick and concrete only to a sledgehammer
+  if (a.t !== undefined && !w.glass && (!a.t || ((wm === 'concrete' || wm === 'brick') && a.t !== 'sledge'))) dd = 0;
+  const hp0 = hm.get(key) ?? max;
+  const hp = hp0 - dd;
+  const st0 = Number.isFinite(max) ? wallStage(hp0, max) : 0, st1 = Number.isFinite(max) ? wallStage(Math.max(0, hp), max) : 0;
   if (Number.isFinite(max)) hm.set(key, hp);
   const rng = new Rng(hash3(a.x * 31 + a.side, a.y * 17, Math.round(a.u * 100) + Math.round(a.h * 100) * 101));
   const facePos = (n: 1 | -1, off = 0.008) => {
@@ -276,11 +305,17 @@ defOp('wallSmash', (a: WallArgs, ctx) => {
   };
   const broken = hp <= 0 && Number.isFinite(max);
   if (!broken) {
+    const masonry = wm === 'concrete' || wm === 'brick';
+    const crackTex = wm === 'brick' ? 'dmg_brick_crack' : wm === 'concrete' ? 'dmg_concrete_crack' : wm === 'wood' ? 'dmg_wood_split' : 'dmg_wall_crack';
     if (a.how === 'bullet') wallDecal('dmg_bullet', 0.1, a.n);
-    else if (Number.isFinite(max) && !w.glass) wallDecal(rng.chance(0.4) || a.d > 18 ? 'dmg_wall_dent' : 'dmg_wall_crack', Math.min(0.75, 0.3 + a.d * 0.015), a.n);
-    else if (!w.glass) wallDecal('dmg_bullet', 0.16, a.n);
+    else if (Number.isFinite(max) && !w.glass && dd > 0) {
+      wallDecal(masonry || wm === 'wood' ? crackTex : rng.chance(0.4) || a.d > 18 ? 'dmg_wall_dent' : 'dmg_wall_crack', Math.min(0.75, (masonry ? 0.24 : 0.3) + a.d * 0.015), a.n);
+      // the wall gets worse in stages: a web of cracks round the blows, then through to the far face
+      if (st1 > st0 && st1 >= 2) wallDecal(masonry || wm === 'wood' ? crackTex : 'dmg_wall_web', 0.7 + st1 * 0.16, a.n);
+      if (st1 > st0 && st1 >= 3) wallDecal(masonry || wm === 'wood' ? crackTex : 'dmg_wall_web', 0.85, (-a.n) as 1 | -1);
+    } else if (!w.glass) wallDecal(Number.isFinite(max) ? 'dmg_wall_dent' : 'dmg_bullet', Number.isFinite(max) ? 0.18 : 0.16, a.n);
     if (z.decals.length > 4000) z.decals.splice(0, z.decals.length - 4000);
-    if (!isReplaying()) G.destruct?.onWallHit?.(z, a, w, false);
+    if (!isReplaying()) G.destruct?.onWallHit?.(z, a, w, false, dd > 0 ? st1 : -1, st1 > st0);
     return;
   }
   hm.delete(key);
@@ -296,7 +331,7 @@ defOp('wallSmash', (a: WallArgs, ctx) => {
     for (const n of [1, -1] as const) {
       const f = facePos(n, 0.4);
       if (!z.inb(Math.floor(f.x), Math.floor(f.z)) || !z.floor[z.idx(Math.floor(f.x), Math.floor(f.z))]) continue;
-      z.decals.push({ x: r2(f.x), z: r2(f.z), w: 1.1, d: 0.8, rot: r2(rng.float(0, 6.28)), tex: 'dbr_plaster', y: 0.011 } as Decal);
+      z.decals.push({ x: r2(f.x), z: r2(f.z), w: 1.1, d: 0.8, rot: r2(rng.float(0, 6.28)), tex: wm === 'brick' ? 'dbr_rubble_brick' : wm === 'concrete' ? 'dbr_rubble' : wm === 'wood' ? 'dbr_splinters' : 'dbr_plaster', y: 0.011 } as Decal);
       z.markDirty(Math.floor(f.x), Math.floor(f.z));
     }
   }
@@ -360,6 +395,10 @@ export class DestructionSystem implements GameSystem {
   rng = new Rng(Math.random() * 1e9);
   /** push / drag (src/world/pushDrag.ts) */
   push: any = null;
+  /** rigid bodies: wall chunks, rubble, loose furniture (src/world/rigid.ts) */
+  rigid: RigidWorld;
+  /** furniture and floor items as bodies (src/world/propPhys.ts) */
+  props: PropPhysics;
 
   constructor() {
     G.destruct = this;
@@ -370,6 +409,8 @@ export class DestructionSystem implements GameSystem {
     this.root.add(this.dust.mesh, this.sparks.mesh);
     setDamageGeometryHook((g, d, lvl) => damageGeometry(g, lvl, hashStr(d.key)));
     this.push = new PushDrag();
+    this.rigid = new RigidWorld(this.root);
+    this.props = new PropPhysics(this.rigid, this.root);
     // windows shattering (any path that breaks the glass: swings, smash action, bullets, creatures)
     bus.on('edgeChanged', (z: Zone, x: number, y: number, side: 0 | 1, e: EdgeObj, patch: any) => {
       if (patch?.glass === 'broken' && !isReplaying()) this.windowFx(z, x, y, side);
@@ -404,6 +445,12 @@ export class DestructionSystem implements GameSystem {
     if (z && (this.overlayDirty || this.overlayZone !== z.key)) this.rebuildOverlay(z);
     if (z && (this.holesDirty || this.holesZone !== z.key)) this.rebuildHoles(z);
     try { this.push?.update?.(dt); } catch (e) { console.error('push', e); }
+    try {
+      this.rigid.setZone(z); this.rigid.quality = this.quality;
+      this.props.pre(dt);
+      this.rigid.update(dt);
+      this.props.post(dt);
+    } catch (e) { console.error('rigid', e); }
   }
 
   // ================================================================ public API
@@ -462,7 +509,7 @@ export class DestructionSystem implements GameSystem {
       }
       const base = (w.dmg ? (w.dmg[0] + Math.random() * (w.dmg[1] - w.dmg[0])) : 2);
       const k = w.kind === 'blunt' ? 1 : w.kind === 'axe' ? 0.85 : w.kind === 'unarmed' ? 0.35 : 0.2;
-      op('wallSmash', { z: z.key, x: wh.x, y: wh.y, side: wh.side, d: r2(base * k * (1 + p.body.skill('strength') * 0.05)), how: 'melee', by: p.id, u: r2(wh.u), h: r2(wh.h), n: wh.n } as WallArgs);
+      op('wallSmash', { z: z.key, x: wh.x, y: wh.y, side: wh.side, d: r2(base * k * (1 + p.body.skill('strength') * 0.05)), how: 'melee', by: p.id, u: r2(wh.u), h: r2(wh.h), n: wh.n, t: wallToolClass(it) } as WallArgs);
       try { (p as any).anim?.impact?.(0.8); } catch { /* older rigs */ }
       if (it) this.wearWeapon(p, it, 0.5);
       if (!it) this.punchedWall(p, wh, (w.dmg ? (w.dmg[0] + w.dmg[1]) / 2 : 3) / 3);
@@ -634,6 +681,7 @@ export class DestructionSystem implements GameSystem {
   // ================================================================ hit / break effects (every peer)
   onHit(z: Zone, o: TileObject, d: ObjDef, a: DmgArgs, lvl: number) {
     if (z !== G.view?.zone) return;
+    try { this.props.hit(z, o, d, a); } catch (e) { console.warn('prop hit', e); }
     const mat = objMat(d);
     const k = Math.min(1.6, Math.max(0.4, a.d / 14));
     this.impactFx(z, a.hx, a.hy, a.hz, -a.dx, -a.dz, mat, k, d);
@@ -766,7 +814,7 @@ export class DestructionSystem implements GameSystem {
     G.audio?.at?.('dmg_break_glass', cx, cz, 0.9);
   }
 
-  onWallHit(z: Zone, a: WallArgs, w: WallDef, broken: boolean) {
+  onWallHit(z: Zone, a: WallArgs, w: WallDef, broken: boolean, stage = 0, worse = false) {
     if (z !== G.view?.zone) return;
     const T = (w.thick ?? 0.12) / 2;
     const base = z.heightAt(a.x, a.y);
@@ -783,6 +831,10 @@ export class DestructionSystem implements GameSystem {
       this.impactFx(z, fx, base + a.h, fz, nx, nz, mat, 1.3);
       for (let i = 0; i < 18; i++) this.dust.add(PK.Dust, fx + r.float(-0.15, 0.15), base + a.h + r.float(-0.2, 0.1), fz + r.float(-0.15, 0.15), nx * r.float(0.3, 1.2) + r.float(-0.3, 0.3), r.float(-0.2, 0.4), nz * r.float(0.3, 1.2) + r.float(-0.3, 0.3), r.float(0.02, 0.045), r.float(1.5, 3.2), r.chance(0.5) ? 0xe0dcd2 : 0xc8c4ba);
       G.audio?.at?.(w.glass ? 'glass_clink' : mat === 'wood' ? 'dmg_hit_wood' : mat === 'metal' ? 'dmg_hit_metal' : 'dmg_wall_hit', fx, fz, 1);
+      // a crack opening up, crumbs and a flake knocked out of it
+      const wm = wallMatOf(w);
+      if (worse && wm) G.audio?.at?.(wm === 'wood' ? 'craft_crack' : wm === 'concrete' || wm === 'brick' ? 'cb_break' : 'plaster_crack', fx, fz, 0.55 + stage * 0.12);
+      if (stage >= 0) try { spallWall(this.rigid, z, w, a, stage, (Math.random() * 1e9) | 0); } catch (e) { console.warn('spall', e); }
       this.shakeNear(fx, fz, 0.18);
       return;
     }
@@ -792,23 +844,15 @@ export class DestructionSystem implements GameSystem {
       const ex = a.side === 0 ? 0 : n, ez = a.side === 0 ? n : 0;
       for (let i = 0; i < 4; i++) this.impactFx(z, cx + (a.side === 0 ? r.float(-0.35, 0.35) : 0), base + r.float(0.3, 1.8), cz + (a.side === 1 ? r.float(-0.35, 0.35) : 0), ex, ez, w.glass ? 'glass' : mat, 2);
     }
-    for (let i = 0; i < (this.quality === 0 ? 50 : 140); i++) this.dust.add(PK.Dust, cx + r.float(-0.5, 0.5), base + r.float(0.2, 2), cz + r.float(-0.5, 0.5), r.float(-1.4, 1.4), r.float(-0.1, 0.6), r.float(-1.4, 1.4), r.float(0.022, 0.05), r.float(2.5, 5), w.glass ? 0xe8eef2 : r.chance(0.5) ? 0xe4e0d6 : 0xc8c4ba);
-    if (!w.glass) {
-      // chunky board pieces as real debris (local, short-lived)
-      const mb = new ModelBuilder();
-      mb.box(0, 0, 0, 0.3, 0.22, 0.1, 'dmg_gypsum');
-      const g = mb.build();
-      const pieces: Piece[] = [];
-      for (let i = 0; i < 6; i++) pieces.push({ geo: g, c: new THREE.Vector3(), half: new THREE.Vector3(0.15 * (0.6 + i * 0.08), 0.11, 0.05), mat: 'ceramic', tex: 'dmg_gypsum', mass: 2 });
-      const starts: SimStart[] = pieces.map((pc, i) => {
-        const n = i % 2 ? 1 : -1;
-        const p = new THREE.Vector3(cx + (a.side === 0 ? r.float(-0.3, 0.3) : n * 0.15), base + r.float(0.4, 1.7), cz + (a.side === 1 ? r.float(-0.3, 0.3) : n * 0.15));
-        const v = new THREE.Vector3((a.side === 1 ? n : r.float(-0.4, 0.4)) * r.float(0.6, 2), r.float(0.2, 1.4), (a.side === 0 ? n : r.float(-0.4, 0.4)) * r.float(0.6, 2));
-        return { p, q: new THREE.Quaternion().setFromEuler(new THREE.Euler(r.float(0, 3), r.float(0, 3), r.float(0, 3))), v, w: new THREE.Vector3(r.float(-8, 8), r.float(-8, 8), r.float(-8, 8)), half: pc.half };
-      });
-      const sim = simulate(z, starts, 3);
-      this.startLive(z, sim, pieces, -1, 'ceramic', null, 12);
-    }
+    for (let i = 0; i < (this.quality === 0 ? 50 : 140); i++) this.dust.add(PK.Dust, cx + r.float(-0.5, 0.5), base + r.float(0.2, 2), cz + r.float(-0.5, 0.5), r.float(-1.4, 1.4), r.float(-0.1, 0.6), r.float(-1.4, 1.4), r.float(0.022, 0.05), r.float(2.5, 5), w.glass ? 0xe8eef2 : w.key === 'brick' ? (r.chance(0.5) ? 0xc8a690 : 0xa6a29a) : w.sound === 'concrete' ? (r.chance(0.5) ? 0xb4b0a6 : 0x9a968e) : w.sound === 'wood' ? (r.chance(0.5) ? 0xd8c8a8 : 0xb8ae9c) : r.chance(0.5) ? 0xe4e0d6 : 0xc8c4ba);
+    // the wall comes apart along its material (src/world/wallFracture.ts): plates, chunks and rebar, bricks, boards, shards
+    try { fractureWall(this.rigid, z, w, a, hash3(a.x * 31 + a.side, a.y * 17, Math.round(G.time * 10))); } catch (e) { console.error('fracture', e); }
+    const wm = wallMatOf(w);
+    if (wm === 'concrete') { G.audio?.at?.('cb_break', cx, cz, 0.9); G.audio?.at?.('gore_crumble', cx, cz, 0.8); }
+    else if (wm === 'brick') G.audio?.at?.('dmg_crumble', cx, cz, 0.9);
+    else if (wm === 'wood') { G.audio?.at?.('dmg_break_wood', cx, cz, 1); G.audio?.at?.('employee_crack', cx, cz, 0.7); }
+    else if (wm === 'glass') G.audio?.at?.('mirror_shatter', cx, cz, 0.8);
+    else { G.audio?.at?.('plaster_crack', cx, cz, 0.8); G.audio?.at?.('dmg_crumble', cx, cz, 0.7); }
     G.audio?.at?.(w.glass ? 'dmg_break_glass' : 'dmg_wall_break', cx, cz, 1);
     this.shakeNear(cx, cz, 0.45);
     (G.camera as any)?.punch?.(0.04, 0.3);

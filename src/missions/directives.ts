@@ -21,6 +21,7 @@ import { defQuest } from '../game/quests';
 import { has, count } from './missions';
 import type { QuestX, QWhere } from './questRuntime';
 import './researchQuests';
+import './hotelQuests';
 
 const q = (d: QuestX) => defQuest(d);
 const lobbyPanelFuses = () => {

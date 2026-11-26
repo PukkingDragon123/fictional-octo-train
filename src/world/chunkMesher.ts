@@ -222,6 +222,9 @@ export function objectMatrix(zone: Zone, o: TileObject, d: ObjDef): THREE.Matrix
   const m = new THREE.Matrix4().makeTranslation(cx, h + (o.state?.y ?? 0), cz);
   m.multiply(ROT_MATS[o.rot]);
   if (o.state?.yaw) m.multiply(new THREE.Matrix4().makeRotationY(o.state.yaw));
+  // knocked over and left lying where it fell (src/world/propPhys.ts)
+  const tq = o.state?.tq;
+  if (tq && tq.length === 4) m.multiply(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion(tq[0], tq[1], tq[2], tq[3])));
   return m;
 }
 
@@ -419,7 +422,7 @@ function floorWear(zone: Zone, mb: ModelBuilder, x: number, y: number, h: number
 }
 
 // ---------------------------------------------------------------- ceilings (first person only)
-interface CeilFlavour { kind: 'tile' | 'concrete' | 'plaster'; tint: number; mw: number }
+interface CeilFlavour { kind: 'tile' | 'concrete' | 'plaster'; tint: number; mw: number; tex?: string }
 const ceilCache = new WeakMap<Zone, { h: number; f: CeilFlavour }>();
 function ceilingInfo(zone: Zone) {
   let c = ceilCache.get(zone);
@@ -435,6 +438,8 @@ function ceilingInfo(zone: Zone) {
     else if (['house', 'suburbs', 'homestead'].includes(g)) f = { kind: 'plaster', tint: 0xf0e8dc, mw: 1 };
     else if (g === 'pool') f = { kind: 'concrete', tint: 0xd8eef0, mw: 1 };
     else f = { kind: 'tile', tint: T[g] ?? 0xd0ccc0, mw: 1.25 };
+    // a zone's own ceiling (z.meta.ceilTex: the Halcyon's coffered plaster, src/content/furniture/zk_hotel.ts)
+    if (typeof zone.meta.ceilTex === 'string') f = { kind: 'plaster', tint: 0xffffff, mw: 1, tex: zone.meta.ceilTex };
     c = { h, f };
     ceilCache.set(zone, c);
   }
@@ -443,6 +448,7 @@ function ceilingInfo(zone: Zone) {
 function ceilingHeight(zone: Zone) { return ceilingInfo(zone).h; }
 function ceilingFlavour(zone: Zone) { return ceilingInfo(zone).f; }
 function ceilingTex(f: CeilFlavour, x: number, y: number): string {
+  if (f.tex) return f.tex;
   if (f.kind === 'concrete') return 'ceil_concrete';
   if (f.kind === 'plaster') return 'ceil_plaster';
   const h = mix3(x, y, 91) % 100;

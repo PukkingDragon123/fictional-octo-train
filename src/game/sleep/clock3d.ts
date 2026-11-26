@@ -103,7 +103,7 @@ export function buildSleepClock(): SleepClock {
   const dome = new THREE.Mesh(Gm(new THREE.SphereGeometry(R * 1.9, 32, 8, 0, Math.PI * 2, 0, 0.5)), glass); dome.rotation.x = Math.PI / 2; dome.position.z = 0.017 - R * 1.9 * Math.cos(0.5) + 0.002; body.add(dome);
   // day window number
   const dayMat = M(new THREE.MeshStandardMaterial({ roughness: 0.5 }));
-  const dayPlate = new THREE.Mesh(Gm(new THREE.PlaneGeometry(0.0105, 0.0055)), dayMat); dayPlate.position.set(0, -0.0233, 0.0128); body.add(dayPlate);
+  const dayPlate = new THREE.Mesh(Gm(new THREE.PlaneGeometry(0.0184, 0.0096)), dayMat); dayPlate.position.set(0, -0.0182, 0.0134); body.add(dayPlate);
   let shownDay = -1;
   // hands (blued steel), the centre cap
   const hand = (len: number, w: number) => {

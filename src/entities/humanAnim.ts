@@ -1720,14 +1720,15 @@ function fullPose(f: FullBody, t: number, ft: number, inp: AnimInput): Pose {
         // a hand back to the floor to take the weight
         set(P, 'uarmR', -0.5 * a * (1 - c) + 0.6 * b * (1 - c), 0.1, -0.35 * b); set(P, 'farmR', -0.3 * a, 0, 0);
         set(P, 'uarmL', -0.4 * a * (1 - b), 0, 0.2); set(P, 'farmL', -0.6 * a, 0, 0);
-        P.bodyPitch = -1.5708 * c; P.bodyY = (side ? 0.16 : 0.13) * c; if (side) P.bodyRoll = 1.45 * c;
+        P.bodyPitch = -1.5708 * c; P.bodyY = (side ? 0.16 : 0.13) * c; if (side) P.bodyYaw = 1.45 * c;
         P.gripL = 0.4; P.gripR = 0.3;
         return P;
       }
       P.bodyPitch = -1.5708; P.bodyY = 0.13;
       if (f === 'lie_side') {
-        // curled up on the side
-        P.bodyRoll = 1.45; P.bodyY = 0.16;
+        // curled up on the side (a turn about the spine before lying back: the Euler order is X then Y then Z, so a
+        // roll here would lay the body across its facing with the knees in the air)
+        P.bodyYaw = 1.45; P.bodyY = 0.16;
         set(P, 'thighL', -0.9, 0, 0.05); set(P, 'shinL', 1.3, 0, 0); set(P, 'thighR', -0.7, 0, -0.05); set(P, 'shinR', 1.2, 0, 0);
         set(P, 'uarmL', -1.2, 0, 0.1); set(P, 'farmL', -1.5, 0, 0); set(P, 'uarmR', -0.9, 0, -0.1); set(P, 'farmR', -1.3, 0, 0);
         set(P, 'spine', 0.25, 0, 0); set(P, 'chest', 0.15 + breath, 0, 0); set(P, 'head', 0.3, 0, 0);

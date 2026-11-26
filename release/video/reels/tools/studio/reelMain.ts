@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { makeStudio } from './reelStudio';
-import { REELS, intro, cardShot, endcardShot, type ShotCtx, type Shot } from './reelShots';
+import { REELS, intro, cardShot, endcardShot, useLabSet, type ShotCtx, type Shot } from './reelShots';
 import { beatShot, findStage, type Spec, type Stage } from './reelSpec';
 import { img } from './paperCard';
 import { filmLights } from './reelActors';
@@ -78,5 +78,5 @@ S.hooks.push((_t, dt) => {
     return grab ? S.grab(0.93) : '';
   },
 };
-void Promise.all([document.fonts.load('40px Alagard'), document.fonts.load('600 30px "IBM Plex Mono"'),
+void Promise.all([(q.get('zone') === 'lab' && !(window as any).__spec?.noset ? useLabSet(S) : Promise.resolve()), document.fonts.load('40px Alagard'), document.fonts.load('600 30px "IBM Plex Mono"'),
   ...['/brand/emblem-256.png', '/brand/lockup-stacked@4x.png', '/brand/lockup-horizontal@4x.png'].map((s) => img(s).decode().catch(() => {}))]).then(() => { (window as any).__ready = true; });

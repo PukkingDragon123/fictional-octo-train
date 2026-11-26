@@ -47,11 +47,12 @@ export const CREATURES = {
   balloon_puffer: { name: 'Balloon Puffer', zone: 'plunge', find: 'water', steps: null, voice: ['cweird', 'cmisc'], attack: ['squish', 'cweird'] },
   worm_train: { name: 'Worm Train', zone: 'subway', find: 'low', steps: 'metalhit', step: 0.22, stepGain: -22, stepRate: 0.8, voice: ['beast', 'growl'], attack: ['metalslam', 'wetbreak', 'beast'] },
   stalker: { name: 'Stalker', zone: 'lobby', find: 'open', steps: 'steps_lino', step: 0.62, stepGain: -16, stepRate: 0.85, voice: ['breath', 'zombie'], attack: ['hit', 'fall', 'zombie'] },
+  unclaimed: { name: 'The Unclaimed', zone: 'hotel', find: 'open', steps: 'steps_wood', step: 0.3, stepGain: -20, stepRate: 0.75, voice: ['elev_bell_1', 'creak_long_1', 'leather_1'], attack: ['metalhit', 'knock_1', 'beast'] },
 };
 const BEDS = {
   ledge: [['bed_hum', -24], ['bed_drips', -27]], meadow: [['bed_wind', -24]], fields: [['bed_wind', -24]], undercroft: [['bed_drips', -24], ['bed_tunnel', -27]],
   tunnels: [['bed_drips', -24], ['bed_tunnel', -27]], plunge: [['bed_water', -26], ['bed_hum', -30]], pools: [['bed_water', -26]], subway: [['bed_tunnel', -24], ['bed_machine', -32]],
-  lobby: [['bed_hum', -22]], annex: [['bed_hum', -22]], office: [['bed_hum', -23]], lab: [['bed_hum', -25], ['bed_air', -31]],
+  lobby: [['bed_hum', -22]], hotel: [['bed_air', -26], ['bed_hum', -31]], annex: [['bed_hum', -22]], office: [['bed_hum', -23]], lab: [['bed_hum', -25], ['bed_air', -31]],
 };
 const DEFAULT = {
   card: "If you want to join the Institute, here's my card.",
@@ -92,14 +93,15 @@ function plan(R) {
   if (R.legacy) {
     const P = JSON.parse(fs.readFileSync(path.join(B, 'plan.json'), 'utf8'))[R.legacy.reel];
     const L = Object.fromEntries(JSON.parse(fs.readFileSync(path.join(B, 'lines.json'), 'utf8'))[R.legacy.reel]);
-    for (const s of P.shots) shots.push({ id: s.id, kind: ['card', 'endcard'].includes(s.id) ? s.id : 'legacy', zone: 'ledge', at: s.at, dur: s.dur });
+    for (const s of P.shots) { const own = ['card', 'endcard'].includes(s.id); shots.push({ id: s.id, kind: own ? s.id : 'legacy', zone: own ? (R.set ?? 'lab') : 'ledge', at: s.at, dur: s.dur }); }
     for (const v of P.voice) lines.push({ text: L[v.key], at: v.at, nocap: v.key === 'bye' });
     return { shots, lines, total: P.total, zone: 'ledge' };
   }
   const add = (id, kind, z, dur, extra = {}) => { shots.push({ id, kind, zone: z, at: +t.toFixed(3), dur: +dur.toFixed(3), ...extra }); t += dur; };
   const say = (text, lead, tail, hold = 0) => { lines.push({ text, at: +(t + lead).toFixed(3) }); return { lead, tail, hold }; };
   const V = R._voice;
-  { const v = V(R.intro.line); say(R.intro.line, 0.35, 0.3); add('intro', 'intro', 'ledge', 0.35 + v.dur + 0.3); }
+  const SET = R.set ?? 'lab';
+  { const v = V(R.intro.line); say(R.intro.line, 0.35, 0.3); add('intro', 'intro', SET, 0.35 + v.dur + 0.3); }
   R.beats.forEach((b, i) => {
     const id = b.id ?? `b${i + 1}`;
     const v = b.line ? V(b.line) : null;
@@ -110,8 +112,8 @@ function plan(R) {
     else add(id, 'beat', b.zone ?? zone, d, { spec: b.shot ?? {}, sfx: b.sfx ?? [], beat: b });
   });
   const card = R.card?.line ?? DEFAULT.card, end = R.end?.line ?? DEFAULT.end;
-  { const v = V(card); say(card, 0.2, 0.3); add('card', 'card', 'ledge', 0.2 + v.dur + 0.3); }
-  { const v = V(end); lines.push({ text: end, at: +(t + 0.6).toFixed(3), nocap: true }); add('endcard', 'endcard', 'ledge', 0.6 + v.dur + 3.0); }
+  { const v = V(card); say(card, 0.2, 0.3); add('card', 'card', SET, 0.2 + v.dur + 0.3); }
+  { const v = V(end); lines.push({ text: end, at: +(t + 0.6).toFixed(3), nocap: true }); add('endcard', 'endcard', SET, 0.6 + v.dur + 3.0); }
   return { shots, lines, total: +t.toFixed(3), zone };
 }
 
@@ -120,7 +122,7 @@ const shotKey = (R, s) => s.kind === 'game' ? sha([REV_GAME, R.seed ?? 1337, JSO
   : s.kind === 'beat'
   ? sha([REV_BEAT, s.zone, R.seed ?? 1337, JSON.stringify(R.stage ?? {}), JSON.stringify(s.spec), s.dur, RFPS].join('|'))
   : s.kind === 'legacy' ? sha(['legacy', R.legacy.reel, s.id, s.dur, RFPS].join('|'))
-    : sha([REV_LEDGE, s.kind, s.dur, s.kind === 'endcard' ? LINK : '', RFPS].join('|'));
+    : sha([REV_LEDGE, s.kind, s.zone === 'ledge' ? '' : s.zone, s.dur, s.kind === 'endcard' ? LINK : '', RFPS].join('|'));
 const dims = (s) => (opt.preview ? [270, 480] : s.kind === 'endcard' ? [540, 960] : [405, 720]);
 const nFrames = (s) => Math.round((s.at + s.dur) * FPS) - Math.round(s.at * FPS);
 
@@ -184,13 +186,38 @@ async function render(R, P, only = null) {
     }
   }
 }
+// ------------------------------------------------------------------ motion blur
+// Optical-flow motion blur on the rendered frames (no extra rendering): ffmpeg's motion-compensated
+// interpolation to 4x the frame rate, then MB_FRAMES of those averaged per output frame (6 = a 540 degree
+// shutter: heavy, filmic streaks on anything that moves, the still parts untouched). Cached per shot.
+const MB_FRAMES = Number(process.env.REEL_MB ?? 6);
+function blurShots(P) {
+  if (!MB_FRAMES) return;
+  for (const s of P.shots) {
+    if (s.legacyDir || !s.dir || !fs.existsSync(path.join(s.dir, 'done'))) continue;
+    const n = JSON.parse(fs.readFileSync(path.join(s.dir, 'done'), 'utf8')).n;
+    const mb = path.join(s.dir, 'mb' + MB_FRAMES);
+    if (fs.existsSync(path.join(mb, 'done'))) { s.mb = mb; continue; }
+    fs.rmSync(mb, { recursive: true, force: true }); fs.mkdirSync(mb, { recursive: true });
+    const w = Array(MB_FRAMES).fill(1).join(' ');
+    run('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(RFPS), '-i', path.join(s.dir, '%04d.jpg'),
+      '-vf', `minterpolate=fps=${RFPS * 4}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1,tmix=frames=${MB_FRAMES}:weights='${w}',fps=${RFPS}`,
+      '-q:v', '2', '-start_number', '0', path.join(mb, '%04d.jpg')]);
+    // the filter chain can drop the last frame or two: hold the last one
+    let last = null;
+    for (let j = 0; j < n; j++) { const f = path.join(mb, String(j).padStart(4, '0') + '.jpg'); if (fs.existsSync(f)) last = f; else if (last) fs.copyFileSync(last, f); }
+    fs.writeFileSync(path.join(mb, 'done'), '1');
+    s.mb = mb;
+  }
+}
+
 function framePaths(P) {
   const out = [];
   for (const s of P.shots) {
     const f0 = Math.round(s.at * FPS), n = nFrames(s);
     for (let j = 0; j < n; j++) {
       if (s.legacyDir) out.push(path.join(s.legacyDir, String(f0 + j).padStart(5, '0') + '.jpg'));
-      else out.push(path.join(s.dir, String(opt.preview ? Math.floor(j / 2) : j).padStart(4, '0') + '.jpg'));
+      else out.push(path.join(s.mb ?? s.dir, String(opt.preview ? Math.floor(j / 2) : j).padStart(4, '0') + '.jpg'));
     }
   }
   return out;
@@ -284,6 +311,8 @@ async function make(file) {
   }
 
   await render(R, P);
+  for (const s of P.shots) if (!s.dir && s.kind !== 'legacy') { s.key = shotKey(R, s); s.dir = path.join(CACHE, 'shots', s.key); }
+  blurShots(P);
   // sound
   const wav = path.join(work, 'audio.wav');
   if (R.legacy) {
@@ -296,7 +325,7 @@ async function make(file) {
   // picture + encode
   const tl = path.join(work, 'timeline.json');
   fs.writeFileSync(tl, JSON.stringify({ ...base, frames: framePaths(P) }));
-  const outDir = opt.preview ? path.join(B, 'preview') : RD; fs.mkdirSync(outDir, { recursive: true });
+  const outDir = opt.preview ? path.join(B, 'preview') : process.env.REEL_OUT ? path.resolve(process.env.REEL_OUT) : RD; fs.mkdirSync(outDir, { recursive: true });
   const out = path.join(outDir, opt.preview ? R.id + '.mp4' : (R.file ?? `limbo_phobia_reel_${R.id}.mp4`));
   const [W, H] = base.size;
   const venc = opt.preview ? ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27', '-pix_fmt', 'yuv420p'] : X264.filter((a) => a !== '-an');

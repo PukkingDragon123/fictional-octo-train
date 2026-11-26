@@ -13,6 +13,7 @@ import { PLAYGROUND_INHABITANTS } from './lore_playground';
 import { FUNGUS_SEA_INHABITANTS } from './lore_fungus_sea';
 import { SUBWAY_INHABITANTS } from './lore_subway';
 import { POOL_INHABITANTS } from './lore_pool';
+import { HOTEL_INHABITANTS } from './lore_hotel';
 
 export type SinRank = 'sloth' | 'gluttony' | 'lust' | 'greed' | 'envy' | 'wrath' | 'pride';
 
@@ -493,6 +494,7 @@ export const INHABITANTS: InhabitantLore[] = [
   ...FUNGUS_SEA_INHABITANTS,
   ...SUBWAY_INHABITANTS,
   ...POOL_INHABITANTS,
+  ...HOTEL_INHABITANTS,
   // ============================================================== the Ball House (src/world/gen/z_ballhouse.ts)
   L({
     id: 'timmy', name: 'Timmy', rank: 'lust', class: 'Remnant', danger: 6,
