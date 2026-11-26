@@ -16,7 +16,8 @@ import { loadProp } from './glb';
 interface Spot { a: string; p: [number, number, number]; r?: number; s?: number; need?: StationKey }
 
 const DEG = Math.PI / 180;
-const URL_OF = (a: string) => `${import.meta.env.BASE_URL}props/lab/${a}.glb`;
+// the sandboxed artifact page cannot serve .glb: there each prop ships as base64 text (scripts/artifact.mjs writes it)
+const URL_OF = (a: string) => `${import.meta.env.BASE_URL}props/lab/${a}.glb${import.meta.env.VITE_SANDBOXED ? '.txt' : ''}`;
 
 export const LAB_SPOTS: Partial<Record<MenuRoomId, Spot[]>> = {
   // the control room (rooms/research.ts: W 3.6, back -3.0, front 3.3) and its fab bay along the front wall

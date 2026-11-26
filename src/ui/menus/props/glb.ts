@@ -72,7 +72,7 @@ export async function loadProp(url: string, low = false): Promise<THREE.Mesh> {
   const key = url + (low ? '#low' : '');
   let p = cache.get(key);
   if (!p) {
-    p = fetch(url).then((r) => { if (!r.ok) throw new Error(r.status + ' ' + url); return r.arrayBuffer(); }).then((b) => parse(b, low));
+    p = fetch(url).then((r) => { if (!r.ok) throw new Error(r.status + ' ' + url); return url.endsWith('.txt') ? r.text().then((t) => { const bin = atob(t.trim()); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }) : r.arrayBuffer(); }).then((b) => parse(b, low));
     cache.set(key, p);
     p.catch(() => cache.delete(key));
   }

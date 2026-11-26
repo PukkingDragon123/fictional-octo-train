@@ -53,3 +53,10 @@ html, body { height: 100%; background: #000; }
 fs.writeFileSync(path.join(dist, 'artifact.html'), page);
 const assets = fs.readdirSync(path.join(dist, 'assets')).filter((f) => f.endsWith('.js'));
 console.log(JSON.stringify({ page: 'dist/artifact.html', kb: Math.round(page.length / 1024), entry: js, scripts: assets, audioInlined: audioUsed.size, audioKB: Math.round(audioBytes / 1024), scriptsKB: Math.round(assets.reduce((s, f) => s + fs.statSync(path.join(dist, 'assets', f)).size, 0) / 1024) }, null, 1));
+
+// ---- the lab props: the artifact host does not serve .glb, so each ships beside it as base64 text (.glb.txt);
+// src/ui/menus/props/labProps.ts asks for the .txt in the sandboxed build and decodes it
+{
+  const pd = path.join(dist, 'props', 'lab');
+  if (fs.existsSync(pd)) for (const f of fs.readdirSync(pd)) if (f.endsWith('.glb')) fs.writeFileSync(path.join(pd, f + '.txt'), fs.readFileSync(path.join(pd, f)).toString('base64'));
+}

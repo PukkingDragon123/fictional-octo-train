@@ -116,7 +116,7 @@ export async function runTour(h: TourHost): Promise<void> {
   const skip = document.createElement('button');
   skip.type = 'button'; skip.className = 'tour-skip'; skip.setAttribute('aria-label', 'Skip the tour (Esc)');
   skip.append(capEl('skip', 3));
-  layer.append(ring, dots, skip);
+  layer.append(ring, skip); // no progress dots (the user rejected them)
   document.body.append(layer);
   const sub = new SubLine(layer);
   let quit = false, next = false;
@@ -293,8 +293,8 @@ export async function runLabIntro(h: IntroHost, o: { met?: boolean } = {}): Prom
   skip.type = 'button'; skip.className = 'tour-skip'; skip.setAttribute('aria-label', 'Skip (Esc, or hold)');
   const holdRow = document.createElement('span'); holdRow.className = 'tour-hold';
   const holdPips = [0, 1, 2, 3, 4].map(() => { const p = document.createElement('i'); p.style.backgroundImage = `url(${pipU})`; holdRow.append(p); return p; });
-  skip.append(holdRow, capEl('skip', 3));
-  layer.append(...bars, ring, dots, skip, fade);
+  skip.append(capEl('skip', 3)); // no hold dots either
+  layer.append(...bars, ring, skip, fade); // no progress dots (the user rejected them)
   document.body.append(layer);
   const sub = new SubLine(layer);
   requestAnimationFrame(() => requestAnimationFrame(() => layer.classList.add('in')));
