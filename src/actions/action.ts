@@ -90,6 +90,8 @@ export class ActionQueue {
       }
       a.started = true;
       try { a.start(); } catch (e) { console.error('action start', a.name, e); this.list.shift(); return; }
+      // the close-ups listen for this (src/game/cine/actcine.ts)
+      if (!a.done) bus.emit('actionStart', this.p, a);
     }
     if (!a.isValid()) { a.cancelled = true; a.check?.end(a); a.stop(); this.list.shift(); return; }
     // a skill check's window holds the work until the hand has answered it

@@ -644,7 +644,7 @@ export class AudioEngine {
       this.muffle.frequency.setTargetAtTime(350, this.ctx.currentTime, 1.2);
     });
     bus.on('sleepStart', (p: Player) => { if (p?.isLocal) { this.sleepDuck = true; this.duck(0.2, 2); } });
-    bus.on('sleepEnd', (p: Player) => { if (p?.isLocal) { this.sleepDuck = false; this.duck(1, 1.5); this.flat('wake_gasp', 'voice', 0.35); } });
+    bus.on('sleepEnd', (p: Player, _h?: number, scare?: string) => { if (p?.isLocal) { this.sleepDuck = false; this.duck(1, scare ? 0.3 : 1.5); this.flat(scare ? 'wake_gasp' : 'breath', 'voice', scare ? 0.5 : 0.22); } });
     bus.on('loop', (p: Player) => { if (p?.isLocal) this.flat('deja', 'sfx', 0.35); });
   }
   private duck(level: number, secs: number) {

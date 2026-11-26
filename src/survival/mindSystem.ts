@@ -194,7 +194,7 @@ export class MindSystem {
       if (!p.body.has('light_sleeper') || p.body.has('heavy_sleeper')) return;
       if (Math.hypot(n.x - p.x, n.z - p.z) > (n.radius ?? 8) + 3) return;
       this.wakeCd = 20;
-      setTimeout(() => { if (p.sleeping) { p.actions.clear(); bus.emit('think', p, 'What was that? ...I was asleep.'); } }, 200);
+      setTimeout(() => { if (p.sleeping) { (p as unknown as { sleepScare?: string }).sleepScare = 'noise'; p.actions.clear(); bus.emit('think', p, 'What was that? ...I was asleep.'); } }, 200);
     });
   }
 
@@ -478,6 +478,7 @@ export class MindSystem {
           this.wakeCd = 30;
           b.panic = Math.min(100, b.panic + 40);
           m.insomnia = clamp01(m.insomnia + 0.04);
+          (p as unknown as { sleepScare?: string }).sleepScare = 'nightmare';
           p.actions.clear();
           setTimeout(() => bus.emit('think', p, pick(LINES.nightmare)), 300);
         } else if (Math.random() < broken * dh) {

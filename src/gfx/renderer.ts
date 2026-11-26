@@ -173,7 +173,7 @@ export class PixelRenderer {
   shake = 0;
   grade: Grade = { ...DEFAULT_GRADE };
   gradeTarget: Grade = { ...DEFAULT_GRADE };
-  fx = { glitch: 0, panic: 0, hurt: 0, desat: 0, wobble: 0, blink: 0, corruptFlash: 0, dream: 0, outline: 1, edgeLight: 0.2, /** heat shimmer (the Ledge, src/world/anomalies/ledgeFx.ts) */ heat: 0 };
+  fx = { glitch: 0, panic: 0, hurt: 0, desat: 0, wobble: 0, blink: 0, corruptFlash: 0, dream: 0, outline: 1, edgeLight: 0.2, /** heat shimmer (the Ledge, src/world/anomalies/ledgeFx.ts) */ heat: 0, /** exposure multiplier (the sleep cut dims the lights, src/game/sleep) */ dim: 1 };
   /** user setting: target internal height in px (the chunky picture at full pixel filter) */
   targetLowH = 360;
   /** backing-store scale 0.5..1 (Settings > Display) */
@@ -460,7 +460,7 @@ export class PixelRenderer {
     // zone grades keep their colour (the coloured light washes are the look); only their darkening is eased
     u.uLift.value.set(...g.lift); brightGain(u.uGain.value, g.gain); u.uTint.value.set(...g.tint);
     u.uGamma.value = g.gamma;
-    u.uExposure.value = z.exposure ?? 1.75;
+    u.uExposure.value = (z.exposure ?? 1.75) * (this.fx.dim ?? 1);
     // first person puts big smooth light falloffs right in your face: finer steps so they don't contour
     // the pixel filter sets how much of the palette posterise survives (low: effectively smooth 8-bit)
     const pf = clamp(this.pixelFilter, 0, 1);

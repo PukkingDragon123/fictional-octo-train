@@ -8,7 +8,7 @@ import { Item, itemDef, itemName, FluidType } from '../items/item';
 import { queueAt, DrinkFromSourceAction, FillAction, WalkToAction } from '../actions/basic';
 import { PickLockAction } from '../actions/world';
 import { SkillCheck } from '../actions/skillCheck';
-import { DoorAction, BarricadeAction, UnbarricadeAction, WindowAction, ClimbAction, SearchAction, SitAction, SleepAction, DisassembleAction, SwitchAction, UseObjectAction, DigAction, ForageAction, MarkAction, ButcherAction, VendAction, noise } from '../actions/world';
+import { DoorAction, BarricadeAction, UnbarricadeAction, WindowAction, ClimbAction, SearchAction, SitAction, SleepAction, sleepBlock, DisassembleAction, SwitchAction, UseObjectAction, DigAction, ForageAction, MarkAction, ButcherAction, VendAction, noise } from '../actions/world';
 import { queueTransfers } from '../actions/transfer';
 import { floorContainer } from '../items/worldItems';
 import { op } from '../game/ops';
@@ -234,7 +234,7 @@ export class Interact {
     if (d.sit && !seated) out.push({ label: 'Sit', action: at(new SitAction(p, o), 1.6) });
     if (d.sleep) {
       const tired = p.body.fatigue >= 30;
-      if (tired || !d.sit) out.push({ label: 'Sleep', action: at(new SleepAction(p, o, d.sleep), 1.6), disabled: !tired ? 'not tired' : false });
+      if (tired || !d.sit) out.push({ label: 'Sleep', action: at(new SleepAction(p, o, d.sleep), 1.6), disabled: sleepBlock(p) || false });
     }
     if (o.inv) {
       const locked = o.inv.locked;
@@ -424,7 +424,7 @@ export class Interact {
       { label: 'X mark', action: () => queueAt(p, x + 0.5, y + 0.5, new MarkAction(p, marker, x + 0.5, y + 0.5, 'decal_mark_x'), 1.3) },
     ] });
     out.push({ label: 'Sit on the floor', action: () => { p.actions.clear(); p.actions.add(new SitAction(p, null)); } });
-    out.push({ label: 'Sleep on the floor', disabled: p.body.fatigue < 30 ? 'not tired' : false, action: () => { p.actions.clear(); p.actions.add(new SleepAction(p, null, 0.15)); } });
+    out.push({ label: 'Sleep on the floor', disabled: sleepBlock(p) || false, action: () => { p.actions.clear(); p.actions.add(new SleepAction(p, null, 0.15)); } });
     const buildOpts = G.items?.buildOptions?.(p, x, y) || [];
     if (buildOpts.length) out.push({ label: 'Build', sub: buildOpts });
     return out;

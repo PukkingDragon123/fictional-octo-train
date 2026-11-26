@@ -143,6 +143,8 @@ export interface AnimInput {
   sick?: number;          // 0..1 nausea
   /** extra forward lean (radians) from the body's own acceleration and sprinting (src/entities/motion.ts) */
   lean?: number;
+  /** lying down to sleep from standing: 'lie' / 'lie_side' play the getting-down first (src/game/sleep) */
+  lieIn?: boolean;
 }
 
 const MIRROR_J: Record<JointName, JointName> = {
@@ -175,6 +177,8 @@ const Z: V = [0, 0, 0];
 const add = (p: Pose, j: JointName, x: number, y = 0, z = 0) => { const v = p[j]; if (v) { v[0] += x; v[1] += y; v[2] += z; } else p[j] = [x, y, z]; };
 const set = (p: Pose, j: JointName, x: number, y = 0, z = 0) => { const v = p[j]; if (v) { v[0] = x; v[1] = y; v[2] = z; } else p[j] = [x, y, z]; };
 const ease = (t: number) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+/** seconds the getting-down takes before a sleeper lies still (src/game/sleep times its cut to it) */
+export const LIE_IN = 1.7;
 const env = (u: number, a = 0.2, b = 0.2) => (u < a ? ease(u / a) : u > 1 - b ? ease((1 - u) / b) : 1);
 const hash = (n: number) => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); };
 
@@ -1702,6 +1706,24 @@ function fullPose(f: FullBody, t: number, ft: number, inp: AnimInput): Pose {
       return P;
     case 'lie': case 'lie_side': {
       const breath = Math.sin(t * 1.1) * 0.025;
+      // lying down to sleep (inp.lieIn): down on one knee, a hand to the floor, sit, then back (or onto the side)
+      if (inp.lieIn && ft < LIE_IN) {
+        const a = ease(clamp(ft / 0.55, 0, 1)), b = ease(clamp((ft - 0.45) / 0.5, 0, 1)), c = ease(clamp((ft - 0.85) / (LIE_IN - 0.85), 0, 1));
+        const side = f === 'lie_side';
+        P.rootY = -0.42 * a * (1 - b) - 0.72 * b * (1 - c);
+        set(P, 'thighL', -1.4 * a * (1 - b) - 1.2 * b * (1 - c) + (side ? -0.9 : -0.06) * c, 0, 0.05);
+        set(P, 'shinL', 1.5 * a * (1 - b) + 1.6 * b * (1 - c) + (side ? 1.3 : 0) * c, 0, 0);
+        set(P, 'thighR', 0.15 * a * (1 - b) - 1.1 * b * (1 - c) + (side ? -0.7 : -0.2) * c, 0, -0.05);
+        set(P, 'shinR', 1.65 * a * (1 - b) + 1.5 * b * (1 - c) + (side ? 1.2 : 0.3) * c, 0, 0);
+        set(P, 'footR', 0.7 * a * (1 - b), 0, 0);
+        set(P, 'spine', 0.3 * a * (1 - b) + 0.18 * b * (1 - c), 0, 0); set(P, 'head', 0.3 * a * (1 - c) + (side ? 0.3 : -0.12) * c, 0, side ? 0 : 0.35 * c);
+        // a hand back to the floor to take the weight
+        set(P, 'uarmR', -0.5 * a * (1 - c) + 0.6 * b * (1 - c), 0.1, -0.35 * b); set(P, 'farmR', -0.3 * a, 0, 0);
+        set(P, 'uarmL', -0.4 * a * (1 - b), 0, 0.2); set(P, 'farmL', -0.6 * a, 0, 0);
+        P.bodyPitch = -1.5708 * c; P.bodyY = (side ? 0.16 : 0.13) * c; if (side) P.bodyRoll = 1.45 * c;
+        P.gripL = 0.4; P.gripR = 0.3;
+        return P;
+      }
       P.bodyPitch = -1.5708; P.bodyY = 0.13;
       if (f === 'lie_side') {
         // curled up on the side

@@ -62,6 +62,8 @@ export interface PlayerNetState {
   hx?: [number, number, number, number];
   /** item in hand for the current eat / drink animation */
   ai?: string;
+  /** asleep (co-op: the clock runs fast only while every unit sleeps, src/game/sleep) */
+  sl?: boolean;
 }
 
 /**
@@ -594,6 +596,7 @@ export class Player {
     I.exhausted = local ? Math.max(0, 1 - this.body.endurance / 0.3) : 0; I.drunk = m.drunk; I.hot = local && this.body.temp > 37.6 ? Math.min(1, (this.body.temp - 37.4) / 1.5) : 0;
     I.turn = dt > 0 ? wrapAngle(yaw - prevF) / dt : 0; I.hasWatch = !!this.rig.outfit.wrist && !(LS && LS.arm.l >= 2);
     I.unconscious = this.body.dead || (this.body.downed && this.body.downedTime > 30);
+    I.lieIn = this.sleeping;
     I.limbs = LS ? {
       armL: LS.arm.l, armR: LS.arm.r, legL: LS.leg.l, legR: LS.leg.r, gait: LS.gait, mirror: LS.mirror,
       crutchL: !!this.body.limbAids?.crutchL, crutchR: !!this.body.limbAids?.crutchR,
@@ -667,6 +670,7 @@ export class Player {
       carry: this.carrying || undefined, carriedBy: this.carriedBy || undefined, name: this.name, app: this.app, th: this.scannerOpen, veh: this.inVehicle || undefined,
       hx: this.hitSeq ? [this.hitSeq, +Math.atan2(this.lastHit.dz, this.lastHit.dx).toFixed(2), Math.max(0, BODY_PART_KEYS.indexOf(this.lastHit.part)), +this.lastHit.s.toFixed(2)] : undefined,
       ai: this.propKey || undefined,
+      sl: this.sleeping || undefined,
     };
   }
 }

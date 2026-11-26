@@ -307,6 +307,7 @@ export class Net implements GameSystem {
     p.speed = s.sp; p.stance = s.st; p.running = s.run; p.aiming = s.aim; p.scannerOpen = !!s.th;
     p.full = s.fb; p.actionAnim = s.ac; p.actionT = s.at; p.actionDur = s.ad;
     p.flashlightOn = s.light;
+    p.sleeping = !!s.sl;
     p.body.downed = s.down; p.body.dead = s.dead;
     p.carrying = s.carry || null; p.carriedBy = s.carriedBy || null;
     p.inVehicle = s.veh || null;

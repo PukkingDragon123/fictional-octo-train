@@ -370,7 +370,7 @@ export class Camp {
       if (!was) {
         const p = G.local;
         if (p && p.zoneKey === z.key) {
-          if (p.sleeping) p.actions.clear();
+          if (p.sleeping) { (p as unknown as { sleepScare?: string }).sleepScare = 'noise'; p.actions.clear(); }
           bus.emit('subtitle', { who: 'SIREN', text: 'THE CAMP SIREN IS WAILING', dur: 2.4, style: 'radio' });
         }
       }

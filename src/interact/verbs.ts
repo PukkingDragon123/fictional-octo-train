@@ -21,7 +21,7 @@ import { Item, itemDef, itemName } from '../items/item';
 import type { Container } from '../items/container';
 import { TimedAction, InstantAction } from '../actions/action';
 import { queueAt, FillAction } from '../actions/basic';
-import { BarricadeAction, DoorAction, WindowAction, UseObjectAction, SitAction, SleepAction } from '../actions/world';
+import { BarricadeAction, DoorAction, WindowAction, UseObjectAction, SitAction, SleepAction, sleepBlock } from '../actions/world';
 import { queueTransfers } from '../actions/transfer';
 import { itemPrimaryVerb, itemMenuOptions } from './itemMenu';
 
@@ -120,7 +120,7 @@ function selfVerbs(p: Player, it: Item | null): Verb[] {
   const out: Verb[] = [{ label: 'Backpack', run: () => openBackpack() }];
   if (p.sittingOn !== -1 && p.sittingOn !== undefined && p.actions.current?.name === 'Sit') out.push({ label: 'Stand up', run: () => p.actions.clear() });
   out.push({ label: 'Sit on the floor', run: () => { p.actions.clear(); p.actions.add(new SitAction(p, null)); } });
-  out.push({ label: 'Sleep on the floor', why: p.body.fatigue < 30 ? 'not tired' : false, run: () => { p.actions.clear(); p.actions.add(new SleepAction(p, null, 0.15)); } });
+  out.push({ label: 'Sleep on the floor', why: sleepBlock(p) || false, run: () => { p.actions.clear(); p.actions.add(new SleepAction(p, null, 0.15)); } });
   if (it) for (const v of flatten(itemMenuOptions(p, it, p.containerOf(it) || p.inv, [it]))) if (!/^(Drop|Move to|Inspect)/.test(v.label)) out.push(v);
   // what the floor here offers (dig, forage, build...)
   try { for (const v of flatten(G.interact?.tileOptions?.(p, p.tileX(), p.tileY()) || [])) if (!/^(Walk here|Sit on|Sleep on)/.test(v.label)) out.push(v); } catch { /* no floor */ }

@@ -286,7 +286,38 @@ export class SitAction extends TimedAction {
   perform() { this.p.sittingOn = null; }
 }
 
-/** Sleep / rest. In solo time accelerates; in co-op only when everyone sleeps. */
+/** an inhabitant that means harm, close by in the unit's level (sleep will not come with one about) */
+const CALM_KINDS = new Set(['peaceful', 'skittish', 'curious', 'neutral']);
+export function inhabitantNear(p: Player, r: number): { x: number; z: number } | null {
+  const cs = (G.creatures as unknown as { creatures?: Map<string, { dead?: boolean; zoneKey: string; x: number; z: number; tamedBy?: string | null; sp: { temperament: string } }> } | null)?.creatures;
+  if (!cs) return null;
+  for (const c of cs.values()) {
+    if (c.dead || c.zoneKey !== p.zoneKey || c.tamedBy || CALM_KINDS.has(c.sp.temperament)) continue;
+    if (Math.hypot(c.x - p.x, c.z - p.z) < r) return c;
+  }
+  return null;
+}
+/** why the unit cannot sleep right now ('' = it can): every check the sleep's own wake-up uses, with a margin, so a
+ *  sleep never starts only to end on the next frame */
+export function sleepBlock(p: Player): string {
+  const b = p.body;
+  if (b.dead || b.downed) return 'not now';
+  if (b.fatigue < 30) return 'not tired';
+  if (b.hunger > 74) return 'too hungry';
+  if (b.thirst > 78) return 'too thirsty';
+  if (b.bleedRate() > 0.3) return 'bleeding';
+  if (b.health < 34) return 'too hurt';
+  if (b.panic > 42) return 'too scared';
+  if (inhabitantNear(p, 9)) return 'not with that out there';
+  return '';
+}
+const BLOCK_THOUGHT: Record<string, string> = {
+  'not tired': "I'm not tired.", 'too hungry': 'My stomach will not let me sleep. Food first.', 'too thirsty': 'My mouth is sand. Water first.',
+  bleeding: 'Not while I am bleeding like this.', 'too hurt': 'It hurts too much to lie still.', 'too scared': 'I cannot close my eyes. Not yet.',
+  'not with that out there': 'Not with that thing out there.', 'not now': 'Not now.',
+};
+
+/** Sleep / rest. Solo the clock runs fast while you sleep; in co-op only when every unit sleeps (src/game/sleep). */
 export class SleepAction extends TimedAction {
   hours = 0;
   constructor(p: Player, public o: TileObject | null, public quality: number) {
@@ -294,27 +325,49 @@ export class SleepAction extends TimedAction {
   }
   start() {
     const p = this.p;
-    if (p.body.fatigue < 30) { bus.emit('think', p, "I'm not tired."); this.done = true; return; }
-    if (this.o) { const d = objDef(this.o.key)!; const w = d.w ?? 1, dd = d.d ?? 1; const rw = this.o.rot % 2 === 0 ? w : dd, rd = this.o.rot % 2 === 0 ? dd : w; p.x = this.o.x + rw / 2; p.z = this.o.y + rd / 2; }
+    const why = sleepBlock(p);
+    if (why) { bus.emit('think', p, BLOCK_THOUGHT[why] || 'Not now.'); this.done = true; return; }
+    if (this.o) {
+      const d = objDef(this.o.key)!; const w = d.w ?? 1, dd = d.d ?? 1; const rw = this.o.rot % 2 === 0 ? w : dd, rd = this.o.rot % 2 === 0 ? dd : w;
+      p.x = this.o.x + rw / 2; p.z = this.o.y + rd / 2;
+      // head to the pillow end: along the bed's long side
+      const long = (d.d ?? 1) >= (d.w ?? 1);
+      const along = long ? [Math.PI / 2, Math.PI, -Math.PI / 2, 0][this.o.rot & 3] : [0, Math.PI / 2, Math.PI, -Math.PI / 2][this.o.rot & 3];
+      p.facing = p.targetFacing = along;
+    }
+    p.vx = p.vz = 0;
     p.sleeping = true;
-    (p as any).bedQuality = this.quality;
+    (p as unknown as { bedQuality: number }).bedQuality = this.quality;
+    (p as unknown as { sleepScare?: string }).sleepScare = '';
     bus.emit('sleepStart', p);
   }
   update(dt: number) {
     const p = this.p;
+    if (!p.sleeping) { this.done = true; return; }
     this.hours += dt * G.clock.hoursPerSecond;
-    const wake = p.body.fatigue <= 3 || this.hours > 14 || p.body.panic > 50 || p.body.health < 30 || p.body.bleedRate() > 0.4 || p.body.hunger > 80 || p.body.thirst > 85;
-    if (wake) { this.done = true; this.wakeUp(); }
+    const b = p.body;
+    const rested = b.fatigue <= 3 || this.hours > 14;
+    const body = b.panic > 55 || b.health < 26 || b.bleedRate() > 0.45 || b.hunger > 88 || b.thirst > 90 || b.dead || b.downed;
+    if (rested || body) {
+      if (body && !rested) (p as unknown as { sleepScare?: string }).sleepScare ||= 'body';
+      this.done = true; this.wakeUp();
+    }
   }
   private wakeUp() {
     const p = this.p;
+    if (!p.sleeping) return;
     p.sleeping = false;
-    bus.emit('sleepEnd', p, this.hours);
-    if (p.body.fatigue > 40) bus.emit('think', p, 'I barely slept...');
-    else bus.emit('think', p, this.quality > 0.7 ? 'That was good sleep.' : 'My back hurts...');
+    const scare = (p as unknown as { sleepScare?: string }).sleepScare || '';
+    bus.emit('sleepEnd', p, this.hours, scare);
+    if (scare === 'inhabitant' || scare === 'hit') return; // the wake itself says it (src/game/sleep)
+    const b = p.body;
+    if (scare === 'body') bus.emit('think', p, b.hunger > 85 ? 'Starving. I have to eat.' : b.thirst > 85 ? 'So thirsty I woke up.' : b.bleedRate() > 0.4 ? 'I am bleeding. I am bleeding in my sleep.' : 'Something is wrong with me.');
+    else if (this.hours < 0.5) { /* got straight back up: nothing to say */ }
+    else if (b.fatigue > 40) bus.emit('think', p, 'I barely slept...');
+    else bus.emit('think', p, this.quality > 0.7 ? 'That was good sleep.' : this.quality < 0.3 ? 'My back hurts...' : 'Better. Not great.');
   }
-  stop() { if (this.p.sleeping) this.wakeUp(); }
-  perform() { if (this.p.sleeping) this.wakeUp(); }
+  stop() { this.wakeUp(); }
+  perform() { this.wakeUp(); }
 }
 
 export class DisassembleAction extends TimedAction {
