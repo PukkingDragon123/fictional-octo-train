@@ -194,6 +194,8 @@ if LOGO:
     LS = max(1, int(round(TL.get('logoScale', 3 if PORTRAIT else 2.4 if not WIDE else 3) * k)))
     lk = src.resize((src.width * LS, src.height * LS), Image.NEAREST)
     LX, LY = (OW - lk.width) // 2, int(TL.get('logoY', 96 if PORTRAIT else 60) * k) + LB
+    # on the wide picture the crest stands in the left third, clear of Dr. Calder in the middle
+    if WIDE: LX, LY = int(OW * 0.2 - lk.width / 2), LB + int((OH - 2 * LB - lk.height) * 0.42)
     bh = int(TL.get('logoBand', 640) * k)
     band = Image.new('RGBA', (OW, bh), (0, 0, 0, 0))
     band.putalpha(Image.frombytes('L', (1, bh), bytes(int(205 * (1 - y / bh) ** 1.3) for y in range(bh))).resize((OW, bh)))
@@ -291,6 +293,10 @@ def base(i):
     if WIDE and oa > sa * 1.05:
         # a tall picture on a wide frame: the picture whole in the middle, the frame filled by a soft, dark, wide copy
         fh = OH - 2 * LB
+        # a wider window on the tall picture: its middle three quarters (3:4), full height
+        if sa < 0.75:
+            h_ = im.width / 0.75; cy = TL.get('cropY', 0.46); y0 = max(0, min(im.height - h_, im.height * cy - h_ / 2))
+            im = im.crop((0, int(y0), im.width, int(y0 + h_))); sa = 0.75
         fg = im.resize((int(round(fh * sa)), fh), Image.LANCZOS).filter(SHARP)
         bg = im.resize((OW, int(OW / sa)), Image.BILINEAR)
         bg = bg.crop((0, (bg.height - OH) // 2, OW, (bg.height - OH) // 2 + OH)).filter(ImageFilter.GaussianBlur(int(28 * k) + 1))

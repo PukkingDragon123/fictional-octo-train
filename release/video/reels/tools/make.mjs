@@ -323,7 +323,7 @@ async function make(file) {
   const logo = { from: +(hi.at + (named ? named[0] : 2.5) - 0.08).toFixed(2), to: +(intro.at + intro.dur - 0.3).toFixed(2) };
   // whip pans at the cuts between shots (not into the card or the recruiting screen)
   const whips = R.whip === false ? [] : P.shots.slice(1).filter((s, i) => !['card', 'endcard'].includes(s.kind) && !['legacy'].includes(s.kind) && P.shots[i].kind !== 'legacy').map((s) => +s.at.toFixed(3));
-  const base = { whips, ...(R.logoScale ? { logoScale: R.logoScale } : {}), ...(R.logoY !== undefined ? { logoY: R.logoY } : {}), fps: FPS, total: P.total, size: opt.preview ? OSIZE.map((v) => v / 2) : OSIZE, accent, logo, lines: P.lines.map((l) => ({ at: l.at, words: l.words, env: l.env, nocap: !!l.nocap, wav: l.wav, dur: l.dur })) };
+  const base = { letterbox: RASPECT === '16x9', whips, ...(R.logoScale ? { logoScale: R.logoScale } : {}), ...(R.logoY !== undefined ? { logoY: R.logoY } : {}), fps: FPS, total: P.total, size: opt.preview ? OSIZE.map((v) => v / 2) : OSIZE, accent, logo, lines: P.lines.map((l) => ({ at: l.at, words: l.words, env: l.env, nocap: !!l.nocap, wav: l.wav, dur: l.dur })) };
 
   if (opt.sheet || stillAt !== null) {
     const picks = stillAt !== null ? [P.shots.find((s) => stillAt >= s.at && stillAt < s.at + s.dur) ?? P.shots[P.shots.length - 1]] : P.shots.filter((s) => s.kind === 'beat' || s.kind === 'game');
