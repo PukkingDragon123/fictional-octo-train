@@ -902,7 +902,7 @@ export class UnitMotion {
     const el = Math.hypot(this.exVx, this.exVz);
     if (el > 5) { this.exVx *= 5 / el; this.exVz *= 5 / el; }
     p.vx *= 0.4; p.vz *= 0.4;
-    if (this.st === 'fallen' || this.st === 'getup') return;
+    if (this.st === 'fallen' || this.st === 'getup' || this.st === 'roll') return;
     const running = p.running || Math.hypot(p.vx, p.vz) > 3;
     if (s >= 1.35 || (s >= 0.85 && (running || exh > 0.6 || this.st === 'stagger'))) {
       this.knockdown(p, h.dx, h.dz, Math.min(1.4, s), 'blow');
