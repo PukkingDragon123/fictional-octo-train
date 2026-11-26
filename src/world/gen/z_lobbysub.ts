@@ -132,7 +132,7 @@ function generateVoid(z: Zone, seed: number) {
   };
   hang(6, 6, 12, 12, 2.7);
   hang(52, 8, 62, 16, 1.2);
-  hang(44, 44, 50, 52, 0.4);
+  hang(56, 40, 62, 48, 0.4);
   // pillars
   for (let y = U.y0 + 4; y <= U.y1 - 4; y += 8) for (let x = U.x0 + 6; x <= U.x1 - 3; x += 9) if (!(x <= 12 && y <= 12)) put(c, 'column_square', x, y, 0, {});
   for (let y = L.y0 + 4; y <= L.y1 - 4; y += 8) for (let x = L.x0 + 5; x <= L.x1 - 3; x += 9) if (isOpen(z, x, y)) put(c, 'column_square', x, y, 0, {});
