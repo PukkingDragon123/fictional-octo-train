@@ -60,13 +60,14 @@ const ONE_HAND_OK = new Set(['make_hook_hand', 'tourniquet_belt', 'tourniquet_ra
 /** the survivor's hold, pull and rip (locks movement; SPACE may tear you free) */
 export class TornAction extends TimedAction {
   ripped = false;
-  private struggle = 0;
   constructor(p: Player, public part: BodyPart, public hold: number, public verb: string, public by: string, public from: [number, number]) {
     super(p);
     const c = chainOf(part);
     this.anim = (c ? `torn_${c.kind}_${c.side}` : 'flinch') as any;
-    this.name = 'HELD! (SPACE to break free)';
+    this.name = 'Held';
     this.duration = hold + 0.7;
+    // round 24: no prompt; the body fights the grip on its own (src/combat/grapple.ts), the plate stays down
+    this.showBar = false;
     this.fixedTime = true; this.locks = true; this.canMove = false;
     this.face = { x: from[0], z: from[1] };
   }
@@ -76,18 +77,6 @@ export class TornAction extends TimedAction {
     p.speed = 0;
     if (this.ripped) return;
     if (this.t < this.hold) {
-      if (G.input?.hit?.('shove') || G.input?.hit?.('jump')) {
-        this.struggle++;
-        const free = 0.1 + p.body.skill('strength') * 0.025 + (p.body.adrenaline > 0 ? 0.08 : 0) + this.struggle * 0.03;
-        if (Math.random() < free) {
-          bus.emit('halo', p, 'Tore free!', 'good');
-          bus.emit('think', p, 'I got it loose— RUN.');
-          p.body.addInjury(this.part, 'laceration', 0.7, { dirty: true });
-          this.done = true;
-          return;
-        }
-        G.pr.shake = Math.max(G.pr.shake, 0.4);
-      }
       G.pr.shake = Math.max(G.pr.shake, 0.15 + (this.t / this.hold) * 0.35);
       return;
     }

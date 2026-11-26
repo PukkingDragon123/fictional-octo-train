@@ -3,7 +3,7 @@ import { def, Rig } from '../species';
 import { makeRamp, mixHex } from '../../gfx/pixel';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
-import { StruggleAction } from '../../combat/qte';
+import { GrappleAction } from '../../combat/grapple';
 import { WALL_H } from '../../world/defs';
 import { TF } from '../../world/zone';
 import type { Zone } from '../../world/zone';
@@ -29,7 +29,7 @@ import '../../audio/sounds_creatures_c';
 // over the places people walk, drops onto the head of whoever passes under,
 // spreads its bell over the face and drinks the blood through the skin while
 // its tentacles wrap the skull. You can watch the blood fill its stomach.
-// Tear it off (the struggle) or have someone knock it off you.
+// The hands tear it off on their own (src/combat/grapple.ts), or someone knocks it off you.
 //   land_jelly   three meshes on one skeleton: the opaque tentacles, mouth-arms and
 //                manubrium; the inner organs (stomach, gonads, canals, glowing
 //                rhopalia) seen through the bell; the translucent bell (gel film)
@@ -322,7 +322,7 @@ function animateJelly(rig: Rig, c: Creature, t: number, dt: number) {
 }
 
 // ------------------------------------------------------------------ latched: the unit's side (runs on the victim's machine)
-interface Held { cid: string; t: number; dT: number; rounds: number; next: number; act: StruggleAction | null; won: boolean }
+interface Held { cid: string; t: number; dT: number; rounds: number; next: number; act: GrappleAction | null; won: boolean }
 let held: Held | null = null;
 function latchedLocal(c: Creature, n: Record<string, any>, dt: number) {
   const p = live() ? G.local : null;
@@ -332,7 +332,7 @@ function latchedLocal(c: Creature, n: Record<string, any>, dt: number) {
   if (!held || held.cid !== c.id) {
     held = { cid: c.id, t: 0, dT: 0, rounds: 0, next: 0.5, act: null, won: false };
     p.actions.clear();
-    const act = new StruggleAction(p, 'cb_struggle', 600, { x: p.x + Math.cos(p.facing), z: p.z + Math.sin(p.facing) });
+    const act = new GrappleAction(p, 'cb_struggle', 600, { x: p.x + Math.cos(p.facing), z: p.z + Math.sin(p.facing) });
     act.name = 'Tear it off';
     p.actions.add(act);
     held.act = act;
@@ -359,11 +359,11 @@ function latchedLocal(c: Creature, n: Record<string, any>, dt: number) {
     if (Math.random() < 0.35) p.body.addInjury('head', 'bite', 0.06, { dirty: true });
     G.audio?.flat?.('wisp_drink', 'sfx' as any, 0.45, 0.6 + Math.random() * 0.2);
   }
-  const qte = (G as any).combat?.qte;
-  if (qte && !qte.active && h.t > h.next && !h.won) {
-    const started = qte.start({
-      reason: 'grab', cid: c.id, dur: 5.2 - Math.min(1.2, h.rounds * 0.4), grip: 1.0 + h.rounds * 0.12, act: h.act,
-      stages: h.rounds ? [{ kind: 'mash', need: 1 }, { kind: 'alt', need: 1 }, { kind: 'timed', need: 1 }] : [{ kind: 'mash', need: 1 }, { kind: 'alt', need: 1 }],
+  // the hands go to it on their own (src/combat/grapple.ts, no prompts): fingers under the bell, a wrench, again
+  const gr = (G as any).combat?.grapple;
+  if (gr && !gr.active && h.t > h.next && !h.won) {
+    const started = gr.start({
+      reason: 'grab', cid: c.id, dur: 3.6 - Math.min(1.0, h.rounds * 0.3), grip: 1.0 + h.rounds * 0.12, act: h.act,
       onWin: () => { h.won = true; poke(p, c, 'tear'); p.body.addInjury('head', 'laceration', 0.15, { dirty: true }); releaseLocal(p, true); },
       onLose: () => {
         h.rounds++; h.next = h.t + 1.2;
@@ -373,14 +373,16 @@ function latchedLocal(c: Creature, n: Record<string, any>, dt: number) {
     });
     if (!started) h.next = h.t + 0.5;
   }
-  if (!qte && G.input?.hit?.('shove') && Math.random() < 0.2) { h.won = true; poke(p, c, 'tear'); releaseLocal(p, true); }
+  if (!gr && h.t > 6 && !h.won) { h.won = true; poke(p, c, 'tear'); releaseLocal(p, true); }
 }
 function releaseLocal(p: Player, tore: boolean) {
   const h = held; held = null;
   if (!h) return;
   if (h.act) { h.act.done = true; if (p.actionAnim === 'cb_struggle') p.stopAnim(); }
-  if ((G as any).combat?.qte?.active) (G as any).combat.qte.cancel();
+  if ((G as any).combat?.grapple?.active) (G as any).combat.grapple.cancel();
   G.pr.fx.blink = 0;
+  // torn off: both arms fling it away from the face
+  if (tore) p.playAnim?.('cb_throwoff', 0.6);
   bus.emit('think', p, tore ? ['I tore it off. My face. My FACE. It is still stinging.', 'Off. It is off. There are red rings all over my skin.'][Math.floor(Math.random() * 2)] : 'It let go by itself. It is full. Of me.');
 }
 
@@ -519,7 +521,7 @@ function thinkJelly(c: Creature, dt: number): boolean {
 
 const JELLY = def({
   key: 'land_jelly', name: 'Land Jellyfish', code: 'LJ-07 // FAUNA, CNIDARIAN (TERRESTRIAL, SANGUIVOROUS)', temperament: 'ambush', threat: 3,
-  rule: { name: 'LOOK UP', text: 'It walks on its tentacles and climbs walls onto the ceiling, where it waits over the places people walk. Pass under it and it drops onto your face and drinks your blood through the skin. Tear it off (fight the struggle), or have someone hit it off you. On the floor it rears up and stings if you come close. Hit it while it is up high and it lets go and falls.', tell: 'Something clear and wet on the ceiling, tentacles hanging down like a bead curtain.' },
+  rule: { name: 'LOOK UP', text: 'It walks on its tentacles and climbs walls onto the ceiling, where it waits over the places people walk. Pass under it and it drops onto your face and drinks your blood through the skin. Tear it off, or have someone hit it off you. On the floor it rears up and stings if you come close. Hit it while it is up high and it lets go and falls.', tell: 'Something clear and wet on the ceiling, tentacles hanging down like a bead curtain.' },
   hp: 30, walk: 0.32, run: 1.2, turn: 2.5, radius: 0.3, height: 0.55, sight: 6, fov: 3.0, hearing: 1.2, vibration: true,
   attack: { dmg: [2, 5], range: 1.0, cooldown: 2, kinds: ['burn'], corrupt: 0.02, knock: 0.05, parts: ['hand_l', 'hand_r', 'farm_l', 'farm_r', 'shin_l', 'shin_r'] },
   zones: ['pools', 'tunnels', 'undercroft'], weight: 1, group: [1, 2], maxPerZone: 4, diet: 'meat',

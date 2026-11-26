@@ -352,6 +352,13 @@ const DRAW: HK = { hy: 0.15, hz: -0.04, th: -0.05, spine: [0.35, 0, 0], head: [0
 const GETUP_SIT: [number, HK][] = [[0, SLUMP], [0.14, { ...SLUMP, head: [0.2, 0.1, 0] }], [0.32, DRAW], [0.5, TURN_B], ...tail(0.66)];
 registerPose('mo_getup_sit', (t, dur) => { const P: Pose = {}; keysH(GETUP_SIT, dur > 0 ? clamp(t / dur, 0, 1) : 1, P); return { pose: P, mask: ALL }; }, { noIK: true, dur: 1.6 });
 
+// ---- folded in a heap (knees under the body, forehead to the floor: a faint, a collapse where it stood): hands in, up onto all fours, a knee, up
+const CURL: HK = { hy: 0.32, hz: -0.05, th: 1.25, spine: [0.3, 0, 0], chest: [0.1, 0, 0], head: [-0.2, 0.3, 0],
+  uarmL: [-2.3, 0, 0.3], farmL: [-0.4, 0, 0], uarmR: [-1.6, 0, -0.4], farmR: [-1.2, 0, 0],
+  thighL: [-2.2, 0, 0.12], shinL: [2.4, 0, 0], footL: [0.6, 0, 0], thighR: [-2.15, 0, -0.12], shinR: [2.35, 0, 0], footR: [0.6, 0, 0], gripL: 0.2, gripR: 0.2 };
+const GETUP_CURL: [number, HK][] = [[0, CURL], [0.18, CURL], [0.4, FOURS], ...tail(0.58)];
+registerPose('mo_getup_curl', (t, dur) => { const P: Pose = {}; keysH(GETUP_CURL, dur > 0 ? clamp(t / dur, 0, 1) : 1, P); return { pose: P, mask: ALL }; }, { noIK: true, dur: 1.5 });
+
 // ---- out of a bed or off the floor after sleeping: starts exactly on the animator's 'lie' pose (on the back, the feet at the root)
 const LIE_SLEEP: HK = { hy: 0.13, hz: -H0, th: -1.5708, chest: [0, 0, 0], uarmL: [0.1, 0, 0.28], uarmR: [0.05, 0, -0.22], farmL: [-0.5, 0, 0], farmR: [-1.4, 0.3, 0],
   head: [-0.12, 0, 0.35], thighL: [-0.06, 0, 0.05], thighR: [-0.2, 0, -0.04], shinR: [0.3, 0, 0], footL: [0.5, 0, 0], footR: [0.5, 0, 0], gripL: 0.4, gripR: 0.4 };

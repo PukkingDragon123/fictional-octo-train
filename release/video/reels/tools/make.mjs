@@ -26,6 +26,12 @@ const PY = process.env.REEL_PY || 'python3';
 const B = path.join(RD, 'build'), CACHE = process.env.REEL_CACHE || path.join(B, 'cache');
 const LINK = fs.readFileSync(path.join(RD, 'itch_url.txt'), 'utf8').trim();
 const FPS = 24, RFPS = opt.preview ? 12 : 24;
+// formats: REEL_ASPECT picks the finished picture (9x16 Reels / TikTok / Shorts, 16x9 YouTube / Steam, 1x1 feed);
+// REEL_RENDER renders the shots themselves in another shape (otherwise the 9x16 shots are recomposed: a crop for
+// the square, the whole picture over a soft wide copy of itself, under anamorphic bars, for 16x9)
+const ASPECT = process.env.REEL_ASPECT || '9x16', RASPECT = process.env.REEL_RENDER || '9x16';
+const SIZES = { '9x16': [1080, 1920], '16x9': [1920, 1080], '1x1': [1080, 1080] };
+const OSIZE = SIZES[ASPECT];
 const TAGS = JSON.parse(fs.readFileSync(path.join(HERE, 'sfx_tags.json'), 'utf8'));
 const SFX_DIR = path.join(RD, '../../../src/assets/sfx'), EXTRA = path.join(B, 'sfx_extra');
 const sha = (s) => crypto.createHash('sha1').update(s).digest('hex').slice(0, 14);
@@ -118,12 +124,14 @@ function plan(R) {
 }
 
 // ------------------------------------------------------------------ frames
-const shotKey = (R, s) => s.kind === 'game' ? sha([REV_GAME, R.seed ?? 1337, JSON.stringify(s.spec), s.dur, RFPS, opt.preview ? 1 : GAME_DPR].join('|'))
+const shotKey = (R, s) => (RASPECT === '9x16' ? shotKey0(R, s) : sha([shotKey0(R, s), RASPECT].join('|')));
+const shotKey0 = (R, s) => s.kind === 'game' ? sha([REV_GAME, R.seed ?? 1337, JSON.stringify(s.spec), s.dur, RFPS, opt.preview ? 1 : GAME_DPR].join('|'))
   : s.kind === 'beat'
   ? sha([REV_BEAT, s.zone, R.seed ?? 1337, JSON.stringify(R.stage ?? {}), JSON.stringify(s.spec), s.dur, RFPS].join('|'))
   : s.kind === 'legacy' ? sha(['legacy', R.legacy.reel, s.id, s.dur, RFPS].join('|'))
     : sha([REV_LEDGE, s.kind, s.zone === 'ledge' ? '' : s.zone, s.dur, s.kind === 'endcard' ? LINK : '', RFPS].join('|'));
-const dims = (s) => (opt.preview ? [270, 480] : s.kind === 'endcard' ? [540, 960] : [405, 720]);
+const dims0 = (s) => (opt.preview ? [270, 480] : s.kind === 'endcard' ? [540, 960] : [405, 720]);
+const dims = (s) => { const [a, b] = dims0(s); return RASPECT === '16x9' ? [b, a] : RASPECT === '1x1' ? [b, b] : [a, b]; };
 const nFrames = (s) => Math.round((s.at + s.dur) * FPS) - Math.round(s.at * FPS);
 
 async function renderGame(R, P, only) {
@@ -136,7 +144,8 @@ async function renderGame(R, P, only) {
   if (!todo.length) return;
   const dpr = opt.preview ? 1 : GAME_DPR;
   log(`${R.id}: ${todo.length} game shot(s) at 405x720 x${dpr}`);
-  const st = await openGame({ w: 405, h: 720, dpr, seed: R.seed ?? 1337 });
+  const [gw, gh] = RASPECT === '16x9' ? [720, 405] : RASPECT === '1x1' ? [560, 560] : [405, 720];
+  const st = await openGame({ w: gw, h: gh, dpr, seed: R.seed ?? 1337 });
   try {
     for (const s of todo) {
       fs.mkdirSync(s.dir, { recursive: true });
@@ -163,7 +172,9 @@ async function render(R, P, only = null) {
       if (only || opt.force || redo.includes(s.id) || !fs.existsSync(path.join(s.dir, 'done'))) todo.push(s);
     }
     if (!todo.length) continue;
-    const spec = { stage: R.stage ?? { find: CREATURES[R.creature]?.find ?? 'open' }, shots: Object.fromEntries(P.shots.filter((s) => s.kind === 'beat').map((s) => [s.id, s.spec])) };
+    // the stage: the reel's own, or (a reel that films several inhabitants, the trailer) the first one filmed here
+    const here = P.shots.find((x) => x.kind === 'beat' && x.zone === z)?.spec?.creatures?.[0]?.key;
+    const spec = { stage: (P.shots.find((x) => x.kind === 'beat' && x.zone === z)?.beat?.stage) ?? R.stage ?? { find: CREATURES[here ?? R.creature]?.find ?? CREATURES[R.creature]?.find ?? 'open' }, shots: Object.fromEntries(P.shots.filter((s) => s.kind === 'beat').map((s) => [s.id, s.spec])) };
     for (const [w, h] of [...new Set(todo.map((s) => dims(s).join('x')))].map((d) => d.split('x').map(Number))) {
       const batch = todo.filter((s) => dims(s)[0] === w);
       log(`${R.id}: ${batch.length} shot(s) in ${z} at ${w}x${h}`);
@@ -302,7 +313,9 @@ async function make(file) {
   const named = hi.words.find((w) => /^Meridian/.test(w[2]));
   const intro = P.shots[0];
   const logo = { from: +(hi.at + (named ? named[0] : 2.5) - 0.08).toFixed(2), to: +(intro.at + intro.dur - 0.3).toFixed(2) };
-  const base = { fps: FPS, total: P.total, size: opt.preview ? [540, 960] : [1080, 1920], accent, logo, lines: P.lines.map((l) => ({ at: l.at, words: l.words, env: l.env, nocap: !!l.nocap, wav: l.wav, dur: l.dur })) };
+  // whip pans at the cuts between shots (not into the card or the recruiting screen)
+  const whips = R.whip === false ? [] : P.shots.slice(1).filter((s, i) => !['card', 'endcard'].includes(s.kind) && !['legacy'].includes(s.kind) && P.shots[i].kind !== 'legacy').map((s) => +s.at.toFixed(3));
+  const base = { whips, fps: FPS, total: P.total, size: opt.preview ? OSIZE.map((v) => v / 2) : OSIZE, accent, logo, lines: P.lines.map((l) => ({ at: l.at, words: l.words, env: l.env, nocap: !!l.nocap, wav: l.wav, dur: l.dur })) };
 
   if (opt.sheet || stillAt !== null) {
     const picks = stillAt !== null ? [P.shots.find((s) => stillAt >= s.at && stillAt < s.at + s.dur) ?? P.shots[P.shots.length - 1]] : P.shots.filter((s) => s.kind === 'beat' || s.kind === 'game');
@@ -319,7 +332,7 @@ async function make(file) {
     } else {
       const s = picks[0], tl = path.join(work, 'still.json');
       const idx = Math.round(stillAt * FPS);
-      fs.writeFileSync(tl, JSON.stringify({ ...base, size: [1080, 1920], frames: Array(idx + 1).fill(s.still) }));
+      fs.writeFileSync(tl, JSON.stringify({ ...base, size: OSIZE, frames: Array(idx + 1).fill(s.still) }));
       const out = path.join(B, 'stills', `${R.id}_${stillAt}.png`); fs.mkdirSync(path.dirname(out), { recursive: true });
       run(PY, [path.join(HERE, 'compose.py'), tl, '--still', String(stillAt), out]);
       log('still', out);
@@ -356,8 +369,8 @@ async function make(file) {
     comp.on('exit', done); ff.on('exit', done);
   });
   // contact sheet, every 2 s
-  const sheet = path.join(B, 'sheets', R.id + (opt.preview ? '_preview' : '') + '.jpg'); fs.mkdirSync(path.dirname(sheet), { recursive: true });
-  run('ffmpeg', ['-loglevel', 'error', '-y', '-i', out, '-vf', `fps=0.5,scale=180:320,tile=8x${Math.ceil(P.total / 16)}`, '-frames:v', '1', sheet]);
+  const sheet = path.join(B, 'sheets', R.id + (ASPECT === '9x16' ? '' : '_' + ASPECT) + (opt.preview ? '_preview' : '') + '.jpg'); fs.mkdirSync(path.dirname(sheet), { recursive: true });
+  run('ffmpeg', ['-loglevel', 'error', '-y', '-i', out, '-vf', `fps=0.5,scale=${ASPECT === '16x9' ? '320:180' : ASPECT === '1x1' ? '240:240' : '180:320'},tile=8x${Math.ceil(P.total / 16)}`, '-frames:v', '1', sheet]);
   log(`${R.id}: done ${out} (${(fs.statSync(out).size / 1e6).toFixed(1)} MB), sheet ${sheet}`);
 }
 

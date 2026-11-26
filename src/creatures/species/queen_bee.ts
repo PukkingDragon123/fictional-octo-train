@@ -7,7 +7,7 @@ import { bus } from '../../core/events';
 import { op } from '../../game/ops';
 import { queueAt } from '../../actions/basic';
 import { UseObjectAction } from '../../actions/world';
-import { StruggleAction } from '../../combat/qte';
+import { GrappleAction } from '../../combat/grapple';
 import { worldMaterial } from '../../gfx/materials';
 import { itemGeometry } from '../../items/itemMeshes';
 import { buildObjGeometry, objDef } from '../../world/objects';
@@ -37,7 +37,7 @@ import '../../audio/sounds_creatures_c';
 // thin as a balloon's, and you can watch what she swallowed turning over
 // inside her. The bees forage the remains of the backrooms and fly the meat
 // home to her; fed, she lays brood into the comb.
-// A swallowed unit is digested alive: struggle (the struggle QTE) to tear out
+// A swallowed unit is digested alive: it fights on its own (src/combat/grapple.ts) to tear out
 // through the lips, or have a partner cut you free. She cannot move.
 //   queen_bee        skinned kit rig (abdomen shell with an open maw, ribbed throat,
 //                    stomach lining, lips, barbs, thorax, head, six legs, ovipositor)
@@ -572,7 +572,7 @@ export function mawPoint(c: Creature, out = 0): { x: number; z: number } {
   const r = MAW_Z + out;
   return { x: c.x + Math.cos(c.facing) * r, z: c.z + Math.sin(c.facing) * r };
 }
-interface Held { cid: string; t: number; dmgT: number; rounds: number; next: number; act: StruggleAction | null; won: boolean; hurt: number }
+interface Held { cid: string; t: number; dmgT: number; rounds: number; next: number; act: GrappleAction | null; won: boolean; hurt: number }
 let held: Held | null = null;
 const DMG_EVERY = 1.3, MAX_ROUNDS = 3;
 function swallowedLocal(c: Creature, n: Record<string, any>, p: Player, dt: number) {
@@ -594,7 +594,7 @@ function swallowedLocal(c: Creature, n: Record<string, any>, p: Player, dt: numb
   if (!held || held.cid !== c.id) {
     held = { cid: c.id, t: 0, dmgT: 0, rounds: 0, next: 0.6, act: null, won: false, hurt: 0 };
     p.actions.clear();
-    const act = new StruggleAction(p, 'cb_struggle', 600, { x: c.x, z: c.z });
+    const act = new GrappleAction(p, 'cb_struggle', 600, { x: c.x, z: c.z });
     act.name = 'Swallowed';
     p.actions.add(act);
     held.act = act;
@@ -624,12 +624,11 @@ function swallowedLocal(c: Creature, n: Record<string, any>, p: Player, dt: numb
       if (Math.random() < 0.4) G.audio?.at?.('bh_squelch', p.x, p.z, 0.6);
     }
   }
-  // the struggle: rounds of the struggle QTE (mash, alternate, timed); win and you tear out through the lips
-  const qte = (G as any).combat?.qte;
-  if (qte && !qte.active && h.t > h.next && !h.won) {
-    const started = qte.start({
-      reason: 'grab', cid: c.id, dur: 6.2 - Math.min(1.5, h.rounds * 0.5), grip: 1.25 + h.rounds * 0.1, act: h.act,
-      stages: [{ kind: 'mash', need: 1 }, { kind: 'alt', need: 1 }, { kind: 'timed', need: 2 }],
+  // the struggle: rounds of wrestling inside her (src/combat/grapple.ts, no prompts); win and you tear out through the lips
+  const gr = (G as any).combat?.grapple;
+  if (gr && !gr.active && h.t > h.next && !h.won) {
+    const started = gr.start({
+      reason: 'grab', cid: c.id, dur: 4.2 - Math.min(1.2, h.rounds * 0.4), grip: 1.25 + h.rounds * 0.1, act: h.act,
       onWin: () => { h.won = true; poke(p, c, 'esc'); releaseLocal(p, c, true); },
       onLose: () => {
         h.rounds++; h.next = h.t + 1.4;
@@ -643,14 +642,14 @@ function swallowedLocal(c: Creature, n: Record<string, any>, p: Player, dt: numb
     });
     if (!started) h.next = h.t + 0.5;
   }
-  // no struggle system (a stripped-down build): mash the shove key
-  if (!qte && G.input?.hit?.('shove') && Math.random() < 0.18) { h.won = true; poke(p, c, 'esc'); releaseLocal(p, c, true); }
+  // no grapple system (a stripped-down build): a shove now and then gets loose
+  if (!gr && h.t > 8 && !h.won) { h.won = true; poke(p, c, 'esc'); releaseLocal(p, c, true); }
 }
 function releaseLocal(p: Player, c: Creature, tore: boolean) {
   const h = held; held = null;
   if (!h) return;
   if (h.act) { h.act.done = true; if (p.actionAnim === 'cb_struggle') p.stopAnim(); }
-  if ((G as any).combat?.qte?.active) (G as any).combat.qte.cancel();
+  if ((G as any).combat?.grapple?.active) (G as any).combat.grapple.cancel();
   // out through the lips, onto the floor in front of her, covered in it
   const m = mawPoint(c, 1.35);
   p.x = m.x; p.z = m.z;
@@ -878,7 +877,7 @@ function thinkQueen(c: Creature, dt: number): boolean {
 
 const QUEEN = def({
   key: 'queen_bee', name: 'Queen Bee', code: 'LG-03 // FAUNA, APID (SOVEREIGN)', temperament: 'neutral', threat: 3,
-  rule: { name: 'THE OPEN STOMACH', text: 'She cannot move and she does not chase. She swallows whatever lies within reach of her front legs, but a unit only if it steps into her bowl and stays after she gapes and rakes at it, or if it hurts her. Keep out of the comb and she leaves you be. Swallowed, fight the struggle to tear out through her lips; a partner can cut you free, or hurt her until she heaves you up.', tell: 'A bee the size of a car, sitting in the comb. The whole front of her belly is a mouth, and it is open.' },
+  rule: { name: 'THE OPEN STOMACH', text: 'She cannot move and she does not chase. She swallows whatever lies within reach of her front legs, but a unit only if it steps into her bowl and stays after she gapes and rakes at it, or if it hurts her. Keep out of the comb and she leaves you be. Swallowed, you fight to tear out through her lips; a partner can cut you free, or hurt her until she heaves you up.', tell: 'A bee the size of a car, sitting in the comb. The whole front of her belly is a mouth, and it is open.' },
   hp: 260, walk: 0.05, run: 0.1, turn: 0.55, radius: 1.25, height: 2.1, sight: 9, fov: 1.8, hearing: 1, smell: true,
   zones: ['ledge'], weight: 0, group: [1, 1], maxPerZone: 1, diet: 'meat',
   meat: [['meat_raw', 4]],

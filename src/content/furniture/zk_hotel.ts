@@ -435,14 +435,17 @@ defObj({
 });
 
 defObj({
-  key: 'ht_reader', name: 'Clearance Reader', height: 1.6, block: 'none', onWall: true, movable: 0, sound: 'metal', hp: 99999, power: true,
+  key: 'ht_reader', name: 'Clearance Reader', height: 1.6,
+  light: { color: 0xfff0c8, intensity: 0.55, radius: 2.6, y: 1.6, kind: 'lamp', power: false }, block: 'none', onWall: true, movable: 0, sound: 'metal', hp: 99999, power: true,
   desc: 'A Meridian Institute reader in olive steel with the bishop on it in brass. The lamp is red and the padlock is shut until the Institute says otherwise, and the Institute says otherwise to very few units.',
   tags: [...T, 'mission', 'security', 'keycard', 'machine'],
   variant: (s) => (s.ok ? '1' : '0'),
   model: (mb, s) => {
-    mb.box(0, 0.86, -0.43, 0.46, 0.46, 0.06, { south: 'ht_reader_' + (s.ok ? 1 : 0), all: 'metal_painted_green' }, { fit: { south: true } });
-    mb.box(0, 1.32, -0.43, 0.5, 0.04, 0.08, 'metal_dark');
-    mb.box(0.13, 1.1, -0.39, 0.09, 0.09, 0.03, 'glass', { color: s.ok ? 0x60ff80 : 0xff4030, emissive: 1.4 });
+    mb.box(0, 0.78, -0.42, 0.64, 0.64, 0.08, { south: 'ht_reader_' + (s.ok ? 1 : 0), all: 'metal_painted_green' }, { fit: { south: true }, emissive: 0.25 });
+    mb.box(0, 1.42, -0.42, 0.7, 0.05, 0.12, 'metal_dark');
+    // the lamp proud of the face, lit: red and shut, or green and open
+    mb.sphere(0.18, 1.2, -0.37, 0.07, 10, 6, 'glass', { color: s.ok ? 0x60ff80 : 0xff4030, emissive: 1.6, sy: 0.7 });
+    mb.box(0, 1.5, -0.42, 0.04, 1.2, 0.04, 'metal_grey');
     mb.cylinderZ(0, 0.98, -0.47, 0.03, 0.04, 6, 'metal_dark', { caps: true });
   },
 });

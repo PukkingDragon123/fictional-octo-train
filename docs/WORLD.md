@@ -118,6 +118,12 @@ b.portal({ id: 'p_fields', x, y, kind: 'door', to: 'fields', tx: 40, ty: 40, lab
 | p_fields_house / r_fields_house | fields (house front door) ↔ house | door | — |
 | p_fields_road / r_fields_road | fields ↔ suburbs (road off the map edge) | walk | — |
 | p_house_lab / r_house_lab | house basement ↔ lab | stairs | p_house_lab: flag:lab_code |
+| p_stair_hotel / r_stair_hotel | stairwell landing 3 ↔ hotel (fire stairs) | door | p_stair_hotel: flag:unlock:ht_authorized (Clearance card at the reader) |
+| p_parking_hotel / r_parking_hotel | parking core lift ↔ hotel lift lobby | elevator | p_parking_hotel: flag:unlock:ht_authorized |
+| p_lobby_hall / r_lobby_hall | lobby doorway ↔ lobby_hall | door / walk | — |
+| p_hall_stair / r_hall_stair | lobby_hall ↔ lobby_stair | walk | — |
+| p_stair_void / r_stair_void | lobby_stair top ↔ lobby_void | walk | — |
+| r_void_lobby | lobby_void (floor below) → lobby (anchor r_lobby_hall) | walk | — |
 | p_suburbs_school / r_suburbs_school | suburbs ↔ school | door | — |
 | p_suburbs_manhole / r_suburbs_manhole | suburbs manhole ↔ tunnels ladder | manhole / ladder | — |
 | p_suburbs_lot / r_suburbs_lot | suburbs ↔ parking (road) | walk | — |

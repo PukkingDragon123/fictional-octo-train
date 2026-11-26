@@ -374,8 +374,7 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
         { tip: (v) => v === 0 ? `Pick for this screen (now ${Math.round(currentPx({ ...us, px: 0 }) * 10) / 10}×)` : `Every interface pixel is ${v} screen pixels` }));
       f.append(toggle('Reduce flashing', us.reduceFlash, (v) => { us.reduceFlash = v; saveUiSettings(us); }, 'no flicker, glitches or blinking'));
       f.append(toggle('Subtitle strip', !!us.subStrip, (v) => { us.subStrip = v; saveUiSettings(us); }, 'spoken lines at the bottom of the picture instead of beside the speaker'));
-      f.append(toggle('Hold, don\'t mash', !!us.qteHold, (v) => { us.qteHold = v; saveUiSettings(us); }, 'struggles: hold the key instead of hammering it'));
-      f.append(toggle('Slower timing', !!us.qteSlow, (v) => { us.qteSlow = v; saveUiSettings(us); }, 'quick-time needles, scanner locks and struggles go easier'));
+      f.append(toggle('Slower timing', !!us.qteSlow, (v) => { us.qteSlow = v; saveUiSettings(us); }, 'steady-hand needles and scanner locks go easier'));
       f.append(toggle('Build key hints', !!us.buildHints, (v) => { us.buildHints = v; saveUiSettings(us); }, 'keep the key caps under the build ghost'));
       // round 18: the lab guide (only in the lab menus): Dr. Calder's voice on or off, and her tour again
       if (labGuideHere()) {

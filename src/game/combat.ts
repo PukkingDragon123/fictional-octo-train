@@ -20,7 +20,8 @@ import { wielded, MOVES, sizeClass, type MoveKind, type Wielded } from '../comba
 import { Marks } from '../combat/glyphs';
 import { Words } from '../combat/words';
 import { Combo } from '../combat/combos';
-import { Struggles, StruggleAction, type Stage } from '../combat/qte';
+import { Grapples, GrappleAction } from '../combat/grapple';
+import { Impacts, pickPart, partEffect, type HitPart } from '../combat/impact';
 import { Executions } from '../combat/executions';
 import { motionOf } from '../entities/motion';
 import { combatHit, creatureStep, creaturePose, executable, isDown, isStunned, inExec, killable, flinch, cbOp, type HitExtra } from '../combat/creatureState';
@@ -47,6 +48,10 @@ interface Move {
   heft?: number;
 }
 
+/** round 24: where each weapon's own swing meets the target (fraction of the move) and how long it runs against the class's light */
+const ANIM_HIT: Record<string, number> = { cb_cut: 0.36, cb_club: 0.5, cb_bash: 0.52 };
+const ANIM_DUR: Record<string, number> = { cb_cut: 1.0, cb_club: 1.12, cb_bash: 1.2 };
+
 const HOSTILE = new Set(['hostile', 'stalker', 'ambush', 'territorial']);
 const _v = new THREE.Vector3();
 
@@ -59,7 +64,8 @@ const _v = new THREE.Vector3();
  * slash on the same body is a finisher. Tap Shift (or double-tap a direction)
  * in a fight to dodge; a dodge just before a blow lands slows the world and
  * opens a counter. Staggered, downed or dying creatures can be executed (E,
- * or attack them). Grabs, pins and limb-tearing grips become struggles.
+ * or attack them). Grabs, pins and limb-tearing grips are fought by the body on its own
+ * (src/combat/grapple.ts: no prompts; stats, the weapon, injuries, breath and position decide).
  * Guns and throwables keep their own verbs. In co-op, survivors can hurt each
  * other when friendly fire is on (sandbox).
  */
@@ -68,7 +74,10 @@ export class CombatSystem implements GameSystem {
   rng = new Rng(Math.random() * 1e9);
   marks = new Marks();
   words = new Words();
-  qte = new Struggles();
+  grapple = new Grapples();
+  /** the older name for the grapple (src/entities/motion.ts asks `G.combat.qte.active`) */
+  get qte() { return this.grapple; }
+  impacts = new Impacts();
   exec = new Executions();
   combo = new Combo();
   state: St = 'idle';
@@ -140,7 +149,7 @@ export class CombatSystem implements GameSystem {
   private guardUp = false;
   /** the local unit has its guard up: aiming (right mouse held) with fists or a melee weapon, nothing else going */
   guarding(p: Player): boolean {
-    if (!p.isLocal || !p.aiming || p.body.downed || p.body.dead || this.move || this.state === 'charge' || this.qte.active || this.exec.active) return false;
+    if (!p.isLocal || !p.aiming || p.body.downed || p.body.dead || this.move || this.state === 'charge' || this.grapple.active || this.exec.active) return false;
     if (motionOf(p).locked) return false;
     return !wielded(p).ranged;
   }
@@ -195,12 +204,31 @@ export class CombatSystem implements GameSystem {
   setFriendlyFire(on: boolean) { setFriendlyFire(on); }
 
   /** a hit from the local survivor on a creature (host applies, a client asks the host); local flinch at once */
-  dealCreature(p: Player, c: Creature, o: { dmg: number; kind: string; knock: number; crit?: boolean } & HitExtra) {
+  dealCreature(p: Player, c: Creature, o: { dmg: number; kind: string; knock: number; crit?: boolean; part?: HitPart } & HitExtra) {
     const ex: HitExtra = { po: o.po ? Math.round(o.po) : undefined, dn: o.dn, st: o.st, ia: o.ia };
     if (G.role !== 'client') hostHit(p.id, c.id, o.dmg, p.x, p.z, o.knock, o.kind, !!o.crit, ex);
     else op('creatureHit', { id: c.id, dmg: o.dmg, fx: p.x, fz: p.z, knock: o.knock, by: p.id, k: o.kind, cr: o.crit ? 1 : undefined, ...ex });
-    flinch(c, c.x - p.x, c.z - p.z, Math.min(1.5, 0.4 + o.knock * 0.6));
+    flinch(c, c.x - p.x, c.z - p.z, Math.min(1.5, 0.4 + o.knock * 0.6), o.part);
     this.lastFight = G.time;
+  }
+
+  /** src/combat/impact.ts: a creature we drove back has run into furniture (moved: it went over; else a solid thing) */
+  slam(c: Creature, k: number, moved: boolean) {
+    const p = G.local;
+    if (!p || c.dead) return;
+    this.dealCreature(p, c, { dmg: (moved ? 1 : 2.5) * Math.min(2, k), kind: 'shove', knock: 0, po: (moved ? 10 : 24) * Math.min(2, k), st: moved ? undefined : 0.7, ia: 1 });
+  }
+
+  /** a heavy swing that met nothing: the weight carries the body on a step and the recovery runs long */
+  private overcommit(p: Player, m: Move, w: Wielded) {
+    const wt = Math.max(0, w.heft) + (w.cls === 'heavy' || w.cls === 'axe' ? 0.5 : w.cls === 'blunt' || w.cls === 'improvised' ? 0.25 : 0) + (m.kind === 'heavy' ? 0.3 * m.power : 0);
+    if (wt < 0.2) return;
+    m.dur += 0.06 + wt * 0.14;
+    m.slow = Math.min(m.slow, 0.3);
+    p.anim?.nudge?.(0.6 + wt * 0.8, (Math.random() - 0.5) * 0.4, -0.04);
+    const s = Math.min(0.3, 0.08 + wt * 0.12);
+    moveCircle(G.getZone(p.zoneKey), p, Math.cos(m.dir) * s, Math.sin(m.dir) * s, { ignoreLow: false });
+    p.body.endurance = Math.max(0, p.body.endurance - 0.01 * wt);
   }
 
   // ================================================================ frame
@@ -208,7 +236,7 @@ export class CombatSystem implements GameSystem {
     this.marks.attach();
     this.marks.begin();
     this.words.begin();
-    try { this.frame(dt); } finally {
+    try { this.frame(dt); this.impacts.update(dt); } finally {
       try { this.drawWorld(dt); } catch (e) { console.error('combat marks', e); }
       this.marks.end();
       this.words.end();
@@ -222,13 +250,13 @@ export class CombatSystem implements GameSystem {
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.rangedCd = Math.max(0, this.rangedCd - dt);
     this.struggleCd = Math.max(0, this.struggleCd - dt);
-    if (p.body.dead || p.inVehicle) { this.qte.cancel(); if (this.exec.active) this.exec.end(p); this.resetMoves(p); return; }
+    if (p.body.dead || p.inVehicle) { this.grapple.cancel(); if (this.exec.active) this.exec.end(p); this.resetMoves(p); return; }
     this.applySlow(p);
     this.pollTear(p);
     const gu = this.guarding(p);
     if (gu && !this.guardUp) this.guardT0 = G.time;
     this.guardUp = gu;
-    if (this.qte.active) { this.resetMoves(p); this.qte.update(dt, this.marks, this.words); G.input.mouseReleased[0] = false; this.endFrame(p); return; }
+    if (this.grapple.active) { this.resetMoves(p); this.grapple.update(dt); G.input.mouseReleased[0] = false; this.endFrame(p); return; }
     if (p.body.downed) { this.resetMoves(p); this.endFrame(p); return; }
     if (this.exec.active) { this.resetMoves(p); this.exec.update(dt, p, this.marks, this.words); this.slowK = 0; this.endFrame(p); return; }
     const inp = G.input;
@@ -424,11 +452,11 @@ export class CombatSystem implements GameSystem {
     ch.snd -= dt;
     if (ch.lvl < 1 && ch.snd <= 0) { ch.snd = 0.3; G.audio?.at?.('cb_charge', p.x, p.z, 0.35 + ch.lvl * 0.4); }
     if (ch.lvl >= 1 && ch.fullT < 0) { ch.fullT = G.time; G.audio?.at?.('cb_ready', p.x, p.z, 0.9); punch(0.025, 0.12); }
-    // held on past the window: the arms start to shake, the blow loses its edge
+    // full: the blow has all its weight; held on too long the arms start to shake and it loses its edge
     if (!held) {
       this.state = 'idle';
       this.btn = null;
-      const perfect = ch.fullT >= 0 && G.time - ch.fullT <= 0.3;
+      const perfect = ch.fullT >= 0 && G.time - ch.fullT <= 0.9;
       this.startMove(p, 'heavy', w, undefined, perfect, Math.max(0.15, ch.lvl));
     } else if (p.body.endurance <= 0.01) {
       this.state = 'idle'; this.btn = null;
@@ -443,6 +471,10 @@ export class CombatSystem implements GameSystem {
     switch (kind) {
       case 'light': {
         if (w.cls === 'unarmed' || w.cls === 'cyber') return this.combo.chain % 2 ? 'cb_jab' : 'cb_jab2';
+        // round 24: each kind of thing in the hand swings like itself (src/combat/anims.ts)
+        if (w.cls === 'blade') return 'cb_cut';
+        if (w.cls === 'improvised') return w.mass > 2.5 || w.w.twoHanded ? 'cb_bash' : this.combo.chain % 2 ? 'cb_club' : 'swing';
+        if (w.cls === 'blunt' && !w.w.twoHanded) return this.combo.chain % 3 === 2 ? 'swing' : 'cb_club';
         return w.feel.lightAnim === 'swing' && w.w.twoHanded ? 'swing2h' : w.feel.lightAnim;
       }
       case 'jab': return this.combo.barrage && this.combo.barrage.jabs % 2 ? 'cb_jab2' : 'cb_jab';
@@ -484,6 +516,9 @@ export class CombatSystem implements GameSystem {
     const dir = kind === 'lunge' || kind === 'tackle' ? this.dashDir(p) : this.aimDir(p, targetId);
     const slow = kind === 'light' ? 0.55 : kind === 'jab' ? 0.7 : kind === 'heavy' || kind === 'flurryEnd' ? 0.12 : kind === 'stomp' || kind === 'slash' ? 0.2 : 0;
     const anim = this.animFor(kind, w, perfect);
+    // the weapon's own swing sets when it lands: a cut is quick to the mark, a club and a bashed chair hang back
+    const hitAt = ANIM_HIT[anim] ?? spec.hitAt;
+    if (kind === 'light') dur *= ANIM_DUR[anim] ?? 1;
     // close the gap: the strike steps in on what it is aimed at (magnetism), never through it
     let step = spec.step * (kind === 'heavy' ? 0.5 + power * 0.5 : 1);
     if (kind === 'light' || kind === 'jab' || kind === 'heavy' || kind === 'flurryEnd' || kind === 'slash') {
@@ -495,7 +530,7 @@ export class CombatSystem implements GameSystem {
         targetId = targetId ?? t.c.id;
       }
     }
-    this.move = { kind, t: 0, dur, hitAt: spec.hitAt, landed: false, dir, power, perfect, anim, step, stepDone: 0, slow, chain: this.combo.chain, counter: !!(this.combo.counter && G.time < this.combo.counter.until), targetId, heft: w.heft };
+    this.move = { kind, t: 0, dur, hitAt, landed: false, dir, power, perfect, anim, step, stepDone: 0, slow, chain: this.combo.chain, counter: !!(this.combo.counter && G.time < this.combo.counter.until), targetId, heft: w.heft };
     this.state = 'strike';
     p.attackCooldown = dur;
     if (anim) p.playAnim(anim, dur);
@@ -642,6 +677,7 @@ export class CombatSystem implements GameSystem {
       p.anim?.impact?.(w.cls === 'blade' || w.cls === 'spear' ? 0.35 : 0.7);
       if (aoe) { shake(0.8, 0.45); G.audio?.at?.('cb_impact', p.x, p.z, 1); }
     } else if (k === 'light' || k === 'heavy' || k === 'lunge') {
+      this.overcommit(p, m, w);
       // furniture, walls, windows in front (a heavy blow that does not break loose furniture sends it skidding)
       this.hitWorld(p, k === 'heavy' ? { ...w.w, dmg: [w.w.dmg[0] * (1 + m.power), w.w.dmg[1] * (1 + m.power)] as [number, number] } : w.w, w.it, k === 'light' ? 0 : (1 + m.power) * (1 + Math.max(0, w.heft)));
       if (k !== 'light') shake(0.15, 0.15);
@@ -671,28 +707,41 @@ export class CombatSystem implements GameSystem {
     if (behind) dmg *= 1.5;
     if (broken) dmg *= 1.3;
     if (m.counter) dmg *= 1.8;
-    const crit = m.counter || this.rng.chance(w.w.crit + skill * 0.01 + (unaware ? 0.25 : 0) + (behind ? 0.35 : 0) + (m.perfect ? 0.3 : 0) + (k === 'lunge' && (w.cls === 'blade' || w.cls === 'spear') ? 0.3 : 0));
+    // round 24: the blow lands on a part of it (src/combat/impact.ts)
+    const part = pickPart(c, k, w.cls, behind);
+    const size0 = sizeClass(c);
+    const crit = m.counter || this.rng.chance(w.w.crit + skill * 0.01 + (unaware ? 0.25 : 0) + (behind ? 0.35 : 0) + (m.perfect ? 0.3 : 0) + (k === 'lunge' && (w.cls === 'blade' || w.cls === 'spear') ? 0.3 : 0) + (part === 'head' ? 0.15 : 0));
+    const pe = partEffect(part, w.cls, size0, crit);
+    dmg *= pe.dmg;
     if (crit) dmg *= 2;
     if (w.it && (w.it.cond ?? 1) < 0.3) dmg *= 0.75;
     const size = sizeClass(c);
     const sizeK = size === 3 ? 0.35 : size === 2 ? 0.8 : 1.2;
-    const knock = (foot ? 0.6 : w.w.knock * w.knockMul) * w.feel.knock * spec.knock * sizeK * kickMul;
-    const po = spec.poise * (foot ? 1 : w.feel.poise) * w.poiseMul * kickMul * (m.perfect ? 1.6 : 1) * (m.counter ? 2 : 1) * (k === 'heavy' ? 0.6 + m.power : 1) * (crit ? 1.3 : 1);
+    const knock = (foot ? 0.6 : w.w.knock * w.knockMul) * w.feel.knock * spec.knock * sizeK * kickMul * pe.knock;
+    const po = pe.po * spec.poise * (foot ? 1 : w.feel.poise) * w.poiseMul * kickMul * (m.perfect ? 1.6 : 1) * (m.counter ? 2 : 1) * (k === 'heavy' ? 0.6 + m.power : 1) * (crit ? 1.3 : 1);
     let dn: number | undefined, stn: number | undefined;
     if (k === 'tackle' && size <= 2) dn = 2.2;
     else if (k === 'flurryEnd' && size <= 2) dn = 2.0;
     else if (k === 'heavy' && m.perfect) { if (w.cls === 'blade' || w.cls === 'spear') stn = 2.4; else dn = 2.0; }
     else if (k === 'shove' && (size <= 1 || isStunned(c))) dn = 1.9;
     else if (k === 'lunge' && w.cls === 'spear') stn = 1.2;
-    const ia: 1 | undefined = k === 'light' && !m.perfect && !m.counter ? undefined : 1;
+    // what the part does: a dazed head, a leg out from under it
+    if (dn === undefined && pe.dn && k !== 'jab') dn = pe.dn;
+    if (stn === undefined && dn === undefined && pe.st && k !== 'jab') stn = pe.st;
+    const ia: 1 | undefined = k === 'light' && !m.perfect && !m.counter && part !== 'arm' && part !== 'head' ? undefined : 1;
     const kind = k === 'shove' || k === 'tackle' ? 'shove' : k === 'stomp' ? 'blunt' : w.hitKind;
-    this.dealCreature(p, c, { dmg, kind, knock, crit, po, dn, st: stn, ia });
+    this.dealCreature(p, c, { dmg, kind, knock, crit, po, dn, st: stn, ia, part });
+    // a cut through a limb: the gore system takes it off (blades and axes, a real blow, and only sometimes)
+    if (pe.sever && crit && (k === 'heavy' || k === 'lunge' || k === 'slash' || (k === 'light' && w.cls === 'axe')) && this.rng.chance(w.feel.sever * 0.3)) cbOp({ t: 'sev', id: c.id, role: pe.sever, k: kind, fx: p.x, fz: p.z, by: p.id });
+    // driven hard enough it keeps going, into whatever stands behind it
+    this.impacts.launch(c, c.x - p.x, c.z - p.z, knock * (k === 'tackle' || k === 'shove' ? 1.3 : 1));
     // the ground chain
     if (dn && size <= 2) this.combo.grounded(c.id);
     if (k === 'stomp') { if (!this.combo.ground || this.combo.ground.id !== c.id) this.combo.grounded(c.id); this.combo.stomped(c.id); }
     // feel it
     const big = k === 'heavy' || k === 'lunge' || k === 'flurryEnd' || k === 'tackle' || k === 'stomp' || k === 'slash';
-    const stopMs = spec.stop * (crit ? 1.3 : 1) * (k === 'heavy' ? 0.6 + m.power * 0.6 : 1) * (m.perfect ? 1.3 : 1);
+    // hit-stop: a few frames, longer the more weight is behind it (and on a head)
+    const stopMs = spec.stop * (crit ? 1.3 : 1) * (k === 'heavy' ? 0.6 + m.power * 0.6 : 1) * (m.perfect ? 1.3 : 1) * (1 + Math.max(0, w.heft) * 0.45) * (part === 'head' ? 1.2 : 1);
     hitstop(stopMs);
     shake(spec.shake * (crit ? 1.3 : 1) * (k === 'heavy' ? 0.5 + m.power * 0.7 : 1), 0.25);
     // a short push-in on the blows that matter; the small ones only nudge
@@ -702,6 +751,8 @@ export class CombatSystem implements GameSystem {
     G.audio?.hit?.(kind === 'shove' || kind === 'unarmed' ? 'blunt' : kind, c.x, c.z, crit);
     if (big) G.audio?.at?.(k === 'stomp' ? 'cb_stomp' : 'cb_impact', c.x, c.z, k === 'heavy' ? 0.5 + m.power * 0.5 : 0.8);
     else if (k === 'jab') G.audio?.at?.('cb_jab', c.x, c.z, 0.7);
+    // the part under the blow (recorded: bone, flesh, a wet body hit)
+    if (kind !== 'shove' && (big || crit || part === 'head' || this.rng.chance(0.5))) G.audio?.at?.(pe.snd, c.x, c.z, big || crit ? 0.75 : 0.45);
     // sparks off the blow (metal on bone)
     const sx = (c.x + p.x * 0.4) / 1.4, sz = (c.z + p.z * 0.4) / 1.4;
     for (let i = 0; i < (big ? 9 : crit ? 6 : 3); i++) { const a = dir + (Math.random() - 0.5) * 1.8, v = 1.5 + Math.random() * 2.5; this.marks.spark(sx, hy, sz, Math.cos(a) * v, 0.5 + Math.random() * 1.8, Math.sin(a) * v, 0.3 + Math.random() * 0.15, crit ? 0xfff0c0 : 0xffb050); }
@@ -731,7 +782,7 @@ export class CombatSystem implements GameSystem {
 
   // ================================================================ shove, stomp, tackle
   shove(p: Player) {
-    if (this.state === 'charge' || (this.move && !this.cancelable(this.move)) || this.qte.active || this.exec.active) return;
+    if (this.state === 'charge' || (this.move && !this.cancelable(this.move)) || this.grapple.active || this.exec.active) return;
     if (p.body.endurance < 0.03) { bus.emit('think', p, 'No strength left to push.'); return; }
     const w = wielded(p);
     // something on the floor in front: stomp it
@@ -773,7 +824,7 @@ export class CombatSystem implements GameSystem {
   }
 
   private startDodge(p: Player, dx: number, dz: number) {
-    if (this.dodgeCd > 0 || this.qte.active || this.exec.active || p.body.dead || p.body.downed || p.inVehicle) return;
+    if (this.dodgeCd > 0 || this.grapple.active || this.exec.active || p.body.dead || p.body.downed || p.inVehicle) return;
     if (this.move && this.move.landed === false && (this.move.kind === 'heavy' || this.move.kind === 'lunge') && this.move.t > this.move.dur * 0.3) return;
     if (p.body.endurance < 0.06) { bus.emit('think', p, 'Too winded to dodge.'); return; }
     const l = Math.hypot(dx, dz);
@@ -823,7 +874,7 @@ export class CombatSystem implements GameSystem {
     this.lastFight = G.time;
     // an interrupted wind-up
     if (this.state === 'charge') { this.state = 'idle'; this.btn = null; if (p.actionAnim === 'cb_charge') p.stopAnim(); }
-    if (h.tear || this.qte.active || this.struggleCd > 0 || this.exec.active) return;
+    if (h.tear || this.grapple.active || this.struggleCd > 0 || this.exec.active) return;
     const c = this.findAttacker(p, h.by, h.from);
     if (!c) return;
     const size = sizeClass(c);
@@ -842,68 +893,67 @@ export class CombatSystem implements GameSystem {
     return best;
   }
 
-  private stagesFor(size: number, reason: string): Stage[] {
-    const s: Stage[] = [{ kind: 'mash', need: 1 }];
-    if (size >= 2) s.push(reason === 'pin' ? { kind: 'alt', need: 1 } : { kind: 'timed', need: 2 });
-    if (size >= 3) s.push(reason === 'pin' ? { kind: 'timed', need: 2 } : { kind: 'alt', need: 1 });
-    return s;
-  }
-
   private startGrab(p: Player, c: Creature, reason: 'grab' | 'pin', size: number) {
-    const stages = this.stagesFor(size, reason);
-    const dur = 2.4 + stages.length * 1.1;
+    const dur = 2.2 + size * 0.75;
     p.actions.clear();
     this.resetMoves(p);
-    const act = new StruggleAction(p, reason === 'pin' ? 'cb_pinned' : 'cb_struggle', dur + 1, { x: c.x, z: c.z });
+    const act = new GrappleAction(p, reason === 'pin' ? 'cb_pinned' : 'cb_struggle', dur + 1, { x: c.x, z: c.z });
     p.actions.add(act);
     cbOp({ t: 'pin', id: c.id, pid: p.id, dur: dur + 0.5 });
     this.struggleCd = 7;
     const end = () => { act.done = true; if (p.actionAnim === 'cb_pinned' || p.actionAnim === 'cb_struggle') p.stopAnim(); };
-    this.qte.start({
-      reason, cid: c.id, dur, stages, grip: 0.8 + size * 0.2, act,
-      onWin: (perfect) => {
+    this.grapple.start({
+      reason, cid: c.id, dur, grip: 0.8 + size * 0.2, act,
+      onWin: (clean) => {
         end();
-        cbOp({ t: 'qte', id: c.id, pid: p.id, r: perfect ? 'perfect' : 'win' });
-        this.brokeFree(p, c, perfect);
-        if (reason === 'pin') p.playAnim('get_up', 0.9);
+        cbOp({ t: 'grip', id: c.id, pid: p.id, r: clean ? 'clean' : 'win' });
+        this.brokeFree(p, c, clean, reason === 'pin');
       },
       onLose: () => {
         end();
-        cbOp({ t: 'qte', id: c.id, pid: p.id, r: 'lose' });
+        cbOp({ t: 'grip', id: c.id, pid: p.id, r: 'lose' });
         this.noTearQte = G.time + 4;
         shake(0.8, 0.4); punch(0.1, 0.5);
-        if (reason === 'pin') p.playAnim('get_up', 1.4);
+        // it wins the wrestle: a pin slams the body flat (it gets up on its own), a grab throws it back a step
+        const dx = p.x - c.x, dz = p.z - c.z;
+        if (reason === 'pin') motionOf(p).knockdown(p, dx, dz, 0.9, 'slam');
+        else p.playAnim('mo_reel_b', 0.8);
       },
     });
   }
 
-  /** a limb-tearing grip has started: fight it */
+  /** a limb-tearing grip has started: the body fights it (no prompt) */
   private pollTear(p: Player) {
     const a = p.actions.current;
-    if (!(a instanceof TornAction) || !a.started || a.ripped || this.qte.active || a.t >= a.hold * 0.8 || G.time < this.noTearQte) return;
+    if (!(a instanceof TornAction) || !a.started || a.ripped || this.grapple.active || a.t >= a.hold * 0.8 || G.time < this.noTearQte) return;
     if ((a as any).cbSeen) return;
     (a as any).cbSeen = true;
     const c = this.findAttacker(p, a.by, a.from);
     const size = c ? sizeClass(c) : 2;
-    const stages = this.stagesFor(size, 'tear');
-    const extra = 0.5 + stages.length * 0.65;
+    const extra = 0.6 + size * 0.4;
     a.hold += extra; a.duration += extra; a.showBar = false;
     if (c) cbOp({ t: 'tear+', id: c.id, pid: p.id, add: extra });
     this.resetMoves(p);
-    this.qte.start({
-      reason: 'tear', cid: c?.id ?? null, dur: Math.max(1.2, a.hold - a.t - 0.05), stages, grip: 0.8 + size * 0.2, act: a,
-      onWin: (perfect) => {
+    this.grapple.start({
+      reason: 'tear', cid: c?.id ?? null, dur: Math.max(1.2, a.hold - a.t - 0.05), grip: 0.8 + size * 0.2, act: a,
+      onWin: (clean) => {
         a.done = true;
-        p.body.addInjury(a.part, 'laceration', perfect ? 0.3 : 0.6, { dirty: true });
-        if (c) { cbOp({ t: 'tearX', id: c.id, pid: p.id, perfect: perfect ? 1 : undefined }); this.brokeFree(p, c, perfect); }
-        bus.emit('think', p, perfect ? 'NOT TODAY.' : 'I got it loose— move!');
+        p.body.addInjury(a.part, 'laceration', clean ? 0.3 : 0.6, { dirty: true });
+        if (c) { cbOp({ t: 'tearX', id: c.id, pid: p.id, perfect: clean ? 1 : undefined }); this.brokeFree(p, c, clean); }
+        bus.emit('think', p, clean ? 'NOT TODAY.' : 'I got it loose— move!');
       },
       onLose: () => { shake(0.9, 0.5); punch(0.12, 0.6); },
     });
   }
 
-  private brokeFree(p: Player, c: Creature, perfect: boolean) {
-    p.playAnim('shove', 0.45);
+  private brokeFree(p: Player, c: Creature, perfect: boolean, fromPin = false) {
+    // shove-off: both arms drive it away and the body steps back out of it; off the floor, it gets up after
+    if (fromPin) motionOf(p).getUp(p, 'back');
+    else p.playAnim('cb_throwoff', 0.6);
+    // the inhabitant recoils: driven back off the body, reeling (and into whatever stands behind it)
+    this.dealCreature(p, c, { dmg: perfect ? 4 : 1.5, kind: 'shove', knock: perfect ? 1.6 : 1.1, po: perfect ? 50 : 28, ia: 1 });
+    this.impacts.launch(c, c.x - p.x, c.z - p.z, perfect ? 1.4 : 1);
+    G.audio?.at?.('body_thud', c.x, c.z, 0.8);
     hitstop(perfect ? 110 : 70); shake(perfect ? 0.8 : 0.5, 0.35); punch(perfect ? 0.08 : 0.05, 0.3);
     kick(c.x - p.x, c.z - p.z, 0.4);
     G.audio?.at?.('cb_break', p.x, p.z, 1);
@@ -926,7 +976,7 @@ export class CombatSystem implements GameSystem {
     // the charge: a ring filling under the feet, the weapon hand glowing
     if (this.state === 'charge') {
       const ch = this.charge;
-      const full = ch.fullT >= 0, perfect = full && G.time - ch.fullT <= 0.3, over = full && !perfect;
+      const full = ch.fullT >= 0, perfect = full && G.time - ch.fullT <= 0.9, over = full && !perfect;
       // hot metal: dull red, orange, then white at the moment to let go
       const col = perfect ? (Math.sin(now / 30) > 0 ? 0xfff4d8 : 0xffd890) : over ? 0xc84a20 : ch.lvl > 0.66 ? 0xffa040 : 0xd86030;
       // (round 15: no gauge over the head; the weapon heats, the body shakes when it is held too long)
@@ -950,8 +1000,6 @@ export class CombatSystem implements GameSystem {
       G.pointLight(f.x, f.y, f.z, f.c, f.i, 4);
     }
     // creatures: wind-up telegraphs, staggered spirals, execution prompts
-    const touch = !!this.touch()?.active;
-    let promptShown = false;
     for (const c0 of G.creatures?.creatures?.values?.() || []) {
       const c = c0 as Creature;
       if (c.dead || c.zoneKey !== p.zoneKey || !c.visibleToLocal) continue;
@@ -965,10 +1013,7 @@ export class CombatSystem implements GameSystem {
         // the wind-up reads from the creature's body (and a glint of light on it), not a sign over its head
         if (G.time - t0 < 0.18) G.pointLight(c.x, top - 0.3, c.z, 0xffe0b0, 0.5, 2.2);
       }
-      if (!promptShown && !inExec(c) && d < 3.4 && executable(c)) {
-        promptShown = true;
-        if (d < 2.2) { const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) }; this.words.prompt(touch ? 'Tap' : (G.input.keyName('interact') || 'E').toUpperCase(), 'finish it', c.x + rt.x * 0.55, top + 0.3, c.z + rt.z * 0.55, 'hot'); }
-      }
+      // (round 24: no key prompt over something that can be finished: it is on the floor or reeling, that says it)
     }
     // a counter window is open
     const ctr = this.combo.counter;
@@ -990,7 +1035,7 @@ export class CombatSystem implements GameSystem {
   private glowAt(q: Player, lvl: number, col: number, now: number) {
     this.handPos(q);
     const pulse = Math.sin(now / (lvl >= 1 ? 45 : 110)) * 0.15;
-    this.marks.mark('glow', _v.x, _v.y, _v.z, { color: col, add: true, scale: 0.5 + lvl * 0.8 + pulse, opacity: 0.25 + lvl * 0.5 });
+    // (round 24: light only, no sprite: the weapon hand lights the room as it heats)
     G.pointLight(_v.x, _v.y, _v.z, col, 0.35 + lvl * 1.1 + pulse * 0.5, 2.6);
   }
 
@@ -1115,7 +1160,7 @@ export class CombatSystem implements GameSystem {
 
   /** dev / tests: a snapshot of the fight state */
   debug() {
-    return { state: this.state, move: this.move ? { kind: this.move.kind, t: +this.move.t.toFixed(2), landed: this.move.landed } : null, charge: +this.charge.lvl.toFixed(2), chain: this.combo.chain, hits: this.combo.hits, barrage: this.combo.barrage, ground: this.combo.ground, counter: this.combo.counter, qte: this.qte.cur ? { reason: this.qte.cur.reason, stage: this.qte.cur.si, prog: +this.qte.cur.prog.toFixed(2) } : null, lastQte: this.qte.last, exec: this.exec.cur ? this.exec.cur.def.key : null, lastExec: this.exec.last, log: this.combo.log.slice(-8).map((l) => l.k) };
+    return { state: this.state, move: this.move ? { kind: this.move.kind, t: +this.move.t.toFixed(2), landed: this.move.landed } : null, charge: +this.charge.lvl.toFixed(2), chain: this.combo.chain, hits: this.combo.hits, barrage: this.combo.barrage, ground: this.combo.ground, counter: this.combo.counter, grapple: this.grapple.cur ? { reason: this.grapple.cur.reason, heaves: this.grapple.cur.heaves, prog: +this.grapple.cur.prog.toFixed(2), odds: +this.grapple.cur.odds.toFixed(2) } : null, lastGrapple: this.grapple.last, exec: this.exec.cur ? this.exec.cur.def.key : null, lastExec: this.exec.last, log: this.combo.log.slice(-8).map((l) => l.k) };
   }
 }
 

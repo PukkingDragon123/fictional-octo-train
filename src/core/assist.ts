@@ -1,5 +1,5 @@
 // The quick-time assists (Settings, Interface: "Hold, don't mash" and "Slower timing"), read by game
-// logic (src/actions/skillCheck.ts, src/combat/qte.ts, the scanner's lock) without importing any UI.
+// logic (src/actions/skillCheck.ts, the scanner's lock) without importing any UI.
 // They live in the interface settings blob in localStorage ('noclip.ui', src/ui/menus/settings.ts
 // writes it and emits 'uiSettings'); safe to import anywhere, including node-side checks.
 import { bus } from './events';

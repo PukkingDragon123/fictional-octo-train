@@ -16,7 +16,7 @@ const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
 let failed = 0, passed = 0;
 /** steps in a full run (main chain + side chain); update when a step is added */
-const EXPECT = 38;
+const EXPECT = 40;
 
 async function session() {
   const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
@@ -354,6 +354,23 @@ if (!mainOnly) {
   await S('lab: director\'s log + keycard', async () => { const T = window.T; T.lore('log_director'); const r = T.take('lab', 'keycard_lab') || T.takeFloor('lab', 'keycard_lab'); if (!r) throw new Error('keycard_lab not found'); return r; });
   await S('lab: swipe SRV-2 reader', async () => { const T = window.T, o = T.obj('lab', (o) => o.state.card === 'keycard_lab', 'reader'); await T.use(o, 'Swipe a card'); const d = o.state.door; if (d) await T.until(() => !T.g.getZone('lab').edge(d[0], d[1], d[2])?.locked); });
   await S('lab: disable SRV-2', async () => { const T = window.T, o = T.obj('lab', (o) => o.state.node === 'SRV-2', 'SRV-2'); await T.use(o, 'Disable node SRV-2'); await T.until(() => T.has('node:SRV-2')); return { stage: T.g.missions.stage }; });
+  await S('Halcyon gate: sealed until the Institute clears the unit; the clearance card at the reader opens it', async () => {
+    const T = window.T; await T.go('stairwell');
+    const pt = T.portal('p_stair_hotel');
+    if (T.g.missions.isUnlocked(pt.locked, T.p)) throw new Error('the Halcyon is open without clearance');
+    const rd = T.obj('stairwell', (o) => o.key === 'ht_reader', 'clearance reader');
+    const lampBefore = rd.state.ok | 0;
+    // what the Clearance Office asks for: an installment on the ledger, five inhabitants on file, three data records
+    for (const f of ['contract:installment:1', 'scan:hollow', 'scan:driller', 'scan:hum_possum', 'scan:mulcher', 'scan:still_life', 'read:ht_card', 'read:ht_porter', 'read:ht_linen']) T.g.missions.set(f);
+    await T.until(() => !!T.Q.status('ht_clearance'), 30000, 'clearance offered');
+    if (T.Q.status('ht_clearance') === 'off') T.Q.request('ht_clearance', 'accept');
+    await T.done('ht_clearance');
+    await T.until(() => T.p.allItems().some((i) => i.key === 'ht_auth_card'), 15000, 'clearance card');
+    await T.use(rd, 'Swipe a card');
+    await T.until(() => T.g.missions.isUnlocked(pt.locked, T.p), 20000, 'door unlocked');
+    await T.until(() => rd.state.ok === 1, 15000, 'reader lamp green');
+    return { lampBefore, lampAfter: rd.state.ok };
+  });
   await S('stairwell landing 3 → the Halcyon (hotel): the keeper walks its round, Late Checkout is posted', async () => {
     const T = window.T; await T.go('stairwell');
     const r = await T.through('p_stair_hotel', 'hotel');
@@ -362,6 +379,22 @@ if (!mainOnly) {
     await T.until(() => !!T.Q.status('ht_checkout'), 30000, 'Late Checkout offered');
     const c = [...T.g.creatures.creatures.values()].find((c) => c.zoneKey === 'hotel' && c.sp.key === 'unclaimed');
     return { ...r, keeper: [Math.round(c.x), Math.round(c.z)], quest: T.Q.status('ht_checkout'), press: !!T.objs('hotel', (o) => o.key === 'hopper').length };
+  });
+  await S('Level 0 sub-stages: lobby doorway → the Long Hall → the Tall Stairwell → the Void → down the chute', async () => {
+    const T = window.T; await T.go('lobby');
+    const hops = [];
+    hops.push((await T.through('p_lobby_hall', 'lobby_hall')).zone);
+    hops.push((await T.through('p_hall_stair', 'lobby_stair')).zone);
+    hops.push((await T.through('p_stair_void', 'lobby_void')).zone);
+    const z = T.g.getZone('lobby_void'), d = z.meta.slides[0];
+    const top = z.heightAt(T.p.tileX(), T.p.tileY());
+    T.g.placePlayer(T.p, 'lobby_void', d.start[0][0] - 1, d.start[0][1], 0);
+    await T.sleep(400);
+    if (!window.__slide.start('chute')) throw new Error('the chute would not take the unit');
+    await T.until(() => T.has('lv:slid') && !window.__slide.active, 60000, 'slid down the chute');
+    const low = z.heightAt(T.p.tileX(), T.p.tileY());
+    if (!(low < top - 3)) throw new Error('not on the floor below: ' + low);
+    return { hops, top, low: +low.toFixed(1), at: [T.p.tileX(), T.p.tileY()] };
   });
   await S('stairwell landing 13 → corrupt: root key', async () => { const T = window.T; await T.go('stairwell'); await T.through('p_stair_13', 'corrupt'); const r = T.takeFloor('corrupt', 'root_key') || T.take('corrupt', 'root_key'); if (!r) throw new Error('root_key not found'); await T.sleep(1500); return [r, T.has('got:root_key')]; });
   await S('lab → core: disable SRV-3, the bands go dead', async () => { const T = window.T; await T.go('lab'); await T.through('p_lab_core', 'server'); const o = T.obj('server', (o) => o.state.node === 'SRV-3', 'SRV-3'); await T.use(o, 'Disable node SRV-3'); await T.until(() => T.has('node:SRV-3')); await T.until(() => T.has('band:removed'), 60000, 'band:removed'); return { band: T.g.band.get(T.p.id), cut: T.p.allItems().some((i) => i.key === 'bailiff_band_cut') }; });

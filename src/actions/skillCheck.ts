@@ -11,7 +11,8 @@
 // Settings assists (Interface: Slower timing) make every window easier.
 // Round 19 (play test): one window per action at most, wide bands and a slow needle by default, and the
 // right tool skips the window altogether (a lockpick set, a suture kit, tweezers or forceps; a crowbar pries).
-// Scripted browsers (navigator.webdriver) pass every window unless ?qte is in the URL.
+// Scripted browsers (navigator.webdriver) pass every window unless ?qte is in the URL. In a fight or a grip
+// (round 24) no window opens at all: the hands resolve it from skill and how much they shake.
 //
 //   a.check = new SkillCheck({ kind: 'tap', at: [0.3, 0.6, 0.9], band: 0.18, ease, glyph: 'PIN', onMark: (m, i) => ... });
 //   perform(): this.check.hits / misses / perfects / score
@@ -58,6 +59,11 @@ const AUTO = typeof navigator !== 'undefined' && !!navigator.webdriver && typeof
 const V = new THREE.Vector3();
 function vn(t: number, s: number) { const i = Math.floor(t), f = t - i, u = f * f * (3 - 2 * f); const h = (k: number) => { const x = Math.sin(k * 127.1 + s * 311.7) * 43758.5453; return x - Math.floor(x); }; return h(i) * (1 - u) + h(i + 1) * u; }
 
+/** round 24: an inhabitant is on the unit (a fight close by, or a grip): no quick-time windows then */
+function underFire(p: unknown): boolean {
+  try { const C: any = (G as any).combat; return !!C && (!!C.grapple?.active || !!C.engaged?.(p)); } catch { return false; }
+}
+
 let owner: SkillCheck | null = null;
 let taps = 0, touchHeld = false;
 const onDown = (e: PointerEvent) => {
@@ -99,6 +105,13 @@ export class SkillCheck {
   get score() { return this.marks.reduce((s, m) => s + (m === 'perfect' ? 1 : m === 'hit' || m === '' ? 0.8 : 0), 0) / Math.max(1, this.marks.length); }
   /** every window passed, at least one cleanly */
   get clean() { return this.misses === 0 && this.hits > 0; }
+
+  /** a window resolved without the player: skill (ease) against shaking hands */
+  private handsAlone(): CheckMark {
+    const E = this.ease(), tr = Math.max(0, this.o.tremor ?? 0);
+    const ok = Math.random() < Math.max(0.2, Math.min(0.92, 0.55 + (E - 1) * 0.35 - tr * 0.3));
+    return !ok ? 'miss' : Math.random() < 0.2 * E ? 'perfect' : 'hit';
+  }
 
   private ease() { const A = qteAssist(); return Math.max(0.4, (this.o.ease ?? 1) * (A.slow ? 1.35 : 1)); }
 
@@ -159,6 +172,8 @@ export class SkillCheck {
     if (!this.open) {
       if (this.i < this.marks.length && a.progress >= this.o.at[this.i]) {
         if (AUTO) { this.mark('hit'); return false; }
+        // round 24: no timing window in a fight or in something's grip; the hands do what they can on their own
+        if (underFire(a.p)) { this.mark(this.handsAlone()); return false; }
         this.openWindow();
         this.plate(a, true);
       } else {

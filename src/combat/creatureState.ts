@@ -1,6 +1,6 @@
 // What a fight does to a creature beyond its hit points: poise that breaks
 // into a stagger, being knocked down, being held still while it is executed,
-// pinning a survivor during a struggle. The host owns the state (c.mem.cb);
+// pinning a survivor while it wrestles (src/combat/grapple.ts). The host owns the state (c.mem.cb);
 // every peer draws it from flags in the creature's net memory (c.mem.netMem:
 // cbd down, cbs staggered, cbx execution pose, cbp pinning). One op, 'cb',
 // carries a client's requests to the host.
@@ -128,7 +128,7 @@ export type CbOp =
   | { t: 'free'; id: string }
   | { t: 'down'; id: string; s: number }
   | { t: 'pin'; id: string; pid: string; dur: number }
-  | { t: 'qte'; id: string; pid: string; r: 'win' | 'perfect' | 'lose' }
+  | { t: 'grip'; id: string; pid: string; r: 'win' | 'clean' | 'lose' }
   | { t: 'tear+'; id: string; pid: string; add: number }
   | { t: 'tearX'; id: string; pid: string; perfect?: 1 }
   | { t: 'ff'; on: 0 | 1 };
@@ -193,7 +193,7 @@ function hostCb(c: Creature, a: Exclude<CbOp, { t: 'ff' }>) {
       flag(c, 'cbp', 1);
       return;
     }
-    case 'qte': {
+    case 'grip': {
       const s = st(c);
       s.pin = undefined; flag(c, 'cbp', 0);
       if (c.dead) return;
@@ -212,7 +212,8 @@ function hostCb(c: Creature, a: Exclude<CbOp, { t: 'ff' }>) {
       // thrown off
       if (p) { const dx = c.x - p.x, dz = c.z - p.z, d = Math.hypot(dx, dz) || 1; c.vx = (dx / d) * 5; c.vz = (dz / d) * 5; }
       c.attackT = Math.max(c.attackT, (c.sp.attack?.cooldown ?? 1) * 1.6);
-      if (a.r === 'perfect' && killable(c)) { if (sizeClass(c) <= 2) knockDown(c, 2.4); else stagger(c, 2.4); }
+      if (a.r === 'clean' && killable(c)) { if (sizeClass(c) <= 2) knockDown(c, 2.4); else stagger(c, 2.4); }
+      else if (killable(c)) stagger(c, 1.1);
       else c.stagger = Math.max(c.stagger, 0.9);
       return;
     }
@@ -239,9 +240,9 @@ const ease = (t: number) => { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 -
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 
 /** a local flinch the moment our blow lands (before the host's word arrives) */
-export function flinch(c: Creature, dx: number, dz: number, s: number) {
+export function flinch(c: Creature, dx: number, dz: number, s: number, part?: string) {
   c.hitFlash = Math.max(c.hitFlash, 0.15);
-  c.mem.cbFl = { t: G.time, dx, dz, s: Math.min(1.5, s) };
+  c.mem.cbFl = { t: G.time, dx, dz, s: Math.min(1.5, s), part };
 }
 
 /**
@@ -258,7 +259,7 @@ export function creaturePose(c: Creature, dt: number) {
   v.s = damp(v.s, m.cbs || x === 's' ? 1 : 0, 7, dt);
   v.k = damp(v.k, x === 'k' ? 1 : 0, 8, dt);
   v.l = damp(v.l, x === 'l' ? 1 : 0, 6, dt);
-  const fl = c.mem.cbFl as { t: number; dx: number; dz: number; s: number } | undefined;
+  const fl = c.mem.cbFl as { t: number; dx: number; dz: number; s: number; part?: string } | undefined;
   if (v.d < 0.002 && v.s < 0.002 && v.k < 0.002 && v.l < 0.002 && !fl) return;
   const t = G.time, h = c.height;
   root.rotation.order = 'YXZ';
@@ -301,6 +302,12 @@ export function creaturePose(c: Creature, dt: number) {
       const fwd = (fl.dx * Math.cos(c.facing) + fl.dz * Math.sin(c.facing)) / l;
       root.rotation.x -= fwd * 0.28 * k;
       root.rotation.z += (fl.dx * Math.sin(c.facing) - fl.dz * Math.cos(c.facing)) / l * 0.2 * k;
+      // where it was hit (src/combat/impact.ts): a head snaps back and twists, a leg gives and drops that side,
+      // an arm wrenches the shoulders round, the body folds over the blow
+      if (fl.part === 'head') { root.rotation.x -= 0.16 * k; root.rotation.y += 0.22 * k * (fl.t * 7 % 2 < 1 ? 1 : -1); }
+      else if (fl.part === 'leg') { root.position.y -= Math.min(0.16, c.height * 0.08) * k; root.rotation.z += 0.18 * k * (fl.t * 7 % 2 < 1 ? 1 : -1); }
+      else if (fl.part === 'arm') root.rotation.y += 0.26 * k * (fl.t * 7 % 2 < 1 ? 1 : -1);
+      else if (fl.part === 'body') root.rotation.x += 0.1 * k;
     }
   }
 }

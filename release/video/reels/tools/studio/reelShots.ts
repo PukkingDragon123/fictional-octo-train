@@ -62,18 +62,26 @@ export async function useLabSet(S: Studio) {
   const DEG = Math.PI / 180;
   const put: [string, number, number, number, number][] = [
     // [model, x (her left +), y, z (behind her +), yaw]
-    ['shelves', -1.45, 0, 1.55, 180], ['carton', -1.45, 0.135, 1.55, 90], ['gallon', -1.6, 0.625, 1.53, 200], ['kettle', -1.3, 0.625, 1.55, 150],
-    ['toolbox', -1.45, 1.155, 1.55, 184], ['bunsen', -1.2, 1.155, 1.53, 180], ['plant_small', -1.32, 1.635, 1.53, 180], ['clipboard', -1.58, 1.635, 1.55, 172],
-    ['tool_cart', 1.3, 0, 0.55, 75], ['chem_set', 1.3, 0.955, 0.55, 75], ['gas_tank', 1.95, 0, 1.5, 0], ['stool_tall', -0.95, 0, 0.75, 30],
-    ['radio', 1.42, 0.955, 0.85, 200], ['tool_chest', 0.55, 0, 2.1, 180], ['microscope_old', 0.55, 1.0, 2.05, 160],
+    ['shelves', -0.85, 0, 1.75, 180], ['carton', -0.85, 0.135, 1.75, 90], ['gallon', -1.0, 0.625, 1.73, 200], ['kettle', -0.7, 0.625, 1.75, 150],
+    ['toolbox', -0.85, 1.155, 1.75, 184], ['bunsen', -0.6, 1.155, 1.73, 180], ['plant_small', -0.72, 1.635, 1.73, 180], ['clipboard', -0.98, 1.635, 1.75, 172],
+    ['tool_cart', 0.8, 0, 1.0, 75], ['chem_set', 0.8, 0.955, 1.0, 75], ['radio', 0.92, 0.955, 1.3, 200],
+    ['tool_chest', 0.75, 0, 2.2, 180], ['microscope_old', 0.75, 1.0, 2.15, 160], ['gas_tank', 1.35, 0, 1.9, 0], ['stool_tall', -0.6, 0, 0.95, 30],
   ];
   const base = import.meta.env?.BASE_URL ?? '/';
   await Promise.all(put.map(async ([a, x, y, dz, r]) => {
     try {
       const m = await loadProp(`${base}props/lab/${a}.glb`);
       m.position.set(OUT.x - x, y, OUT.z + dz); m.rotation.y = r * DEG;
+      // the game's main pass draws two targets (colour + normals): a plain material has to write the second one,
+      // or the post passes read the prop as empty air and paint over it
+      const mat = (m.material as THREE.Material).clone();
+      mat.onBeforeCompile = (sh) => { sh.fragmentShader = 'layout(location = 1) out highp vec4 gNormal;\n' + sh.fragmentShader.replace(/\}\s*$/, '  gNormal = vec4(normalize(normal) * 0.5 + 0.5, 0.5);\n}\n'); };
+      mat.customProgramCacheKey = () => 'reel-prop-mrt';
+      m.material = mat;
       S.scene.add(m);
-    } catch (e) { console.warn('lab prop', a, e); }
+      m.updateMatrixWorld(true);
+      const bb = new THREE.Box3().setFromObject(m);
+    } catch (e) { console.error('[set] lab prop failed', a, String(e)); }
   }));
 }
 

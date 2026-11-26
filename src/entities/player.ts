@@ -3,6 +3,7 @@ import { Body, Env, INJURY_INFO } from '../survival/body';
 import { HumanRig, Appearance, Outfit, RigCondition } from './humanRig';
 import { HAZMAT_YELLOW } from './gg/spec';
 import { HumanAnimator, Stance, FullBody, ActionAnim, AnimInput, ANIM_DUR } from './humanAnim';
+import { G } from '../game/G';
 import { groundFn, ragWorldFor, pickLook, lodFor, gameTime, LookTarget } from './humanWorld';
 import { ActionQueue } from '../actions/action';
 import { Container } from '../items/container';
@@ -627,6 +628,9 @@ export class Player {
       this.remAct = action;
     }
     this.rig.animate(dt, I);
+    // out cold (a faint, src/entities/motion.ts): the eyelids close over the picture (after the survival system set its own)
+    const shut = local ? this.motion?.eyesShut ?? 0 : 0;
+    if (shut > 0) G.pr.fx.blink = Math.max(G.pr.fx.blink, shut);
     // footsteps from real foot landings
     const steps = this.anim.steps;
     if (steps !== this.lastSteps) {

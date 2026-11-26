@@ -42,8 +42,8 @@ import { partGroup } from './humanReact';
 
 type MState = 'free' | 'slide' | 'vault' | 'hop' | 'stumble' | 'fallen' | 'getup' | 'stagger' | 'roll';
 /** how a get-up starts (which lying pose): src/entities/motionAnims.ts mo_getup_* */
-export type GetUpFrom = 'front' | 'back' | 'side_l' | 'side_r' | 'sit' | 'lie';
-const GETUP_DUR: Record<GetUpFrom, number> = { front: 1.8, back: 1.8, side_l: 2.0, side_r: 2.0, sit: 1.6, lie: 2.2 };
+export type GetUpFrom = 'front' | 'back' | 'side_l' | 'side_r' | 'sit' | 'lie' | 'curl';
+const GETUP_DUR: Record<GetUpFrom, number> = { front: 1.8, back: 1.8, side_l: 2.0, side_r: 2.0, sit: 1.6, lie: 2.2, curl: 1.5 };
 /** a vault: from where, to where, over how high (world), and what is being cleared */
 interface VaultPlan { x0: number; z0: number; x1: number; z1: number; h: number; what: 'wall' | 'window' | 'furniture'; glass?: boolean; dir: number }
 
@@ -100,6 +100,10 @@ export class UnitMotion {
   private wasDowned = false;
   private lastGround = NaN; private lastZone = '';
   private loadT = 0;
+  /** 0..1 how far the eyelids are shut over the picture (a faint; src/entities/player.ts applies it) */
+  eyesShut = 0;
+  /** seconds left of the sway before a faint drops the body */
+  private swoon = 0;
   /** the get-up being played (dev, tests) */
   getup: GetUpFrom | '' = '';
 
@@ -198,6 +202,7 @@ export class UnitMotion {
     if (this.wasDowned && !p.body.downed && !p.body.dead && !p.carriedBy) this.getUp(p, 'front');
     this.wasDowned = p.body.downed && !p.body.dead;
     this.checkFaint(p, dt);
+    this.stepSwoon(p, dt);
     this.checkDrop(z, p);
     const under = p.stance === 'crawl' || this.st === 'slide';
     switch (this.st) {
@@ -458,17 +463,15 @@ export class UnitMotion {
         if (!this.fainted) fallImpact(p, this.last === 'fall' ? 'front' : 'back', this.fallK, this.fallV);
       }
       // out cold: the world goes dark round the edges and comes back as it wakes
-      if (this.fainted && p.isLocal) {
-        const k = clamp(this.t / 0.5, 0, 1) * clamp((this.dur + 0.2 - this.t) / 1.2, 0, 1);
-        try { G.pr.fx.blink = Math.max(G.pr.fx.blink, 0.85 * k); } catch { /* no renderer */ }
-      }
+      this.eyesShut = this.fainted ? 0.9 * clamp(this.t / 0.5, 0, 1) * clamp((this.dur + 0.2 - this.t) / 1.2, 0, 1) : 0;
       // a body still sliding or rolling waits for it to settle (a little), then gets up
       const settled = !R?.active || R.settled || this.t > this.dur + 1.2;
       if (this.t >= this.dur && settled) this.beginGetUp(z, p);
       return;
     }
+    this.eyesShut = Math.max(0, this.eyesShut - 1.5 * dt);
     if (this.t >= this.dur) {
-      this.st = 'free'; this.t = 0; this.getup = '';
+      this.st = 'free'; this.t = 0; this.getup = ''; this.eyesShut = 0;
       if (!this.roomToStand(p)) this.prone = true;
       if (this.fainted) { this.fainted = false; p.anim.nudge(0.3, (Math.random() - 0.5) * 2, 0); say(p, 'What... happened?'); }
     }
@@ -528,7 +531,11 @@ export class UnitMotion {
       } else {
         const hx = _u.x, hz = _u.z;
         const head = Math.hypot(hx, hz) > 0.2 ? Math.atan2(hz, hx) : p.facing;
-        if (_b.y < -0.45) { from = 'front'; p.facing = head; }
+        // folded up in a heap (the knees under it: a faint, a body that dropped where it stood)
+        R.pelvisWorld(_v); R.feetWorld(_w);
+        const folded = Math.hypot(_w.x - _v.x, _w.z - _v.z) < 0.42 && _b.y < 0.3;
+        if (folded) { from = 'curl'; p.facing = head; }
+        else if (_b.y < -0.45) { from = 'front'; p.facing = head; }
         else if (_b.y > 0.45) { from = 'back'; p.facing = wrapAngle(head + Math.PI); }
         else {
           // on its side: which side of the root (facing the head) the belly points to: the root's left is (sin f, -cos f)
@@ -576,11 +583,25 @@ export class UnitMotion {
     if (this.st !== 'free' || p.body.dead || p.body.downed) return false;
     this.faintCd = 120;
     say(p, 'I don\'t... feel...');
-    p.anim.nudge(0.4, (Math.random() - 0.5) * 1.4, -0.3);
     audio('debtor_gasp', p.x, p.z, 0.4);
-    const f = p.facing;
-    this.knockdown(p, Math.cos(f), Math.sin(f), 0.3, 'faint', 0);
+    // a sway, the eyes going, the knees softening; then the body drops (stepSwoon)
+    p.actions.clear();
+    this.swoon = 0.85;
+    this.enter('stagger', 0.85);
+    p.playAnim('mo_swoon', 0.9);
+    p.anim.nudge(0.3, (Math.random() - 0.5) * 1.2, -0.2);
     return true;
+  }
+  private stepSwoon(p: Player, dt: number) {
+    if (this.swoon <= 0) return;
+    this.swoon -= dt;
+    this.eyesShut = 0.6 * clamp(1 - this.swoon / 0.85, 0, 1);
+    if (this.swoon > 0) return;
+    this.swoon = 0;
+    if (p.body.dead || p.body.downed) return;
+    const f = p.facing;
+    this.st = 'free';
+    this.knockdown(p, Math.cos(f), Math.sin(f), 0.3, 'faint', 0);
   }
 
   /** the floor dropped away under it (stepping off a ledge or a dais in the zone): a landing to match the height */
@@ -958,7 +979,7 @@ export class UnitMotion {
   reset(p: Player) {
     if ((this.st === 'fallen' || this.st === 'getup') && !p.body.dead && !p.body.downed) p.rig.stopRagdoll();
     if (this.st !== 'free') p.stopAnim();
-    this.st = 'free'; this.t = 0; this.exVx = this.exVz = 0; this.pending = null; this.vault = null; this.getup = ''; this.fainted = false;
+    this.st = 'free'; this.t = 0; this.exVx = this.exVz = 0; this.pending = null; this.vault = null; this.getup = ''; this.fainted = false; this.eyesShut = 0; this.swoon = 0;
     this.lastGround = NaN;
   }
 

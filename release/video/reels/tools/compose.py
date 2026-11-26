@@ -14,14 +14,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '../../../..'))
 FPS = TL['fps']
 OW, OH = TL.get('size', [1080, 1920])
-k = OW / 1080.0                                  # preview renders everything at half size
+k = min(OW, OH) / 1080.0                         # preview renders everything at half size
+PORTRAIT, WIDE = OH > OW * 1.2, OW > OH * 1.2
+# anamorphic bars on the wide picture (2.39:1)
+LB = int(round((OH - OW / 2.39) / 2)) if WIDE and TL.get('letterbox', True) else 0
 FONT = ImageFont.truetype(os.path.join(ROOT, 'public/fonts/alagard.ttf'), int(round(94 * k)))
 WHITE, DIM, ACC = (252, 255, 250), (206, 228, 214), (255, 214, 72)
 EDGE, GLOW = (5, 16, 10), (80, 255, 140)
 STROKE, GLOW_R = max(2, int(round(7 * k))), max(4, int(round(15 * k)))
 LINE_H = int(round(104 * k))
-BOTTOM = int(round(1462 * k))                    # the caption's last line ends here (clear of Instagram's UI)
-MAXW = int(round(930 * k))
+BOTTOM = int(round(1462 * k)) if PORTRAIT else OH - LB - int(round(70 * k)) if WIDE else OH - int(round(150 * k))  # the caption's last line ends here (clear of the apps' UI)
+MAXW = int(round((930 if not WIDE else 1300) * k))
 ACCENT = [a.lower() for a in TL.get('accent', [])]
 
 # ------------------------------------------------------------------ captions from the lines' word times
@@ -178,9 +181,9 @@ def draw_captions(frame, t):
 LOGO = TL.get('logo')
 if LOGO:
     src = Image.open(os.path.join(ROOT, 'public/brand/lockup-stacked@1x.png')).convert('RGBA')
-    LS = max(1, int(round(TL.get('logoScale', 3) * k)))
+    LS = max(1, int(round(TL.get('logoScale', 3 if PORTRAIT else 2.4 if not WIDE else 2) * k)))
     lk = src.resize((src.width * LS, src.height * LS), Image.NEAREST)
-    LX, LY = (OW - lk.width) // 2, int(TL.get('logoY', 96) * k)
+    LX, LY = (OW - lk.width) // 2, int(TL.get('logoY', 96 if PORTRAIT else 60) * k) + LB
     bh = int(TL.get('logoBand', 640) * k)
     band = Image.new('RGBA', (OW, bh), (0, 0, 0, 0))
     band.putalpha(Image.frombytes('L', (1, bh), bytes(int(205 * (1 - y / bh) ** 1.3) for y in range(bh))).resize((OW, bh)))
@@ -274,15 +277,49 @@ FR = TL['frames']
 SHARP = ImageFilter.UnsharpMask(radius=2 * k, percent=55, threshold=2)
 def base(i):
     im = Image.open(FR[min(i, len(FR) - 1)]).convert('RGB')
+    sa, oa = im.width / im.height, OW / OH
+    if WIDE and oa > sa * 1.05:
+        # a tall picture on a wide frame: the picture whole in the middle, the frame filled by a soft, dark, wide copy
+        fh = OH - 2 * LB
+        fg = im.resize((int(round(fh * sa)), fh), Image.LANCZOS).filter(SHARP)
+        bg = im.resize((OW, int(OW / sa)), Image.BILINEAR)
+        bg = bg.crop((0, (bg.height - OH) // 2, OW, (bg.height - OH) // 2 + OH)).filter(ImageFilter.GaussianBlur(int(28 * k) + 1))
+        bg = Image.eval(bg, lambda v: int(v * 0.42))
+        bg.paste(fg, ((OW - fg.width) // 2, LB))
+        return bg
+    if abs(oa - sa) > sa * 0.02:
+        # crop to the frame's shape (the subject sits a little above the middle of the reels' framing)
+        cy = TL.get('cropY', 0.46)
+        if oa < sa: w_ = im.height * oa; im = im.crop((int((im.width - w_) / 2), 0, int((im.width + w_) / 2), im.height))
+        else: h_ = im.width / oa; y0 = max(0, min(im.height - h_, im.height * cy - h_ / 2)); im = im.crop((0, int(y0), im.width, int(y0 + h_)))
     if im.size != (OW, OH):
         exact = OW % im.width == 0 and OW // im.width == OH // im.height
         im = im.resize((OW, OH), Image.NEAREST if exact else Image.LANCZOS)
         if not exact: im = im.filter(SHARP)
     return im
 
+# ------------------------------------------------------------------ whip pans between shots
+WHIPS = TL.get('whips', [])
+def whip(im, t):
+    for j, w in enumerate(WHIPS):
+        d = t - w
+        if abs(d) >= 0.17: continue
+        s_ = 1 - abs(d) / 0.17                       # 1 at the cut
+        a = np.asarray(im).astype(np.float32)
+        L = int(s_ * s_ * 0.22 * OW) + 1             # the smear, longest at the cut
+        sgn = 1 if j % 2 == 0 else -1
+        off = int(sgn * (-d) / 0.17 * 0.18 * OW * s_)  # the picture slides through the cut
+        acc = np.zeros_like(a)
+        n_ = 9
+        for q in range(n_):
+            acc += np.roll(a, off + int((q / (n_ - 1) - 0.5) * L) * sgn, axis=1)
+        return Image.fromarray(np.clip(acc / n_, 0, 255).astype(np.uint8), 'RGB')
+    return im
+
 def frame_at(i):
     t = i / FPS
-    im = film(base(i), i).convert('RGBA')
+    im = film(whip(base(i), t), i).convert('RGBA')
+    if LB: d_ = ImageDraw.Draw(im); d_.rectangle((0, 0, OW, LB), fill=(0, 0, 0, 255)); d_.rectangle((0, OH - LB, OW, OH), fill=(0, 0, 0, 255))
     if LOGO: draw_logo(im, t)
     draw_captions(im, t)
     return im.convert('RGB')
