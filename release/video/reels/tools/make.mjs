@@ -99,7 +99,7 @@ function plan(R) {
   if (R.legacy) {
     const P = JSON.parse(fs.readFileSync(path.join(B, 'plan.json'), 'utf8'))[R.legacy.reel];
     const L = Object.fromEntries(JSON.parse(fs.readFileSync(path.join(B, 'lines.json'), 'utf8'))[R.legacy.reel]);
-    for (const s of P.shots) { const own = ['card', 'endcard'].includes(s.id); shots.push({ id: s.id, kind: own ? s.id : 'legacy', zone: own ? (R.set ?? 'lab') : 'ledge', at: s.at, dur: s.dur }); }
+    for (const s of P.shots) { const own = ['intro', 'card', 'endcard'].includes(s.id); shots.push({ id: s.id, kind: own ? s.id : 'legacy', zone: own ? (R.set ?? 'lab') : 'ledge', at: s.at, dur: s.dur }); }
     for (const v of P.voice) lines.push({ text: L[v.key], at: v.at, nocap: v.key === 'bye' });
     return { shots, lines, total: P.total, zone: 'ledge' };
   }
@@ -228,7 +228,15 @@ function blurShots(P) {
     if (fs.existsSync(path.join(mb, 'done'))) { s.mb = mb; continue; }
     fs.rmSync(mb, { recursive: true, force: true }); fs.mkdirSync(mb, { recursive: true });
     const w = Array(MB_FRAMES).fill(1).join(' ');
-    run('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(RFPS), '-i', path.join(s.dir, '%04d.jpg'),
+    // game shots are screenshots of a moving framing (their size changes as the view pushes in): one size first,
+    // or the flow filter restarts at every change
+    let src = s.dir;
+    if (s.kind === 'game') {
+      src = path.join(s.dir, 'norm'); fs.mkdirSync(src, { recursive: true });
+      const [nw, nh] = RASPECT === '16x9' ? [1440, 810] : RASPECT === '1x1' ? [1080, 1080] : [810, 1440];
+      run(PY, ['-c', `import glob,os,sys\nfrom PIL import Image\nfor f in sorted(glob.glob(os.path.join(sys.argv[1],'[0-9]*.jpg'))):\n  Image.open(f).convert('RGB').resize((${nw},${nh}),Image.LANCZOS).save(os.path.join(sys.argv[2],os.path.basename(f)),quality=94)`, s.dir, src]);
+    }
+    run('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(RFPS), '-i', path.join(src, '%04d.jpg'),
       '-vf', `minterpolate=fps=${RFPS * 4}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1,tmix=frames=${MB_FRAMES}:weights='${w}',fps=${RFPS}`,
       '-q:v', '2', '-start_number', '0', path.join(mb, '%04d.jpg')]);
     // the filter chain can drop the last frame or two: hold the last one
@@ -315,7 +323,7 @@ async function make(file) {
   const logo = { from: +(hi.at + (named ? named[0] : 2.5) - 0.08).toFixed(2), to: +(intro.at + intro.dur - 0.3).toFixed(2) };
   // whip pans at the cuts between shots (not into the card or the recruiting screen)
   const whips = R.whip === false ? [] : P.shots.slice(1).filter((s, i) => !['card', 'endcard'].includes(s.kind) && !['legacy'].includes(s.kind) && P.shots[i].kind !== 'legacy').map((s) => +s.at.toFixed(3));
-  const base = { whips, fps: FPS, total: P.total, size: opt.preview ? OSIZE.map((v) => v / 2) : OSIZE, accent, logo, lines: P.lines.map((l) => ({ at: l.at, words: l.words, env: l.env, nocap: !!l.nocap, wav: l.wav, dur: l.dur })) };
+  const base = { whips, ...(R.logoScale ? { logoScale: R.logoScale } : {}), ...(R.logoY !== undefined ? { logoY: R.logoY } : {}), fps: FPS, total: P.total, size: opt.preview ? OSIZE.map((v) => v / 2) : OSIZE, accent, logo, lines: P.lines.map((l) => ({ at: l.at, words: l.words, env: l.env, nocap: !!l.nocap, wav: l.wav, dur: l.dur })) };
 
   if (opt.sheet || stillAt !== null) {
     const picks = stillAt !== null ? [P.shots.find((s) => stillAt >= s.at && stillAt < s.at + s.dur) ?? P.shots[P.shots.length - 1]] : P.shots.filter((s) => s.kind === 'beat' || s.kind === 'game');
