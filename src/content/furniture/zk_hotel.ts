@@ -320,8 +320,46 @@ function spillDecal(pc: PixelCanvas) {
   }
 }
 
+/**
+ * The Meridian clearance reader (machine kit): an olive steel face with hazard trim, the bishop of the
+ * Institute in brass, a card slot, a big lamp and a padlock glyph. `ok` 0 = sealed (red lamp, shackle
+ * shut), 1 = authorised (green lamp, shackle open). Icons only, no words.
+ */
+function readerFace(pc: PixelCanvas, ok: number) {
+  pc.wrap = false;
+  const W = pc.w, H = pc.h;
+  const O = makeRamp(0x5a6a3a, 5, { spread: 0.3 });
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) pc.set(x, y, O[2 + (ph(x, y, 7371) < 0.15 ? 1 : 0) - (ph(x, y, 7372) < 0.1 ? 1 : 0)]);
+  // hazard trim top and bottom
+  for (let x = 0; x < W; x++) for (const y of [0, 1, H - 2, H - 1]) pc.set(x, y, ((x + y) >> 1) % 2 ? 0x1a1a14 : 0xf0c020);
+  for (let y = 2; y < H - 2; y++) { pc.set(0, y, O[0]); pc.set(W - 1, y, O[4]); }
+  // rivets
+  for (const [x, y] of [[2, 3], [W - 3, 3], [2, H - 4], [W - 3, H - 4]]) { pc.set(x, y, 0xd8d8c8); pc.set(x + 1, y + 1, 0x2a2a20); }
+  // the bishop: a little brass mitre on a plinth
+  const bx = 5, by = 5;
+  const bishop = ['..#..', '.###.', '.#.#.', '.###.', '..#..', '.###.', '#####'];
+  bishop.forEach((row, j) => [...row].forEach((c2, i) => { if (c2 === '#') pc.set(bx + i, by + j, j < 2 ? 0xfff0b0 : HT.brass); }));
+  // the lamp: a domed lens in a bezel
+  const lx = W - 9, ly = 9, lc = ok ? 0x40e060 : 0xe83a2a, lh = ok ? 0xc8ffd0 : 0xffc0a8;
+  for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) {
+    const d = Math.hypot(x, y);
+    if (d > 5.2) continue;
+    pc.set(lx + x, ly + y, d > 4.2 ? 0x2a2a24 : d < 1.5 && x < 0 && y < 0 ? lh : mixHex(lc, 0x000000, Math.max(0, (x + y) / 14)));
+  }
+  // the padlock under the lamp: body and shackle (shut over the body, or swung open)
+  const px = W - 12, py = 19;
+  pc.rect(px, py + 4, 7, 5, ok ? 0x9ad8a0 : 0xd8c8a0); pc.rect(px + 3, py + 5, 1, 2, 0x2a2a24);
+  for (let k = 0; k < 4; k++) { pc.set(px + 1, py + k, 0xd8d8c8); pc.set(px + 5 + (ok ? 2 : 0), py + k + (ok ? 1 : 0), 0xd8d8c8); }
+  for (let x = px + 1; x <= px + 5 + (ok ? 2 : 0); x++) pc.set(x, py, 0xd8d8c8);
+  // the card slot with a card glyph beside it
+  pc.rect(4, H - 9, 12, 2, 0x0a0a08); pc.rect(4, H - 7, 12, 1, 0x8a9a6a);
+  pc.rect(5, H - 15, 7, 5, 0xe8e0c8); pc.rect(5, H - 13, 7, 1, HT.crimson); pc.set(10, H - 15, HT.brass);
+}
+
 addTextureModule(() => {
   const A = atlas();
+  A.add('ht_reader_0', 32, 32, (pc) => readerFace(pc, 0));
+  A.add('ht_reader_1', 32, 32, (pc) => readerFace(pc, 1));
   A.add('ht_carpet', 32, 32, (pc) => corridorCarpet(pc, 0));
   A.add('ht_carpet_b', 32, 32, (pc) => corridorCarpet(pc, 1));
   A.add('ht_carpet_c', 32, 32, (pc) => corridorCarpet(pc, 2));
@@ -394,6 +432,19 @@ defObj({
   desc: 'A brass panel with the floor dial over it. The up button is lit. The needle is stuck between 3 and 4, where it has always been.',
   tags: [...T, 'wall', 'brass'],
   model: (mb) => { mb.box(0, 1.0, -0.46, 0.26, 0.5, 0.04, { south: 'ht_liftpanel', all: 'ht_brass' }, { fit: { south: true }, emissive: 0.15 }); },
+});
+
+defObj({
+  key: 'ht_reader', name: 'Clearance Reader', height: 1.6, block: 'none', onWall: true, movable: 0, sound: 'metal', hp: 99999, power: true,
+  desc: 'A Meridian Institute reader in olive steel with the bishop on it in brass. The lamp is red and the padlock is shut until the Institute says otherwise, and the Institute says otherwise to very few units.',
+  tags: [...T, 'mission', 'security', 'keycard', 'machine'],
+  variant: (s) => (s.ok ? '1' : '0'),
+  model: (mb, s) => {
+    mb.box(0, 0.86, -0.43, 0.46, 0.46, 0.06, { south: 'ht_reader_' + (s.ok ? 1 : 0), all: 'metal_painted_green' }, { fit: { south: true } });
+    mb.box(0, 1.32, -0.43, 0.5, 0.04, 0.08, 'metal_dark');
+    mb.box(0.13, 1.1, -0.39, 0.09, 0.09, 0.03, 'glass', { color: s.ok ? 0x60ff80 : 0xff4030, emissive: 1.4 });
+    mb.cylinderZ(0, 0.98, -0.47, 0.03, 0.04, 6, 'metal_dark', { caps: true });
+  },
 });
 
 // ============================================================ the ceiling

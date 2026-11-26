@@ -488,7 +488,8 @@ function elevatorCore(c: Ctx, T: Torus, blk: Block) {
     const { b, z } = c;
     const x = mx(cu0 + 5), y = my(cv1 + 1);
     for (const o of z.objectsAt(x, y)) if (o.key === 'elevator_door') o.state.portal = 'p_parking_hotel';
-    b.portal({ id: 'p_parking_hotel', x, y, kind: 'elevator', to: 'hotel', tx: 84, ty: 31, label: 'Take the lift up to the Halcyon' });
+    b.portal({ id: 'p_parking_hotel', x, y, kind: 'elevator', to: 'hotel', tx: 84, ty: 31, label: 'Take the lift up to the Halcyon', locked: 'flag:unlock:ht_authorized' });
+    T.obj('ht_reader', cu0 + 4, cv1 + 1, 0, { card: 'ht_auth_card', unlocks: 'ht_authorized' });
     arrive(b, 'r_parking_hotel', x, y + 2, 's', 3);
   }
   if (blk.m === 5) {

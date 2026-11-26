@@ -53,6 +53,11 @@ export async function useLabSet(S: Studio) {
   console.error('[set] lab spot', JSON.stringify(OUT), best ? 'found' : 'fallback');
   SET = 'lab';
   (window as any).__set = OUT;
+  // the set's own lamps: two bright ceiling lights over the backdrop and a soft one over the lens, so the lab
+  // reads bright and clean behind her whatever the zone's tubes are doing there
+  for (const [dx, y, dz, i, d, col] of [[-1.4, 2.7, 1.2, 3.4, 7, 0xfff6ea], [1.6, 2.7, 1.0, 3.0, 7, 0xf2f6ff], [0, 2.8, -2.4, 1.6, 7, 0xfff2e0]] as [number, number, number, number, number, number][]) {
+    const l = new THREE.PointLight(col, i, d, 1.3); l.position.set(OUT.x - dx, y, OUT.z + dz); S.scene.add(l); S.pr.pinLights.push(l);
+  }
   const { loadProp } = await import('/src/ui/menus/props/glb');
   const DEG = Math.PI / 180;
   const put: [string, number, number, number, number][] = [

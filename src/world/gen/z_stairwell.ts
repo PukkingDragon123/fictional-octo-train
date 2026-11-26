@@ -115,7 +115,15 @@ function generateStairwell(z: Zone, seed: number) {
   doorPortal(0, 'r_office_stair', 'office', 'p_office_stair', 'Go through the door marked 4', 'office');
   doorPortal(6, 'p_stair_parking', 'parking', 'r_stair_parking', 'Go through the door marked P2', 'staff');
   // landing 3: the Halcyon's fire stairs (src/world/gen/z_hotel.ts)
-  doorPortal(1, 'p_stair_hotel', 'hotel', 'r_stair_hotel', 'Go through the door marked 3', 'stairs');
+  // sealed until the Meridian Institute clears the unit (src/missions/hotelQuests.ts): the card, swiped at the reader
+  {
+    const y = y0Of(1);
+    b.door(DOOR_X, y, 0, 'door_metal', { portal: 'p_stair_hotel', sign: 'stairs', locked: true });
+    b.portal({ id: 'p_stair_hotel', x: DOOR_X, y, kind: 'door', to: 'hotel', tx: 20, ty: 20, label: 'Go through the door marked 3', locked: 'flag:unlock:ht_authorized' });
+    anchor(z, 'r_stair_hotel', DOOR_X, y + 1, 's');
+    noSpawn(b, DOOR_X, y + 2, 3);
+    wallObj(b, 'ht_reader', DOOR_X - 2, y, 'n', { card: 'ht_auth_card', door: [DOOR_X, y, 0], unlocks: 'ht_authorized' });
+  }
 
   // ------------------------------------------------------------ env
   for (let c = 1; c <= LABELS.length + 2; c++) z.power.set(c, true);

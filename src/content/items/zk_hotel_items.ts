@@ -5,7 +5,7 @@
 // trunk; the floor's loot tables and the corpse table (`creature_unclaimed`).
 import { defItem } from '../../items/item';
 import { defLoot } from '../../items/loot';
-import { tex, rp, ph, type MB } from './_kit';
+import { tex, rp, ph, slab, T as KT, type MB } from './_kit';
 import { blob } from '../../creatures/kit/anomalies';
 
 const S_BRASS = tex('i_ht_brass', 8, 8, (pc) => { const R = rp(0xc8a050, 5, 0.5); pc.each((x, y) => pc.set(x, y, R[2 + (y < 2 ? 1 : 0) - (ph(x, y, 9951) < 0.2 ? 1 : 0)])); pc.set(2, 1, 0xfff0c0); }, true);
@@ -49,6 +49,17 @@ defItem({
   key: 'ht_soap', name: 'Hotel Soap', cat: 'misc', weight: 0.03, value: 3, tags: ['hotel', 'hygiene', 'soap'],
   desc: 'A little wrapped bar of soap with a gold H pressed into it, the wrapping still crisp. It smells of a room you stayed in once.',
   model: (mb: MB) => { mb.box(0, 0, 0, 0.05, 0.016, 0.035, S_SOAP); },
+});
+
+const S_AUTH = tex('i_ht_auth', 16, 10, (pc) => {
+  pc.each((x, y) => pc.set(x, y, y < 2 ? 0x5a6a3a : y > 7 ? 0xf0c020 : 0xeee6d0));
+  for (const [x, y] of [[3, 3], [2, 4], [3, 4], [4, 4], [3, 5], [2, 6], [3, 6], [4, 6]]) pc.set(x, y, 0xc8a050);
+  for (let x = 7; x < 14; x++) { pc.set(x, 4, 0x3a3a30); pc.set(x, 6, 0x9a2a2e); }
+});
+defItem({
+  key: 'ht_auth_card', name: 'Halcyon Clearance Card', cat: 'key', weight: 0.01, rare: true, noStack: true, tags: ['key', 'keycard', 'mission', 'hotel'],
+  desc: 'An olive Meridian card with the brass bishop and a crimson stripe: CLEARANCE, HALCYON 3. The Institute issues it to units it trusts with the third floor. It does not issue many.',
+  model: (mb: MB) => slab(mb, 0.085, 0.003, 0.054, S_AUTH, KT.white, 0x5a6a3a),
 });
 
 // ---- the Unclaimed (src/creatures/species/unclaimed.ts)
