@@ -128,6 +128,25 @@ the recruiting screen (`tools/studio/adScreen.ts`: the lockup, NOW RECRUITING UN
 The three first reels are `"legacy"` scripts: their shots are the hand-made ones in `tools/studio/reelShots.ts`
 (cached frames in `build/cache/legacy/`), their timing `build/plan.json`, their sound `tools/mix.py`.
 
+
+## v4: the lab set, the cinematic pass, formats (`v4/<aspect>/`, `../trailer/`)
+
+- **Set**: the opening, the card and the recruiting screen are filmed in Facility 4's labs (`R.set`, default `lab`):
+  the most open floor is found, two set lamps light the backdrop and the lab's Poly Haven props
+  (`public/props/lab`) stand round Dr. Calder (`reelShots.ts useLabSet`). The three legacy reels get the new opening too.
+- **Logo**: the stacked crest lockup, whole-pixel scaled, swings in from a slight 3D tilt with a light sweep, then
+  holds still (`compose.py draw_logo`; `logoScale` / `logoY` in a reel.json override it).
+- **Camera**: every beat gets a slow eased crane on top of its move (`camera.crane`), the opening a dolly + crane.
+- **Motion blur**: optical flow on the rendered frames (ffmpeg minterpolate to 4x, `REEL_MB` = 6 of them averaged per
+  frame), cached per shot in `<shot>/mb6`; no extra rendering. Game shots are normalised to one size first.
+- **Film**: an S-curve grade, a vignette and grain (`film` in the timeline, on by default); whip pans at the cuts
+  between shots (`R.whip = false` to turn off). Captions are one line, and one goes before the next appears.
+- **Formats**: `REEL_ASPECT=9x16|16x9|1x1` sets the finished picture; `REEL_RENDER=16x9` renders the shots
+  themselves wide (anamorphic bars), otherwise the 9x16 shots are recomposed (1x1: a crop; 16x9: a 3:4 window over a
+  soft wide copy, the crest in the margin). `REEL_OUT` sets the output folder.
+- **Trailer**: `reels/trailer.json` (16:9: `REEL_RENDER=16x9 REEL_ASPECT=16x9 REEL_OUT=release/video/trailer`) cuts
+  beats from the other reels; a beat with `"mute": true` keeps its original line only to time the shot.
+
 ## Changing the link
 
 Put it in `itch_url.txt` and run `make.mjs reels/*.json` again: the card and the recruiting screen are redrawn

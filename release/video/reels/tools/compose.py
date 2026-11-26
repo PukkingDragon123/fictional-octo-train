@@ -195,7 +195,16 @@ if LOGO:
     lk = src.resize((src.width * LS, src.height * LS), Image.NEAREST)
     LX, LY = (OW - lk.width) // 2, int(TL.get('logoY', 96 if PORTRAIT else 60) * k) + LB
     # on the wide picture the crest stands in the left third, clear of Dr. Calder in the middle
-    if WIDE: LX, LY = int(OW * 0.2 - lk.width / 2), LB + int((OH - 2 * LB - lk.height) * 0.42)
+    if WIDE and not LB:
+        # a recomposed tall reel: the crest in the middle of the left margin beside the 3:4 window
+        mg = (OW - OH * 0.75) / 2
+        LS = max(1, int(mg * 0.9 // src.width)); lk = src.resize((src.width * LS, src.height * LS), Image.NEAREST)
+        LX, LY = int(mg / 2 - lk.width / 2), int((OH - lk.height) * 0.42)
+    elif WIDE: LX, LY = int(OW * 0.2 - lk.width / 2), LB + int((OH - 2 * LB - lk.height) * 0.42)
+    elif not PORTRAIT:
+        # the square: a smaller crest in the top-left corner, off her head
+        LS = max(1, int(round(TL.get('logoScale', 1.8) * k))); lk = src.resize((src.width * LS, src.height * LS), Image.NEAREST)
+        LX, LY = int(34 * k), int(30 * k)
     bh = int(TL.get('logoBand', 640) * k)
     band = Image.new('RGBA', (OW, bh), (0, 0, 0, 0))
     band.putalpha(Image.frombytes('L', (1, bh), bytes(int(205 * (1 - y / bh) ** 1.3) for y in range(bh))).resize((OW, bh)))
