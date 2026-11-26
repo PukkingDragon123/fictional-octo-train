@@ -65,7 +65,7 @@ function paintBars(k: number) {
   if (!barsEl) {
     barsEl = document.createElement('div');
     barsEl.className = 'act-bars';
-    barsEl.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:27';
+    barsEl.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:6'; // under the HUD: the tracker and the hotbar sit on the bars, never cut by them
     barsEl.innerHTML = '<i style="position:absolute;left:0;right:0;top:0;height:0;background:#000"></i><i style="position:absolute;left:0;right:0;bottom:0;height:0;background:#000"></i>'
       + '<i style="position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse 78% 72% at 50% 52%,transparent 60%,rgba(10,7,3,.38) 85%,rgba(6,4,2,.62) 100%)"></i>';
     document.body.appendChild(barsEl);

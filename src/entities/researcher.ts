@@ -96,7 +96,7 @@ export class Researcher extends HumanRig {
   lookAt(p: THREE.Vector3 | null) { this.look = p ? p.clone() : null; }
 
   update(dt: number, input?: Partial<AnimInput> | Pose) {
-    const pose = super.update(dt, input ?? { fidget: true } as Partial<AnimInput>);
+    const pose = super.update(dt, input ?? { fidget: true, hasPack: false, hasWatch: false } as Partial<AnimInput>);
     this.tt += dt;
     this.layer(dt);
     return pose;

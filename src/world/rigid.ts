@@ -317,7 +317,7 @@ export class RigidWorld {
     for (const b of this.bodies) {
       if (b.dead) continue;
       b.age += dt;
-      if (b.kind !== 'prop') { alive++; if (b.awake) awake++; }
+      if (b.kind !== 'prop' && !b.fading) { alive++; if (b.awake) awake++; }
       if (!b.awake && !b.fading && b.kind !== 'prop') { b.slept += dt; if (b.slept > b.life) b.fading = true; }
       if (b.fading) { b.fade -= dt / 0.9; b.dirty = true; if (b.fade <= 0) { b.fade = 0; this.remove(b); } }
       // fell out of the world
@@ -328,7 +328,7 @@ export class RigidWorld {
       const list = this.bodies.filter((b) => !b.dead && b.kind !== 'prop').sort((a, b) => b.age - a.age);
       for (const b of list) {
         if (awake <= maxAwake) break;
-        if (b.awake && b.age > 0.8) { b.awake = false; b.v.set(0, 0, 0); b.w.set(0, 0, 0); awake--; }
+        if (b.awake && !b.fading && b.age > 0.8) { b.awake = false; b.v.set(0, 0, 0); b.w.set(0, 0, 0); b.dirty = true; awake--; }
       }
       for (const b of list) {
         if (alive <= maxAlive) break;
@@ -365,6 +365,10 @@ export class RigidWorld {
     const act: RBody[] = [];
     for (const b of this.bodies) {
       if (b.dead || !b.awake) continue;
+      // guards: nothing in here moves faster than a thrown brick, nothing goes NaN
+      if (!Number.isFinite(b.p.x + b.p.y + b.p.z + b.v.x + b.v.y + b.v.z + b.w.x + b.w.y + b.w.z + b.q.w)) { this.remove(b); continue; }
+      const vl = b.v.length(); if (vl > 24) b.v.multiplyScalar(24 / vl);
+      const wl = b.w.length(); if (wl > 45) b.w.multiplyScalar(45 / wl);
       b.v.y -= GRAV * DT;
       // air drag, a little spin damping
       const ld = b.air > 2 ? 0.999 : 0.995;

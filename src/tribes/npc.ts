@@ -16,7 +16,7 @@ import { makeHeldMesh } from '../items/itemMeshes';
 import { TRIBES, TRIBE_KEYS, type TribeDef, type TribeKey } from './defs';
 import { readTime } from '../game/lines';
 
-interface TribeRig extends Rig { hr: HumanRig | null; counter: THREE.Group; who: string }
+interface TribeRig extends Rig { hr: HumanRig | null; counter: THREE.Group; who: string; flash?: number }
 interface Pooled { hr: HumanRig; t: TribeKey }
 const POOL = new Map<string, Pooled>();
 const GEO = new Map<string, THREE.BufferGeometry>();
@@ -115,9 +115,17 @@ function animate(T: TribeDef) {
         if (hostile && d < 4.2 && !G.dominion?.isDowned?.(c)) bark(c, 'hostile');
       } else if (hostile && d < 14) bark(c, (n.raid ? 'raid' : 'hostile'));
     }
+    // round 24: a blow shows (the snap of a hit reaction, from where the local survivor stands), and a badly hurt member limps
+    if (c.hitFlash > (R.flash ?? 0) + 0.05 && !c.dead) {
+      const fx = p && p.zoneKey === c.zoneKey ? c.x - p.x : -Math.cos(c.facing), fz = p && p.zoneKey === c.zoneKey ? c.z - p.z : -Math.sin(c.facing);
+      const parts = ['torso_u', 'head', 'torso_l', 'uarm_l', 'uarm_r', 'thigh_l'];
+      hr.hit(fx, fz, parts[Math.floor(Math.random() * parts.length)], 0.7);
+    }
+    R.flash = c.hitFlash;
+    const hurt = c.dead ? 0 : Math.max(0, Math.min(1, (0.5 - c.hp / Math.max(1, c.sp.hp)) * 2.2));
     hr.animate(dt, {
       speed: c.speed, stance: n.sneak ? 'sneak' : 'stand', full, action: action as never, actionT: at, actionDur: dur, twoHanded: false,
-      limp: 0, tired: 0, panic: hostile ? 0.3 : 0, cold: 0, aimPitch: 0, holdingLight: false, holding: true, lookYaw: -look * 0.8, weapon: hostile ? T.weaponKind : '', fidget: false,
+      limp: hurt * 0.7, limpSide: (c.id.charCodeAt(c.id.length - 1) & 1) ? 'L' : 'R', exhausted: hurt * 0.3, tired: 0, panic: hostile ? 0.3 : 0, cold: 0, aimPitch: 0, holdingLight: false, holding: true, lookYaw: -look * 0.8, weapon: hostile ? T.weaponKind : '', fidget: !hostile && c.speed < 0.1,
     } as any);
     hr.fx.value.z = Math.min(1, c.hitFlash / 0.15) * 0.6;
     // the manager tips dead bodies on their side; this one lies the way the rig fell

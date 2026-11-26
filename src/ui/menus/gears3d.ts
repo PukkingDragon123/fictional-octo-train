@@ -23,7 +23,7 @@ import { mxOk } from '../machine/core';
 import './labIcons';
 
 /** the settings pages' models (round 21) */
-const PAGE_ICON: Record<string, IconKind> = { sound: 'radio', picture: 'crt', interface: 'joystick', game: 'clipboard' };
+const PAGE_ICON: Record<string, IconKind> = { sound: 'radio', display: 'lamp', picture: 'crt', interface: 'joystick', game: 'clipboard' };
 
 /** the gears' pixel: about two thirds of the kit's art pixel, a whole number of device pixels (more facets read) */
 export function fineScale(): number {

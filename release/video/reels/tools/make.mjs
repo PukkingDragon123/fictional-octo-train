@@ -191,8 +191,25 @@ async function render(R, P, only = null) {
 // interpolation to 4x the frame rate, then MB_FRAMES of those averaged per output frame (6 = a 540 degree
 // shutter: heavy, filmic streaks on anything that moves, the still parts untouched). Cached per shot.
 const MB_FRAMES = Number(process.env.REEL_MB ?? 6);
+function blurLegacy(dir) {
+  // the three first reels: one directory of finished frames for the whole reel, blurred once
+  const mb = dir + '_mb' + MB_FRAMES;
+  if (!MB_FRAMES || fs.existsSync(path.join(mb, 'done'))) return MB_FRAMES ? mb : dir;
+  fs.rmSync(mb, { recursive: true, force: true }); fs.mkdirSync(mb, { recursive: true });
+  const w = Array(MB_FRAMES).fill(1).join(' ');
+  run('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(FPS), '-start_number', '0', '-i', path.join(dir, '%05d.jpg'),
+    '-vf', `minterpolate=fps=${FPS * 4}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1,tmix=frames=${MB_FRAMES}:weights='${w}',fps=${FPS}`,
+    '-q:v', '2', '-start_number', '0', path.join(mb, '%05d.jpg')]);
+  const n = fs.readdirSync(dir).filter((f) => f.endsWith('.jpg')).length;
+  let last = null;
+  for (let j = 0; j < n; j++) { const f = path.join(mb, String(j).padStart(5, '0') + '.jpg'); if (fs.existsSync(f)) last = f; else if (last) fs.copyFileSync(last, f); }
+  fs.writeFileSync(path.join(mb, 'done'), '1');
+  return mb;
+}
 function blurShots(P) {
   if (!MB_FRAMES) return;
+  const lg = P.shots.find((s) => s.legacyDir);
+  if (lg) { const mb = blurLegacy(lg.legacyDir); for (const s of P.shots) if (s.legacyDir) s.legacyDir = mb; }
   for (const s of P.shots) {
     if (s.legacyDir || !s.dir || !fs.existsSync(path.join(s.dir, 'done'))) continue;
     const n = JSON.parse(fs.readFileSync(path.join(s.dir, 'done'), 'utf8')).n;

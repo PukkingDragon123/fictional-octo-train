@@ -49,8 +49,13 @@ const RAW = [
   L('robot', 'robot', 'Robot Transform', 'legendary', 40, 'Plates slam onto every limb, servos whine, a stepping robot routine. Then it folds away.'),
   L('beehat', 'beehat', 'Bee Swarm Hat', 'legendary', 42, 'A straw skep for a hat and a cloud of very small bees that live in it.'),
   L('firework', 'firework', 'Firework', 'legendary', 45, 'Kneel, light, step back, fingers in the ears. A real rocket and a real burst.'),
+  // round 24: small everyday signals (poses in src/entities/motionAnims.ts)
+  L('nod', 'nod', 'Nod', 'basic', 0, 'Yes. Understood. Proceeding.'),
+  L('head_shake', 'head_shake', 'Head Shake', 'basic', 0, 'No. Absolutely not. Not through that door.'),
+  L('beckon', 'beckon', 'Beckon', 'basic', 0, 'This way. Quietly.'),
+  L('thumbs_up', 'thumbs_up', 'Thumbs Up', 'basic', 0, 'Still in one piece. Mostly.'),
 ];
-const SERIES = 'ABCDE';
+const SERIES = 'ABCDEF';
 export const EMOTES_ALL: EmoteInfo[] = RAW.map((e, i) => ({ ...e, code: SERIES[Math.floor(i / 4)] + ((i % 4) + 1) }));
 const BY = new Map(EMOTES_ALL.map((e) => [e.id, e]));
 export const emoteInfo = (id: string) => BY.get(id) ?? null;

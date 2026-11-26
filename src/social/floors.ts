@@ -243,7 +243,8 @@ export class FloorSystem implements GameSystem {
     shake(hard ? 0.75 : 0.35, hard ? 0.45 : 0.3);
     punch(hard ? 0.09 : 0.04, 0.25);
     G.audio?.at?.('vx_land', p.x, p.z, hard ? 1 : 0.6);
-    p.playAnim?.('fall_land', hard ? 1.4 : 0.9);
+    // the landing: a crouch on the hands, or a roll out of it at a run (src/entities/motion.ts land)
+    bus.emit('unitLanded', p, hard ? 3 : 2);
     this.dustRing(p.x, p.y, p.z);
     bus.emit('noise', { x: p.x, z: p.z, radius: hard ? 14 : 8, kind: 'thud', zone: p.zoneKey, by: p.id });
     if (hard) p.body.panic = Math.min(100, (p.body.panic || 0) + 8);

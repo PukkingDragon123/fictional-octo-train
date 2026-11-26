@@ -36,7 +36,7 @@ import { PK } from '../gore/particles';
 
 interface PB {
   o: TileObject; z: Zone; d: ObjDef; b: RBody; mesh: THREE.Group; c: THREE.Vector3; by: string;
-  dmg: number; t: number; sendT: number; loopKey: string; removeWait: boolean; done: boolean; dirX: number; dirZ: number;
+  dmg: number; t: number; calm: number; sendT: number; loopKey: string; removeWait: boolean; done: boolean; dirX: number; dirZ: number;
 }
 interface ItemMove { wi: WorldItem; vx: number; vy: number; vz: number; spin: number; t: number }
 interface Walker { id: string; x: number; y: number; z: number; vx: number; vz: number; r: number; kg: number; local: boolean; move?: (dx: number, dz: number) => void }
@@ -109,7 +109,7 @@ export class PropPhysics {
     if (ov) { const om = new THREE.Mesh(ov, worldMaterial({ alphaTest: 0.5 })); om.renderOrder = 1; om.position.copy(c).negate(); mesh.add(om); }
     mesh.matrixAutoUpdate = false;
     this.root.add(mesh);
-    Object.assign(pb, { o, z, d, b, mesh, c, by, dmg: 0, t: 0, sendT: 0, loopKey: 'phys:' + o.uid, removeWait: false, done: false, dirX: 0, dirZ: 0 });
+    Object.assign(pb, { o, z, d, b, mesh, c, by, dmg: 0, t: 0, calm: 0, sendT: 0, loopKey: 'phys:' + o.uid, removeWait: false, done: false, dirX: 0, dirZ: 0 });
     this.props.set(o.uid, pb);
     this.pose(pb);
     // whatever stood on it falls
@@ -119,9 +119,11 @@ export class PropPhysics {
   }
 
   /** shove o: impulse J (N s) along (dx, dz) at height hy above its floor, plus a lift */
-  push(z: Zone, o: TileObject, dx: number, dz: number, J: number, hy: number, up = 0, maxMass = 400, at?: { x: number; z: number }): boolean {
+  push(z: Zone, o: TileObject, dx: number, dz: number, J: number, hy: number, up = 0, maxMass = 400, at?: { x: number; z: number }, vmax = 6): boolean {
     const pb = this.start(z, o, maxMass); if (!pb) return false;
     const b = pb.b, l = Math.hypot(dx, dz) || 1;
+    // a light thing takes the blow as speed, up to what a body could plausibly hand it
+    J = Math.min(J, b.m * vmax);
     const px = at?.x ?? b.p.x - dx / l * b.h.x * 0.8, pz = at?.z ?? b.p.z - dz / l * b.h.z * 0.8;
     const py = Math.min(b.p.y + b.h.y * 0.9, z.heightAt(Math.floor(b.p.x), Math.floor(b.p.z)) + hy);
     this.rw.impulse(b, dx / l * J, up * J, dz / l * J, px, py, pz);
@@ -154,7 +156,7 @@ export class PropPhysics {
     const mass = objMass(d);
     // static friction first: a light tap does not move a dresser
     if (J < mass * 9.8 * 0.35 * 0.15) return;
-    this.push(z, o, a.dx, a.dz, J, Math.max(0.1, a.hy - z.heightAt(o.x, o.y)), a.how === 'blast' ? 0.35 : 0.04, a.how === 'blast' ? 600 : 300, { x: a.hx, z: a.hz });
+    this.push(z, o, a.dx, a.dz, J, Math.max(0.1, a.hy - z.heightAt(o.x, o.y)), a.how === 'blast' ? 0.35 : 0.04, a.how === 'blast' ? 600 : 300, { x: a.hx, z: a.hz }, a.how === 'blast' ? 9 : a.how === 'bullet' ? 2.5 : 5);
     if (a.how === 'blast' && G.time - this.blastT > 0.2) { this.blastT = G.time; this.blast(z, a.hx - a.dx * 1.5, a.hz - a.dz * 1.5, 3, 0.8, false); }
   }
 
@@ -173,7 +175,7 @@ export class PropPhysics {
           const f = objFootprint(z, o, d), cx = (f.x0 + f.x1) / 2, cz = (f.z0 + f.z1) / 2, dd = Math.hypot(cx - x, cz - zz);
           if (dd > r) continue;
           const k = (1 - dd / r) * power;
-          this.push(z, o, cx - x || 0.01, cz - zz, 900 * k, 0.3, 0.45, 600);
+          this.push(z, o, cx - x || 0.01, cz - zz, 900 * k, 0.3, 0.45, 600, undefined, 3 + 7 * k);
         }
       }
     }
@@ -227,7 +229,9 @@ export class PropPhysics {
       this.sounds(pb);
       this.send(pb, dt);
       const b = pb.b;
-      if ((!b.awake && b.slept > 0.2) || pb.t > 14 || b.dead) this.finish(pb);
+      // settled (asleep, or no more than a creep for a moment), or it has had its time
+      pb.calm = b.v.lengthSq() < 0.02 && b.w.lengthSq() < 0.3 && b.air < 3 ? pb.calm + dt : 0;
+      if ((!b.awake && b.slept > 0.2) || pb.calm > 0.6 || pb.t > 9 || b.dead) this.finish(pb);
       else if (b.awake) b.slept = 0;
       if (!b.awake) b.slept += dt;
     }

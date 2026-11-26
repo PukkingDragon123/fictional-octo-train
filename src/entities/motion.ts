@@ -37,8 +37,13 @@ import type { Input } from '../core/input';
 import type { Player } from './player';
 import { setVaultHeight } from './motionAnims';
 import { fallImpact } from '../survival/impacts';
+import { setDown, stopDrag } from '../interact/haul';
+import { partGroup } from './humanReact';
 
-type MState = 'free' | 'slide' | 'vault' | 'hop' | 'stumble' | 'fallen' | 'getup' | 'stagger';
+type MState = 'free' | 'slide' | 'vault' | 'hop' | 'stumble' | 'fallen' | 'getup' | 'stagger' | 'roll';
+/** how a get-up starts (which lying pose): src/entities/motionAnims.ts mo_getup_* */
+export type GetUpFrom = 'front' | 'back' | 'side_l' | 'side_r' | 'sit' | 'lie';
+const GETUP_DUR: Record<GetUpFrom, number> = { front: 1.8, back: 1.8, side_l: 2.0, side_r: 2.0, sit: 1.6, lie: 2.2 };
 /** a vault: from where, to where, over how high (world), and what is being cleared */
 interface VaultPlan { x0: number; z0: number; x1: number; z1: number; h: number; what: 'wall' | 'window' | 'furniture'; glass?: boolean; dir: number }
 
@@ -89,9 +94,17 @@ export class UnitMotion {
   private wasForced = false;
   private since = 0;
   private pending: { dx: number; dz: number; k: number; dmg: number; part: string; grab: boolean } | null = null;
+  /** round 24: the fall in progress was a faint (slack, longer down, slow up) */
+  private fainted = false;
+  private faintCd = 40; private faintT = 0;
+  private wasDowned = false;
+  private lastGround = NaN; private lastZone = '';
+  private loadT = 0;
+  /** the get-up being played (dev, tests) */
+  getup: GetUpFrom | '' = '';
 
   /** no steering at all (sliding, vaulting, stumbling, on the floor, getting up) */
-  get locked() { return this.st === 'slide' || this.st === 'vault' || this.st === 'stumble' || this.st === 'fallen' || this.st === 'getup'; }
+  get locked() { return this.st === 'slide' || this.st === 'vault' || this.st === 'stumble' || this.st === 'fallen' || this.st === 'getup' || this.st === 'roll'; }
   /** low to the floor right now (sliding): the controller reports a crouched stance */
   get low() { return this.st === 'slide'; }
 
@@ -181,6 +194,11 @@ export class UnitMotion {
     if (this.pending) { const h = this.pending; this.pending = null; this.resolveHit(p, h); }
     // something else took the body (dead, downed, carried, a struggle): let go of whatever we were doing
     if (p.body.dead || p.body.downed || p.carriedBy) { if (this.st !== 'free') this.reset(p); }
+    // revived (co-op): up off the floor the way the downed body lies (face down)
+    if (this.wasDowned && !p.body.downed && !p.body.dead && !p.carriedBy) this.getUp(p, 'front');
+    this.wasDowned = p.body.downed && !p.body.dead;
+    this.checkFaint(p, dt);
+    this.checkDrop(z, p);
     const under = p.stance === 'crawl' || this.st === 'slide';
     switch (this.st) {
       case 'slide': this.stepSlide(z, p, dt); break;
@@ -188,6 +206,7 @@ export class UnitMotion {
       case 'hop': this.stepHop(z, p, tvx, tvz, dt); break;
       case 'stumble': this.stepStumble(z, p, dt); break;
       case 'fallen': case 'getup': this.stepDown(z, p, dt); break;
+      case 'roll': this.stepRoll(z, p, dt); break;
       default: this.stepFree(z, p, tvx, tvz, dt, under);
     }
     // outside velocity (blows): friction takes it off
@@ -246,6 +265,15 @@ export class UnitMotion {
     // into (round 19: the velocity follows where the body really went, so a glancing wall keeps its speed instead of
     // bleeding it off every frame and leaving the unit stuck against it)
     if (meant > 1e-4 && moved < meant * 0.98) { p.vx = (p.x - ox) / dt; p.vz = (p.z - oz) / dt; }
+    // round 24: staggering under a heavy armload, a dragged body or an overloaded pack: a lurch to one side, caught
+    const heavy = (p.armload?.length ?? 0) >= 3 || !!p.dragging || load > 0.55;
+    if (heavy && s > 0.8 && this.tripCd <= 0 && this.st === 'free') {
+      this.loadT -= dt;
+      if (this.loadT <= 0) {
+        this.loadT = 0.5;
+        if (Math.random() < 0.05 + load * 0.06 + exh * 0.08) this.totter(p, h);
+      }
+    }
     // a foot catches
     if (p.running && s > 3 && this.tripCd <= 0) {
       this.clutterT -= dt;
@@ -273,6 +301,18 @@ export class UnitMotion {
     if (f?.water === 'shallow') r += 0.45;
     if (f?.slip) r += f.slip;
     return Math.min(1.6, r);
+  }
+
+  /** a lurch under weight: the body rolls to one side and steps to catch it (nothing is dropped) */
+  private totter(p: Player, h: number) {
+    this.tripCd = 3.5;
+    const side = Math.random() < 0.5 ? -1 : 1;
+    p.anim.nudge(0.5, side * 2.6, -0.3);
+    this.exVx += Math.cos(h + side * 1.57) * 0.9; this.exVz += Math.sin(h + side * 1.57) * 0.9;
+    p.vx *= 0.55; p.vz *= 0.55;
+    this.enter('stagger', 0.55);
+    this.last = 'totter';
+    audio('cloth', p.x, p.z, 0.6); audio('debtor_grunt', p.x, p.z, 0.35);
   }
 
   // ================================================================ trips, falls, slams
@@ -329,77 +369,271 @@ export class UnitMotion {
   }
 
   /**
-   * Off its feet: the ragdoll takes the body (thrown along (dx, dz)), it lies a beat,
-   * then gets up the way it landed (face down: push up; on its back: sit up first).
+   * Off its feet: the ragdoll takes the body (thrown along (dx, dz)), it lies a beat, then gets up the way it landed
+   * (round 24: face down: push up; face up or slumped: sit, a knee, up; on its side: roll over first), blended out of
+   * the still ragdoll pose and tilted to the ground it lies on. Whatever the arms carried goes down with it.
    */
-  knockdown(p: Player, dx: number, dz: number, strength: number, how: 'trip' | 'blow' | 'slam', speed = 0) {
-    if (p.body.dead || p.body.downed || p.inVehicle) return;
-    this.last = how === 'trip' ? 'fall' : 'knockdown:' + how;
+  knockdown(p: Player, dx: number, dz: number, strength: number, how: 'trip' | 'blow' | 'slam' | 'faint' | 'drop', speed = 0) {
+    if (p.body.dead || p.body.downed || p.inVehicle || p.carriedBy || p.sleeping) return;
+    // swimming there is no floor to fall on: a lurch in the water instead
+    if (p.stance === 'swim') { p.anim.nudge(0.8, 0, -0.2); this.enter('stagger', 0.6); return; }
+    this.last = how === 'trip' ? 'fall' : how === 'faint' ? 'faint' : how === 'drop' ? 'drop' : 'knockdown:' + how;
+    this.fainted = how === 'faint';
     this.fallK = strength; this.fallV = Math.max(speed, Math.hypot(p.vx, p.vz));
-    this.enter('fallen', 0.95 + strength * 0.5 + (p.body.endurance < 0.1 ? 0.6 : 0));
+    const down = how === 'faint' ? 3.6 + Math.random() * 2.5 : 0.95 + strength * 0.5 + (p.body.endurance < 0.1 ? 0.6 : 0);
+    this.enter('fallen', down);
     this.thudDone = false;
     this.dir = Math.atan2(dz, dx);
     this.tripCd = Math.max(this.tripCd, 5);
+    this.prone = false; this.vault = null; this.getup = '';
     p.actions.clear();
     G.combat?.interrupt?.(p);
     p.stopAnim();
+    this.letGoOfThings(p);
     const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    // the ragdoll hands back only when the get-up asks for it (recoverRagdoll); the long fallback is a safety net
+    const safety = down + 4;
     if (how === 'trip') {
       // the feet catch on the floor, everything above keeps going: it pitches forward onto its hands
       const v = Math.max(2.4, speed);
       _v.set(dx * v * 0.75, 0, dz * v * 0.75);
       _w.set(dx * (1.6 + v * 0.35), -0.9, dz * (1.6 + v * 0.35));
-      p.rig.startRagdoll(_v, _w, 'torso_u', this.dur);
+      p.rig.startRagdoll(_v, _w, 'torso_u', safety);
+    } else if (how === 'faint') {
+      // the strings are cut where it stands: a little sway the way it was leaning, no hands out
+      _v.set(p.vx * 0.4 + dx * 0.25, 0, p.vz * 0.4 + dz * 0.25);
+      _w.set(dx * 0.6, -0.4, dz * 0.6);
+      p.rig.startRagdoll(_v, _w, '', safety, { slack: true });
     } else {
-      _v.set(p.vx * 0.5 + dx * 0.6, 0, p.vz * 0.5 + dz * 0.6);
+      _v.set(p.vx * 0.5 + dx * 0.6, how === 'drop' ? -2.5 : 0, p.vz * 0.5 + dz * 0.6);
       _w.set(dx * (2 + 2.8 * strength), 0.5 + 1.2 * strength, dz * (2 + 2.8 * strength));
-      p.rig.startRagdoll(_v, _w, 'torso_u', this.dur);
+      p.rig.startRagdoll(_v, _w, 'torso_u', safety);
     }
+    // a peer sees the fall too (the action name is mirrored; src/entities/player.ts starts its own ragdoll from it)
+    p.playAnim('mo_fall', safety);
     p.vx = p.vz = 0;
     shake(0.25 + strength * 0.25, 0.3);
     if (strength > 0.8) punch(0.08, 0.5);
+  }
+
+  /** an armload, a dragged body, a pushed or carried prop: the hands let go when the body goes down */
+  private letGoOfThings(p: Player) {
+    try { if (p.armload?.length) setDown(p); } catch { /* haul not ready */ }
+    try { if (p.dragging) stopDrag(p); } catch { /* haul not ready */ }
+    try { const P = G.destruct?.push; if (P?.holding) P.end('tired'); } catch { /* push not ready */ }
+  }
+
+  /**
+   * Get up from lying `from` (face down, face up, on a side, slumped, out of bed after sleeping), blending out of the
+   * ragdoll when one holds the body. Public: the sleep wake-up and a co-op revive use it too. dur defaults per pose.
+   */
+  getUp(p: Player, from: GetUpFrom, dur?: number) {
+    if (p.body.dead || p.body.downed) return;
+    const D = (dur ?? GETUP_DUR[from]) * (p.body.endurance < 0.1 ? 1.2 : 1) * (this.fainted ? 1.3 : 1);
+    this.enter('getup', D);
+    this.getup = from;
+    this.landed = from;
+    this.prone = false;
+    // a ragdoll eases into the get-up's held lying key (the first ~sixth of it)
+    p.rig.recoverRagdoll(Math.min(0.5, D * 0.18));
+    p.playAnim('mo_getup_' + from, D);
+    audio('cloth', p.x, p.z, 0.5);
+    this.dir = p.facing;
   }
 
   private stepDown(z: Zone, p: Player, dt: number) {
     p.vx = p.vz = 0;
     const R = p.rig.ragdoll;
     if (this.st === 'fallen') {
-      // the root rides under the body (so it gets up where it lies, not where it fell from)
-      if (R?.active) {
-        R.pelvisWorld(_v);
-        const ox = p.x, oz = p.z;
-        p.x = _v.x; p.z = _v.z;
-        // walls: the circle collision keeps the root out of them
-        moveCircle(z, p, 0, 0, { ignoreLow: true, under: true });
-        if (Math.hypot(p.x - ox, p.z - oz) > 1.2 * dt + 0.1) { p.x = ox; p.z = oz; }
-      }
+      // the root rides under the pelvis (so it gets up where it lies, not where it fell from): swept along the floor at a
+      // body's pace with the walls in the way (round 24: it used to give up and stay behind when the body slid further
+      // than a step in a frame, and the get-up then dragged the body back across the floor)
+      if (R?.active) this.followPelvis(z, p, dt, 7 * dt + 0.02);
       if (!this.thudDone && this.t > 0.32) {
         this.thudDone = true;
-        audio('body_thud', p.x, p.z, 0.9); audio('debtor_gasp', p.x, p.z, 0.5);
+        audio('body_thud', p.x, p.z, 0.9); audio(this.fainted ? 'cloth' : 'debtor_gasp', p.x, p.z, 0.5);
         shake(0.35, 0.25);
         noise(p, p.x, p.z, 12, 'fall');
         // what hits the floor first: a trip lands on the hands and knees, a blow throws it on its back (src/survival/impacts.ts)
-        fallImpact(p, this.last === 'fall' ? 'front' : 'back', this.fallK, this.fallV);
+        if (!this.fainted) fallImpact(p, this.last === 'fall' ? 'front' : 'back', this.fallK, this.fallV);
       }
-      if (this.t >= this.dur) {
-        // which way up did it land
-        let back = false;
-        if (R?.active) {
-          R.trunkWorld(_u, _b);
-          back = _b.y > 0.25;
-          this.landed = back ? 'back' : 'front';
-          // the head end of the body: face it (face down) or turn the back to it (face up, the get-up sits forward over the feet)
-          const hx = _u.x, hz = _u.z;
-          if (Math.hypot(hx, hz) > 0.2) p.facing = p.targetFacing = back ? Math.atan2(-hz, -hx) : Math.atan2(hz, hx);
-        }
-        this.enter('getup', p.body.endurance < 0.1 ? 2.1 : 1.6);
-        p.playAnim(back ? 'mo_getup_back' : 'get_up', this.dur);
-        audio('cloth', p.x, p.z, 0.5);
-        this.dir = p.facing;
+      // out cold: the world goes dark round the edges and comes back as it wakes
+      if (this.fainted && p.isLocal) {
+        const k = clamp(this.t / 0.5, 0, 1) * clamp((this.dur + 0.2 - this.t) / 1.2, 0, 1);
+        try { G.pr.fx.blink = Math.max(G.pr.fx.blink, 0.85 * k); } catch { /* no renderer */ }
       }
+      // a body still sliding or rolling waits for it to settle (a little), then gets up
+      const settled = !R?.active || R.settled || this.t > this.dur + 1.2;
+      if (this.t >= this.dur && settled) this.beginGetUp(z, p);
       return;
     }
-    if (this.t >= this.dur) { this.st = 'free'; this.t = 0; if (!this.roomToStand(p)) this.prone = true; }
+    if (this.t >= this.dur) {
+      this.st = 'free'; this.t = 0; this.getup = '';
+      if (!this.roomToStand(p)) this.prone = true;
+      if (this.fainted) { this.fainted = false; p.anim.nudge(0.3, (Math.random() - 0.5) * 2, 0); say(p, 'What... happened?'); }
+    }
+  }
+
+  /**
+   * Keep the root under the ragdoll's pelvis (at most `maxStep` metres this frame). The target is the nearest spot a
+   * standing body may occupy (a pelvis lying on a crate or against furniture is pushed out of it), reached straight:
+   * the body itself got there, over whatever low thing it tumbled across (round 24: a swept move left the root behind
+   * a crate the body had rolled over, and the get-up then slid the body metres back across it).
+   */
+  private followPelvis(z: Zone, p: Player, dt: number, maxStep: number) {
+    const R = p.rig.ragdoll;
+    if (!R?.active) return;
+    void dt;
+    R.pelvisWorld(_v);
+    const probe = { x: _v.x, z: _v.z, radius: p.radius };
+    resolve(z, probe, { ignoreLow: false });
+    // no legal spot near the pelvis (wedged in furniture): the old swept move along the floor
+    if (Math.hypot(probe.x - _v.x, probe.z - _v.z) > 0.6) { probe.x = _v.x; probe.z = _v.z; }
+    const ddx = probe.x - p.x, ddz = probe.z - p.z, d = Math.hypot(ddx, ddz);
+    if (d < 1e-3) return;
+    const k = Math.min(1, maxStep / d);
+    const ox = p.x, oz = p.z;
+    p.x += ddx * k; p.z += ddz * k;
+    const tx = Math.floor(p.x), ty = Math.floor(p.z);
+    // never into a wall or off the floor: then sweep instead
+    const fx = Math.floor(ox), fz = Math.floor(oz), sx = Math.sign(tx - fx), sz = Math.sign(ty - fz);
+    const wall = sx && sz ? (z.edgeBlocks(fx, fz, sx, 0) || z.edgeBlocks(fx + sx, fz, 0, sz)) && (z.edgeBlocks(fx, fz, 0, sz) || z.edgeBlocks(fx, fz + sz, sx, 0))
+      : (sx || sz) ? z.edgeBlocks(fx, fz, sx, sz) : false;
+    if (!z.inb(tx, ty) || !z.floor[z.idx(tx, ty)] || (z.solid[z.idx(tx, ty)] === 1 && !z.objectsAt(tx, ty).length) || wall) {
+      p.x = ox; p.z = oz;
+      moveCircle(z, p, ddx * k, ddz * k, { ignoreLow: true, under: true });
+    }
+  }
+
+  /** how the ragdoll lies -> which get-up, which way to face, the slope it lies on */
+  private beginGetUp(z: Zone, p: Player) {
+    const R = p.rig.ragdoll;
+    // the root right under the body before anything is decided (the blend then only eases the limbs)
+    for (let i = 0; i < 40; i++) this.followPelvis(z, p, 0, 0.1);
+    // deep water: no getting up, it swims; no headroom (under a table): it stays flat and crawls out
+    const f = z.floorAt(p.tileX(), p.tileY()) as { water?: string } | undefined;
+    if (f?.water === 'deep' || !this.roomToStand(p)) {
+      p.rig.recoverRagdoll(0.5);
+      p.stopAnim();
+      this.st = 'free'; this.t = 0; this.prone = f?.water !== 'deep';
+      return;
+    }
+    let from: GetUpFrom = 'front';
+    if (R?.active) {
+      R.trunkWorld(_u, _b);
+      if (_u.y > 0.55) {
+        // sat up against something (a wall, a crate): face out the way the belly points
+        from = 'sit';
+        if (Math.hypot(_b.x, _b.z) > 0.15) p.facing = Math.atan2(_b.z, _b.x);
+      } else {
+        const hx = _u.x, hz = _u.z;
+        const head = Math.hypot(hx, hz) > 0.2 ? Math.atan2(hz, hx) : p.facing;
+        if (_b.y < -0.45) { from = 'front'; p.facing = head; }
+        else if (_b.y > 0.45) { from = 'back'; p.facing = wrapAngle(head + Math.PI); }
+        else {
+          // on its side: which side of the root (facing the head) the belly points to: the root's left is (sin f, -cos f)
+          p.facing = head;
+          const side = _b.x * Math.sin(head) - _b.z * Math.cos(head);
+          from = side > 0 ? 'side_l' : 'side_r';
+        }
+      }
+      // a slope under it (a stair, a ramp, a ledge): lie along it and come upright as it gets up
+      const W = p.rig.ragWorld;
+      if (W) {
+        const fx = Math.cos(p.facing), fz = Math.sin(p.facing), lx = Math.sin(p.facing), lz = -Math.cos(p.facing);
+        const g = (ox: number, oz: number) => W.ground(p.x + ox, p.z + oz);
+        const along = (g(fx * 0.55, fz * 0.55) - g(-fx * 0.55, -fz * 0.55)) / 1.1, across = (g(lx * 0.3, lz * 0.3) - g(-lx * 0.3, -lz * 0.3)) / 0.6;
+        const pt = clamp(-Math.atan(along), -0.5, 0.5), rl = clamp(Math.atan(across), -0.4, 0.4);
+        if (Math.abs(pt) > 0.03 || Math.abs(rl) > 0.03) p.rig.setTilt(pt, rl, 0.35, 0.9);
+      }
+    }
+    p.targetFacing = p.facing;
+    // the root turns at once: the ragdoll pose is solved against it, so the body itself does not move
+    p.rig.root.rotation.y = Math.PI / 2 - p.facing;
+    this.getUp(p, from);
+  }
+
+  // ================================================================ faints, drops, landings
+  /** blood loss, agony, fever, a chill, no sleep: now and then the lights go out (a cooldown between) */
+  private checkFaint(p: Player, dt: number) {
+    if (!p.isLocal) return;
+    this.faintCd = Math.max(0, this.faintCd - dt);
+    this.faintT -= dt;
+    if (this.faintT > 0) return;
+    this.faintT = 1;
+    if (this.faintCd > 0 || this.st !== 'free' || p.body.dead || p.body.downed || p.sleeping || p.inVehicle || p.carriedBy || p.stance === 'swim') return;
+    const b = p.body;
+    let risk = 0;
+    if (b.blood < 62) risk += (62 - b.blood) / 40;
+    try { const pn = b.pain(); if (pn > 85) risk += (pn - 85) / 30; } catch { /* no pain model */ }
+    if (b.sickness > 80) risk += (b.sickness - 80) / 40;
+    if (b.fatigue > 96) risk += 0.25;
+    if (b.temp < 33 || b.temp > 40.6) risk += 0.35;
+    if (risk > 0 && Math.random() < Math.min(0.2, risk * 0.025)) this.faint(p);
+  }
+  /** pass out where it stands: a sway, the knees go, out for a few seconds, a slow get-up */
+  faint(p: Player) {
+    if (this.st !== 'free' || p.body.dead || p.body.downed) return false;
+    this.faintCd = 120;
+    say(p, 'I don\'t... feel...');
+    p.anim.nudge(0.4, (Math.random() - 0.5) * 1.4, -0.3);
+    audio('debtor_gasp', p.x, p.z, 0.4);
+    const f = p.facing;
+    this.knockdown(p, Math.cos(f), Math.sin(f), 0.3, 'faint', 0);
+    return true;
+  }
+
+  /** the floor dropped away under it (stepping off a ledge or a dais in the zone): a landing to match the height */
+  private checkDrop(z: Zone, p: Player) {
+    const tx = p.tileX(), ty = p.tileY();
+    const g = z.inb(tx, ty) ? z.heightAt(tx, ty) : NaN;
+    const prev = this.lastZone === p.zoneKey ? this.lastGround : NaN;
+    this.lastGround = g; this.lastZone = p.zoneKey;
+    if (Number.isNaN(prev) || Number.isNaN(g) || this.st !== 'free' || p.stance === 'swim') return;
+    const drop = prev - g;
+    if (drop > 0.7) this.land(p, drop);
+  }
+
+  /**
+   * Touch down after a fall of `h` metres (src/social/floors.ts calls it after a drop between floors with a big h):
+   * a soft dip, a crouched landing on the hands, a roll out of it at a run, or off its feet.
+   */
+  land(p: Player, h: number) {
+    if (p.body.dead || p.body.downed || p.inVehicle) return;
+    if (this.st !== 'free' && this.st !== 'stagger') return;
+    const s = Math.hypot(p.vx, p.vz);
+    const run = s > 2.4 || p.running;
+    if (h < 1.3) { p.anim.nudge(0.6, 0, -0.7); audio('thud_soft', p.x, p.z, 0.45); return; }
+    noise(p, p.x, p.z, 10, 'land');
+    if (h > 4.5 && !run) { this.knockdown(p, Math.cos(p.facing), Math.sin(p.facing), 0.9, 'drop', 0); return; }
+    if (run && p.body.endurance > 0.05) {
+      // carry the run into a roll over the shoulder: no harm done
+      this.dir = s > 0.5 ? Math.atan2(p.vz, p.vx) : p.facing;
+      this.slideV0 = Math.max(2.6, s * 0.8);
+      this.enter('roll', 0.95);
+      this.last = 'roll';
+      p.actions.clear();
+      p.facing = p.targetFacing = this.dir;
+      p.playAnim('mo_land_roll', this.dur);
+      audio('body_thud', p.x, p.z, 0.5); audio('cloth', p.x, p.z, 0.7);
+      shake(0.2, 0.2);
+      return;
+    }
+    // crumpled into a deep crouch, hands to the floor
+    p.actions.clear();
+    p.playAnim('fall_land', h > 3 ? 1.4 : 1.0);
+    this.enter('stagger', h > 3 ? 1.2 : 0.8);
+    audio('body_thud', p.x, p.z, 0.7);
+    shake(0.3, 0.25);
+    if (h > 3) try { fallImpact(p, 'front', 0.4, 0); } catch { /* impacts not ready */ }
+  }
+  private stepRoll(z: Zone, p: Player, dt: number) {
+    const u = this.t / this.dur;
+    const v = this.slideV0 * (u < 0.7 ? 1 - u * 0.5 : 0.65 * (1 - (u - 0.7) / 0.3));
+    p.vx = Math.cos(this.dir) * v; p.vz = Math.sin(this.dir) * v;
+    p.facing = p.targetFacing = this.dir;
+    moveCircle(z, p, p.vx * dt, p.vz * dt, { ignoreLow: false });
+    if (u >= 1) { this.st = 'free'; this.t = 0; p.vx *= 0.6; p.vz *= 0.6; p.anim.nudge(-0.4, 0, 0.2); }
   }
 
   // ================================================================ slide
@@ -420,6 +654,7 @@ export class UnitMotion {
     p.actions.clear();
     G.combat?.interrupt?.(p);
     p.playAnim('mo_slide', this.dur);
+    p.anim.nudge(0.5, 0, -0.2);
     p.facing = p.targetFacing = this.dir;
     audio('cloth', p.x, p.z, 0.8); audio('whoosh', p.x, p.z, 0.35);
     noise(p, p.x, p.z, 4, 'slide');
@@ -449,6 +684,7 @@ export class UnitMotion {
       if (!this.roomToStand(p)) { this.prone = true; p.sneaking = true; return; }
       p.sneaking = !G.input?.down('run');
       p.stopAnim();
+      p.anim.nudge(-0.3, 0, p.sneaking ? -0.2 : 0.35);
     }
   }
 
@@ -589,7 +825,7 @@ export class UnitMotion {
     p.x = V.x0 + (V.x1 - V.x0) * e; p.z = V.z0 + (V.z1 - V.z0) * e;
     p.vx = (p.x - ox) / Math.max(dt, 1e-4); p.vz = (p.z - oz) / Math.max(dt, 1e-4);
     p.facing = p.targetFacing = V.dir;
-    if (!this.thudDone && u > 0.86) { this.thudDone = true; audio('thud_soft', p.x, p.z, 0.5); noise(p, p.x, p.z, 4, 'land'); }
+    if (!this.thudDone && u > 0.86) { this.thudDone = true; audio('thud_soft', p.x, p.z, 0.5); noise(p, p.x, p.z, 4, 'land'); p.anim.nudge(0.5, 0, -0.45 - V.h * 0.2); }
     if (u >= 1) {
       p.x = V.x1; p.z = V.z1;
       resolve(z, p, {});
@@ -623,7 +859,7 @@ export class UnitMotion {
     p.vx += (tvx - p.vx) * k; p.vz += (tvz - p.vz) * k;
     moveCircle(z, p, p.vx * dt, p.vz * dt, { ignoreLow: false });
     if (Math.hypot(p.vx, p.vz) > 0.3) p.targetFacing = Math.atan2(p.vz, p.vx);
-    if (!this.thudDone && u > 0.78) { this.thudDone = true; audio('thud_soft', p.x, p.z, 0.35); noise(p, p.x, p.z, 4, 'land'); }
+    if (!this.thudDone && u > 0.78) { this.thudDone = true; audio('thud_soft', p.x, p.z, 0.35); noise(p, p.x, p.z, 4, 'land'); p.anim.nudge(0.35, 0, -0.4); }
     if (u >= 1) { this.st = 'free'; this.t = 0; }
   }
 
@@ -673,17 +909,41 @@ export class UnitMotion {
       punch(0.1, 0.55);
     } else if (s >= 0.6 || (running && s >= 0.4)) {
       this.enter('stagger', 0.55 + Math.min(0.5, s * 0.3));
-      p.playAnim('stagger', this.dur);
       G.combat?.interrupt?.(p);
       punch(0.05, 0.35);
+      // round 24: the reaction fits where it landed and which way it shoves (the springs in src/entities/humanReact.ts
+      // add the snap on top). Arms full of something: the trunk takes it and the arms keep hold.
+      if (p.armload?.length || p.dragging) { p.anim.nudge(1.2, 1.5 * (Math.random() < 0.5 ? -1 : 1), -0.3); return; }
+      p.playAnim(this.reactionFor(p, h.dx, h.dz, h.part, s), this.dur + 0.25);
+    } else if (s >= 0.25 && !p.armload?.length) {
+      // a lighter blow: a flinch through the trunk the way it was pushed
+      const c = Math.cos(p.facing), sn = Math.sin(p.facing);
+      p.anim.nudge(-(h.dx * c + h.dz * sn) * 1.6 * s, (h.dx * sn - h.dz * c) * 1.8 * s, -0.25 * s);
     }
+  }
+
+  /** which reel: a head snap and a daze, doubled over, a knee buckling, or a step back / forward / aside */
+  private reactionFor(p: Player, dx: number, dz: number, part: string, s: number): string {
+    const g = partGroup(part);
+    if (g === 'head' && s > 0.7) return 'mo_daze';
+    if (g === 'belly') return 'mo_gut';
+    if ((g === 'legL' || g === 'legR') && s > 0.7) return g === 'legL' ? 'mo_buckle_l' : 'mo_buckle_r';
+    // the push in the body's own frame: forward (fz > 0) along its facing, to its left (lx > 0)
+    const c = Math.cos(p.facing), sn = Math.sin(p.facing);
+    const fz = dx * c + dz * sn, lx = dx * sn - dz * c;
+    if (Math.abs(lx) > Math.abs(fz) * 1.1) return lx > 0 ? 'mo_reel_l' : 'mo_reel_r';
+    return fz > 0 ? 'mo_reel_f' : 'mo_reel_b';
   }
 
   // ================================================================ breath
   private breath(p: Player, dt: number) {
     const E = p.body.endurance;
     if (!this.blown && E < 0.04) { this.blown = true; say(p, 'Can\'t... keep... running.'); }
-    else if (this.blown && E > 0.3) { this.blown = false; audio('gasp_recover', p.x, p.z, 0.5); }
+    else if (this.blown && E > 0.3) {
+      this.blown = false; audio('gasp_recover', p.x, p.z, 0.5);
+      // straighten up, a long breath, a forearm across the brow (only with nothing else going on)
+      if (this.st === 'free' && !p.actions.current && !p.actionAnim && !p.armload?.length && p.stance === 'stand') p.playAnim('mo_catch_breath', 2.4);
+    }
     if (this.st === 'stagger' && this.t >= this.dur) { this.st = 'free'; this.t = 0; }
     const exh = clamp(1 - E / 0.3, 0, 1);
     if (exh < 0.45) { this.breathT = 0.6; return; }
@@ -698,11 +958,12 @@ export class UnitMotion {
   reset(p: Player) {
     if ((this.st === 'fallen' || this.st === 'getup') && !p.body.dead && !p.body.downed) p.rig.stopRagdoll();
     if (this.st !== 'free') p.stopAnim();
-    this.st = 'free'; this.t = 0; this.exVx = this.exVz = 0; this.pending = null; this.vault = null;
+    this.st = 'free'; this.t = 0; this.exVx = this.exVz = 0; this.pending = null; this.vault = null; this.getup = ''; this.fainted = false;
+    this.lastGround = NaN;
   }
 
   /** dev / tests */
-  debug() { return { st: this.st, t: +this.t.toFixed(2), prone: this.prone, blown: this.blown, last: this.last, landed: this.landed, ex: +Math.hypot(this.exVx, this.exVz).toFixed(2) }; }
+  debug() { return { st: this.st, t: +this.t.toFixed(2), prone: this.prone, blown: this.blown, last: this.last, landed: this.landed, getup: this.getup, ex: +Math.hypot(this.exVx, this.exVz).toFixed(2) }; }
 }
 
 export function motionOf(p: Player): UnitMotion { return p.motion ?? (p.motion = new UnitMotion()); }
@@ -710,6 +971,29 @@ export function motionOf(p: Player): UnitMotion { return p.motion ?? (p.motion =
 // a creature's blow lands on the local unit: knockback, staggers, knockdowns
 bus.on('playerHit', (p: Player, part: string, _kind: string, h: any) => {
   try { if (p?.isLocal && !p.body.dead) motionOf(p).hit(p, h, part); } catch (e) { console.error('motion hit', e); }
+});
+
+// a landing from a drop between floors (src/social/floors.ts)
+bus.on('unitLanded', (p: Player, h: number) => { try { if (p?.isLocal) motionOf(p).land(p, h); } catch (e) { console.error('motion land', e); } });
+// round 24: throwing up (src/ui/body/bodyHud.ts emits it): bent double where it stands, slowed while it lasts
+bus.on('vomit', (p: Player) => {
+  try {
+    if (!p?.isLocal || p.body.dead || p.body.downed || p.sleeping || p.inVehicle) return;
+    const M = motionOf(p);
+    if (M.st !== 'free' || p.stance !== 'stand' || p.actions.current?.started) return;
+    p.playAnim('mo_vomit', 3.4);
+    (M as unknown as { enter(st: MState, d: number): void }).enter('stagger', 2.6);
+  } catch (e) { console.error('motion vomit', e); }
+});
+// a door opened (a push: doors swing away from the body) or pulled shut (src/actions/world.ts DoorAction)
+bus.on('doorUsed', (p: Player, closing: boolean) => {
+  try {
+    if (!p || p.body.dead || p.armload?.length || p.dragging || p.inVehicle || (p.actionAnim && !p.actionAnim.startsWith('mo_door'))) return;
+    if (motionOf(p).st !== 'free') return;
+    // a full right hand (a weapon, a torch) works the handle with the left
+    const left = !!p.handR && !p.handL;
+    p.playAnim((closing ? 'mo_door_pull' : 'mo_door_push') + (left ? '_l' : ''), closing ? 0.7 : 0.6);
+  } catch (e) { console.error('motion door', e); }
 });
 
 // dev / screenshots: put the local unit into a movement state and hold a frame of it
@@ -790,6 +1074,20 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
     },
     /** hold any named pose (or '' to let go) */
     hold(name: string, u: number, dur = 1) { const p = G.local; if (!name) { pin.t = -1; G.paused = false; p.stopAnim(); return; } p.playAnim(name, dur); pin.t = u * dur; G.paused = true; },
+    /** round 24: off its feet for real ('trip' | 'blow' | 'slam' | 'faint' | 'drop'), pushed toward world angle `ang` (default: its facing) */
+    knock(how: 'trip' | 'blow' | 'slam' | 'faint' | 'drop' = 'blow', strength = 1, ang?: number, speed = 0) {
+      const p = G.local, M = motionOf(p);
+      G.paused = false; pin.t = -1; M.reset(p); p.stance = 'stand';
+      if (how === 'faint') return M.faint(p);
+      const a = ang ?? p.facing;
+      if (speed) { p.vx = Math.cos(a) * speed; p.vz = Math.sin(a) * speed; }
+      M.knockdown(p, Math.cos(a), Math.sin(a), strength, how, speed);
+      return true;
+    },
+    /** a blow as a creature lands it (from world point fx, fz), resolved on the next step */
+    blow(fx: number, fz: number, knock = 0.7, dmg = 10, part = 'torso_u') { const p = G.local; motionOf(p).hit(p, { from: [fx, fz], knock, dmg }, part); },
+    getUp(from: GetUpFrom) { const p = G.local; motionOf(p).getUp(p, from); },
+    land(h: number) { const p = G.local; motionOf(p).land(p, h); },
     /** stop the world where it is, the camera on the unit */
     still() { const p = G.local; G.paused = true; p.vx = p.vz = 0; (G as any).camera?.settle?.(); G.pr.target.set(p.x, p.y, p.z); },
     release() { pin.t = -1; G.paused = false; },

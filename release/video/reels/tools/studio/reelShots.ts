@@ -37,17 +37,20 @@ export async function useLabSet(S: Studio) {
   const room = (x: number, y: number) => z.room[z.idx(x, y)];
   let best: { x: number; z: number; sc: number } | null = null;
   // furniture can be bigger than its tile: keep every object's anchor out of the lens' side and from under her
-  const objs = [...(z.objects?.values?.() ?? [])].map((o: any) => [o.x + 0.5, o.y + 0.5] as [number, number]);
-  const near = (cx: number, cz: number) => objs.some(([ox, oz]) => Math.abs(ox - cx) < 2.2 && oz > cz - 4.2 && oz < cz + 0.8);
-  for (let y = 40; y <= 70; y++) for (let x = 84; x <= 104; x++) {
-    if (!clear(x - 2, y - 3, x + 2, y + 2) || near(x + 0.5, y + 0.5)) continue;
+  const { objDef } = await import('/src/world/objects');
+  // every object as a box of tiles (its footprint, either way round), grown by a tile
+  const boxes = [...(z.objects?.values?.() ?? [])].map((o: any) => { const d: any = objDef(o.key) ?? {}; const r = Math.max(d.w ?? 1, d.d ?? 1); return [o.x - r + 1, o.y - r + 1, o.x + r, o.y + r] as [number, number, number, number]; });
+  const near = (cx: number, cz: number) => boxes.some(([x0, y0, x1, y1]) => x1 > cx - 1.6 && x0 < cx + 1.6 && y1 > cz - 3.8 && y0 < cz + 0.6);
+  for (let y = 4; y <= z.H - 5; y++) for (let x = 4; x <= z.W - 5; x++) {
+    if (!clear(x - 1, y - 3, x + 1, y + 1) || near(x + 0.5, y + 0.5)) continue;
     const r0 = room(x, y); let same = true;
     for (let k = -3; k <= 1; k++) if (room(x, y + k) !== r0) same = false;
     if (!same) continue;
-    const sc = -Math.abs(x - 94) * 0.2 + (clear(x - 2, y - 3, x + 2, y + 2) ? 3 : 0);
+    const sc = -Math.hypot(x - 94, y - 52) * 0.15 + (clear(x - 2, y - 3, x + 2, y + 2) ? 3 : 0);
     if (!best || sc > best.sc) best = { x: x + 0.5, z: y + 0.5, sc };
   }
   OUT = best ? { x: best.x, z: best.z } : { x: 94.5, z: 52.5 };
+  console.error('[set] lab spot', JSON.stringify(OUT), best ? 'found' : 'fallback');
   SET = 'lab';
   (window as any).__set = OUT;
   const { loadProp } = await import('/src/ui/menus/props/glb');

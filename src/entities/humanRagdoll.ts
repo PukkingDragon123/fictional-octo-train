@@ -25,8 +25,9 @@ import type { JointName } from './humanRig';
  */
 
 export interface RagWorld {
-  /** floor height (world y) under a world point */
-  ground(x: number, z: number): number;
+  /** floor height (world y) under a world point; `y` (when given) is where the point is now, so a surface it is
+   *  already under (a table top) is not counted */
+  ground(x: number, z: number, y?: number): number;
   /** push a circle (world x / z) out of walls and solid furniture */
   collide?(m: { x: number; z: number; radius: number }): void;
 }
@@ -136,7 +137,7 @@ export class Ragdoll {
    */
   start(bones: Record<BoneName, THREE.Object3D>, d: Dims, vel: THREE.Vector3, imp: THREE.Vector3, part = '', collapse = 1, dead = true) {
     this.dims = d;
-    this.active = true; this.asleep = false; this.t = 0; this.calm = 0; this.acc = 0;
+    this.active = true; this.asleep = false; this.frozen = false; this.t = 0; this.calm = 0; this.acc = 0;
     this.dead = dead ? 1 : 0;
     this.grounded.fill(0);
     this.dir.set(imp.x + vel.x * 0.3, 0, imp.z + vel.z * 0.3);
@@ -181,13 +182,16 @@ export class Ragdoll {
     }
   }
 
-  stop() { this.active = false; this.asleep = false; }
+  stop() { this.active = false; this.asleep = false; this.frozen = false; }
+  /** stop simulating but keep the last pose (the get-up blends out of a still body, not a twitching one) */
+  frozen = false;
+  freeze() { this.frozen = true; }
 
   /** advance the simulation */
   step(dt: number, world: RagWorld | null) {
     if (!this.active) return;
     this.t += dt;
-    if (this.asleep) return;
+    if (this.asleep || this.frozen) return;
     const H = 1 / 60;
     this.acc = Math.min(this.acc + Math.min(dt, 0.1), H * 3);
     let moved = 0;
@@ -325,7 +329,7 @@ export class Ragdoll {
     const p = this.pos, q = this.prev;
     for (let i = 0; i < N; i++) {
       const o = i * 3;
-      const gy = (world ? world.ground(p[o], p[o + 2]) : 0) + this.rad[i];
+      const gy = (world ? world.ground(p[o], p[o + 2], p[o + 1] - this.rad[i]) : 0) + this.rad[i];
       if (p[o + 1] < gy) {
         const pen = gy - p[o + 1];
         p[o + 1] = gy;
@@ -416,6 +420,11 @@ export class Ragdoll {
 
   /** world position of a particle (e.g. for blood pools under the body) */
   pelvisWorld(out: THREE.Vector3) { return out.set(this.pos[0], this.pos[1], this.pos[2]); }
+  /** world position of the head (crown) and of the midpoint between the ankles */
+  headWorld(out: THREE.Vector3) { return out.set(this.pos[9], this.pos[10], this.pos[11]); }
+  feetWorld(out: THREE.Vector3) { const p = this.pos; return out.set((p[45] + p[57]) / 2, (p[46] + p[58]) / 2, (p[47] + p[59]) / 2); }
+  /** how much of the body is still moving (m per sub-step; ~0 at rest) */
+  get settled() { return this.asleep || this.frozen || this.calm > 0.25; }
   /** how the trunk lies (world): `up` pelvis -> chest, `belly` out of the front (belly.y < 0: face down) */
   trunkWorld(up: THREE.Vector3, belly: THREE.Vector3) {
     const p = this.pos;

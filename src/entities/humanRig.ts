@@ -912,9 +912,18 @@ export class HumanRig {
   /** Animate with the rig's own animator and apply the pose. */
   animate(dt: number, input: AnimInput) {
     this.ensurePainted();
+    // under a ragdoll the animator's own crossfades would drag the get-up toward a pose nobody saw: hold them
+    this.anim.holdBlend = !!this.ragdoll?.active;
     const pose = this.anim.update(dt, input);
     this.fx.value.y += dt;
     this.applyPose(pose);
+    const T = this.tilt;
+    if (T[0] || T[1]) {
+      T[2] += dt;
+      const u = Math.min(1, Math.max(0, (T[2] - T[3]) / T[4])), k = 1 - u * u * (3 - 2 * u);
+      if (k <= 0) { T[0] = 0; T[1] = 0; }
+      else { this.body.rotation.x += T[0] * k; this.body.rotation.z += T[1] * k; }
+    }
     if (this.hull) { this.hull.layers.mask = this.mesh.layers.mask; this.hull.visible = this.mesh.visible; }
     if (this.ragdoll?.active) this.driveRagdoll(dt);
     this.secondary(dt);
@@ -963,33 +972,70 @@ export class HumanRig {
    * recoverAfter: seconds before it blends back into the animation (deaths
    * pass Infinity and stay down).
    */
-  startRagdoll(vel: THREE.Vector3, imp: THREE.Vector3, part = '', recoverAfter = Infinity) {
+  startRagdoll(vel: THREE.Vector3, imp: THREE.Vector3, part = '', recoverAfter = Infinity, opts: { slack?: boolean } = {}) {
     if (!this.ragdoll) this.ragdoll = new Ragdoll();
     this.root.updateMatrixWorld(true);
     this.flat.y = this.root.getWorldPosition(_rv).y;
-    this.ragdoll.start(this.bones, this.dims, vel, imp, part, 1, recoverAfter === Infinity);
-    this.ragW = 1; this.ragRecover = recoverAfter;
+    // a death, or a faint (no reflexes: the body drops like a sack); else the hands go out to break the fall
+    this.ragdoll.start(this.bones, this.dims, vel, imp, part, 1, recoverAfter === Infinity || !!opts.slack);
+    this.ragW = 1; this.ragRecover = recoverAfter; this.ragBlend = 0.65; this.ragFrom = 1;
   }
   /** back to pure animation at once (revived, respawned) */
-  stopRagdoll() { this.ragdoll?.stop(); this.ragW = 0; this.ragRecover = Infinity; this.anim.resetFeet(); }
+  stopRagdoll() { this.ragdoll?.stop(); this.ragW = 0; this.ragRecover = Infinity; this.anim.resetFeet(); this.anim.holdBlend = false; }
   get ragdolling() { return !!this.ragdoll?.active; }
+  /**
+   * Hand a lying ragdoll back to the animation now (round 24: the get-up). The physics stops where the body lies
+   * and every joint eases from that still pose into the animation over `blend` seconds (smoothstep), so a get-up
+   * that starts from a matching lying key never pops. Safe to call when no ragdoll runs.
+   */
+  recoverRagdoll(blend = 0.5) {
+    const R = this.ragdoll;
+    if (!R?.active) return;
+    R.freeze();
+    this.ragRecover = Math.min(this.ragRecover, R.t);
+    this.ragBlend = Math.max(0.05, blend); this.ragFrom = this.ragW;
+    this.ragK = 0;
+  }
+  private ragBlend = 0.65; private ragFrom = 1; private ragK = 0;
+  /**
+   * The ground the body lies on is not flat (a stair, a ramp, a ledge): tilt the whole body by (pitch, roll)
+   * radians at first, holding for `hold` seconds, then easing upright over `fade` (the get-up off a slope).
+   */
+  setTilt(pitch: number, roll: number, hold = 0.4, fade = 0.9) { this.tilt[0] = pitch; this.tilt[1] = roll; this.tilt[2] = 0; this.tilt[3] = hold; this.tilt[4] = Math.max(0.05, fade); }
+  private tilt = new Float32Array([0, 0, 0, 0, 1]);
 
   private driveRagdoll(dt: number) {
     const R = this.ragdoll!;
     R.step(dt, this.ragWorld ?? this.flat);
     if (R.t > this.ragRecover) {
-      this.ragW = Math.max(0, this.ragW - dt / 0.65);
-      if (this.ragW <= 0) { R.stop(); this.ragRecover = Infinity; this.anim.resetFeet(); return; }
+      // eased hand-back: still pose -> animation (the physics no longer moves under it)
+      if (!R.frozen) R.freeze();
+      this.ragK = Math.min(1, this.ragK + dt / this.ragBlend);
+      const k = this.ragK * this.ragK * (3 - 2 * this.ragK);
+      this.ragW = this.ragFrom * (1 - k);
+      if (this.ragK >= 1) { R.stop(); this.ragW = 0; this.ragRecover = Infinity; this.anim.resetFeet(); this.anim.holdBlend = false; return; }
     }
     this.root.updateWorldMatrix(true, false);
     R.solve(this.root.matrixWorld);
     const w = this.ragW;
-    for (const jn of JOINTS) { const b = this.j[jn]; if (w >= 0.999) b.quaternion.copy(R.q[jn]); else b.quaternion.slerp(R.q[jn], w); }
-    this.j.hips.position.lerp(R.hips, w);
-    if (w >= 0.999) { this.body.rotation.set(0, 0, 0); this.body.position.y = 0; }
-    else { this.body.quaternion.slerp(_rq.identity(), w); this.body.position.y *= 1 - w; }
+    if (w >= 0.999) {
+      for (const jn of JOINTS) this.j[jn].quaternion.copy(R.q[jn]);
+      this.j.hips.position.copy(R.hips);
+      this.body.rotation.set(0, 0, 0); this.body.position.y = 0;
+      return;
+    }
+    // round 24: fold the animated body transform (its pitch / roll / height) into the hips first. The ragdoll's
+    // joints are relative to an upright body, so blending them against a pitched one put the hips in the wrong
+    // place half way (the body sank into the floor or floated, then popped when the blend ended).
+    const b = this.body, hp = this.j.hips;
+    b.updateMatrix();
+    _rq.copy(b.quaternion);
+    hp.quaternion.premultiply(_rq);
+    hp.position.applyQuaternion(_rq).add(b.position);
+    b.rotation.set(0, 0, 0); b.position.set(0, 0, 0);
+    for (const jn of JOINTS) this.j[jn].quaternion.slerp(R.q[jn], w);
+    hp.position.lerp(R.hips, w);
   }
-
   /** a blow: (dx, dz) the WORLD direction it pushes the body, part an item body-part key, strength 0..1.5 */
   hit(dx: number, dz: number, part: string, strength: number) {
     const th = this.root.rotation.y, c = Math.cos(th), s = Math.sin(th);
@@ -1003,7 +1049,7 @@ export class HumanRig {
    * what is attached to heldR / heldL.
    */
   update(dt: number, input?: Partial<AnimInput> | Pose) {
-    const isInput = !!input && ('speed' in input || 'stance' in input || 'action' in input || 'full' in input || 'panic' in input);
+    const isInput = !!input && ('speed' in input || 'stance' in input || 'action' in input || 'full' in input || 'panic' in input || 'fidget' in input);
     const inp: AnimInput = {
       speed: 0, stance: 'stand', full: '', action: '', actionT: 0, actionDur: 1, twoHanded: false, limp: 0, tired: 0, panic: 0, cold: 0,
       aimPitch: 0, holdingLight: false, holding: this.heldR.children.length > 0, heldL: this.heldL.children.length > 0, lookYaw: 0, fidget: true,

@@ -171,7 +171,7 @@ export class Player {
   private lookOn = false; private lookT = 0;
   private visY = NaN;
   private sleepLift = 0;
-  private wasDead = false; private wasDown = false;
+  private wasDead = false; private wasDown = false; private remAct = '';
   private lastSteps = 0;
   private oneShot: { name: string; dur: number } | null = null;
   private propKey = '';
@@ -619,6 +619,13 @@ export class Player {
     else if (down && !this.wasDown && !this.carriedBy) this.fallRagdoll(1.15);
     else if (!dead && this.wasDead) this.rig.stopRagdoll();
     this.wasDead = dead; this.wasDown = down;
+    // round 24: a peer's unit tripped, was knocked flat or fainted (src/entities/motion.ts mirrors it as 'mo_fall'):
+    // its own ragdoll here, and the get-up blends out of it the same way
+    if (this.remote && action !== this.remAct) {
+      if (action === 'mo_fall' && !dead && !down && !this.rig.ragdolling) this.fallRagdoll(30);
+      else if (typeof action === 'string' && action.startsWith('mo_getup_') && this.rig.ragdolling && !dead && !down) this.rig.recoverRagdoll(0.45);
+      this.remAct = action;
+    }
     this.rig.animate(dt, I);
     // footsteps from real foot landings
     const steps = this.anim.steps;

@@ -124,7 +124,7 @@ PG.paint((P, v) => {
 // rig
 // =====================================================================================
 const RIDE = 1.0;                // hip height (the underside of the trunk)
-const L1 = 0.82, L2 = 0.92;      // femur, tibia
+const L1 = 1.0, L2 = 1.0;        // femur, tibia (knees ride high, harvestman fashion)
 /** the stack: name, height of the case, offset (x, z), twist */
 const STACK: { n: string; h: number; ox: number; oz: number; tw: number }[] = [
   { n: 'trunk', h: 0.5, ox: 0, oz: 0, tw: 0 },
@@ -138,7 +138,7 @@ const ARM_L = [0.72, 0.7, 0.55];
 function legDefs(): LegDef[] {
   const out: LegDef[] = [];
   for (const [k, along] of [[0, 0.32], [1, 0], [2, -0.32]] as const) for (const side of [1, -1] as const) {
-    out.push({ seg: 0, side, along, out: 0.4, up: -0.02, reach: 1.02 + (k === 1 ? 0.08 : 0), fwd: along * 1.5, L1, L2, femur: `L${k}${side > 0 ? 'R' : 'L'}u`, tibia: `L${k}${side > 0 ? 'R' : 'L'}d` });
+    out.push({ seg: 0, side, along, out: 0.4, up: -0.02, reach: 1.2 + (k === 1 ? 0.1 : 0), fwd: along * 1.5, L1, L2, femur: `L${k}${side > 0 ? 'R' : 'L'}u`, tibia: `L${k}${side > 0 ? 'R' : 'L'}d` });
   }
   return out;
 }
@@ -377,7 +377,7 @@ function poseRig(rig: Rig, D: Drive) {
   updateLegs(root, rig.parts, U.defs, U.st, U.nb, U.F, dt, {
     vx: U.vx, vy: 0, vz: U.vz, speed, stepDist: 0.42 + clamp01(speed / 4) * 0.5, lift: 0.22 + clamp01(speed / 4) * 0.12,
     ground: (x, zz) => groundY(D.z, x, zz),
-    splay: 0.55, poleU: 1.2,
+    splay: 0.18, poleU: 1.3,
     curl: dead ? clamp01(dead) * 0.1 : 0, freeze: dead > 0,
     onLand: (i, x, yy, zz) => {
       // every footfall jolts the stack a little

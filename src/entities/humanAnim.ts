@@ -121,6 +121,8 @@ export interface AnimInput {
   heldL?: boolean;
   turn?: number;          // facing angular velocity (rad/s)
   hasWatch?: boolean;
+  /** false: no backpack to hitch up (the pack-strap fidget is skipped) */
+  hasPack?: boolean;
   unconscious?: boolean;
   /** allow idle fidgets (false for remote players far away etc.) */
   fidget?: boolean;
@@ -198,7 +200,7 @@ const NO_IK = new Set(['torn_arm_l', 'torn_arm_r', 'torn_leg_l', 'torn_leg_r', '
 const LEG_EMOTES = new Set(['dance', 'jumping_jacks', 'sit_wait']);
 const AIM_ACTS = new Set(['aim_melee', 'aim_gun', 'aim_throw', 'swing', 'swing2h', 'stab', 'throw', 'shove', 'shoot']);
 
-type Fidget = 'look' | 'scratch' | 'watch' | 'stretch' | 'neck' | 'shift' | 'wipe' | 'rub' | 'support';
+type Fidget = 'look' | 'scratch' | 'watch' | 'stretch' | 'neck' | 'shift' | 'wipe' | 'rub' | 'support' | 'pack' | 'glance' | 'boot' | 'knuckles';
 
 let DEF_DIMS: LegDims | null = null;
 function defaultDims(): LegDims {
@@ -268,6 +270,8 @@ export class HumanAnimator {
   private lastHipX = 0; private lastHipZ = 0;
   private hungerT = 5; private retchT = 8;
   private oneLeg = false;
+  /** set by the rig while a ragdoll drives or hands back the body: no inertialized crossfade on top of it */
+  holdBlend = false;
 
   /** a panic attack: trembling, hunched, hyperventilating, hands to chest and head for a few seconds */
   panicAttack(secs = 7) { if (this.attackT <= 0) this.attackDur = 0; this.attackT = Math.max(this.attackT, secs); this.fid = null; }
@@ -291,6 +295,14 @@ export class HumanAnimator {
    * item body-part key ('head', 'torso_u', 'thigh_l'...), strength 0..1.5.
    */
   hit(fx: number, fz: number, part: string, strength: number) { this.react.hit(fx, fz, part, strength); }
+  /**
+   * Round 24: an additive jolt through the whole body (radians per second of pitch and roll, metres per second of
+   * height), on springs that overshoot and settle: a hard stop, a crouch, a landing, a lurch under a load. Leaves
+   * whatever the arms and hands are doing alone.
+   */
+  nudge(pitch: number, roll = 0, y = 0) { this.nzV[0] += pitch; this.nzV[1] += roll; this.nzV[2] += y; }
+  private nz = new Float32Array(3); private nzV = new Float32Array(3);
+  private nzSp = 9; private nzSt = ''; private nzRun = 0; private shudT = 7; private shud = 0;
   /** a swing connected with something solid: the impact jars back up the arms */
   impact(strength = 0.6) { this.react.recoil(strength); }
   /** foot landings so far (footstep sounds / prints) */
@@ -404,6 +416,8 @@ export class HumanAnimator {
       for (let c = 0; c < NCH; c++) this.xOff[c] = wrapPi(this.xPrev[c] - cur[c]);
       this.xT = 0;
     }
+    // a ragdoll is handing the body back (src/entities/humanRig.ts driveRagdoll): that blend is the crossfade
+    if (this.holdBlend) this.xT = 9;
     const W = 13;
     const k = (1 + W * this.xT) * Math.exp(-W * this.xT);
     this.xT += dt;
@@ -453,8 +467,42 @@ export class HumanAnimator {
     this.bal[1] = spring(this.bal[1], this.balV, 1, bankT, 8, dt, 0.75);
     p.bodyPitch = (p.bodyPitch ?? 0) + this.bal[0];
     p.bodyRoll = (p.bodyRoll ?? 0) + this.bal[1];
-    // turning on the spot: the head leads into the turn
-    if (!g.moving && up > 0.5) add(p, 'head', 0, clamp(g.turn * 0.1, -0.4, 0.4), 0);
+    // turning on the spot: the head leads into the turn, the chest follows it, the hips come last (the feet step round)
+    if (!g.moving && up > 0.5) {
+      const tl = clamp(g.turn * 0.1, -0.4, 0.4);
+      add(p, 'head', 0, tl, 0); add(p, 'neck', 0, tl * 0.4, 0); add(p, 'chest', 0, tl * 0.35, 0); add(p, 'spine', 0, tl * 0.2, 0);
+      p.rootY = (p.rootY ?? 0) - Math.abs(tl) * 0.03;
+    }
+    // round 24: starts and stops have weight. A sprint pulled up short pitches the body forward past its feet and it
+    // rocks back; a start from standing leans back a beat before it goes; a crouch sinks below where it stops and a
+    // stand rises a touch above. Springs (overshoot, settle), triggered here so peers and NPCs get them too.
+    const v = g.v;
+    // nzSp: seconds since the body last moved at a sprint; nzRun: 1 while it stands still (armed for a start)
+    this.nzSp = v > 3 ? 0 : this.nzSp + dt;
+    if (up > 0.5 && dt > 0) {
+      if (v < 1.1 && this.nzSp < 0.45) { this.nudge(1.7, 0, -0.28); this.nzSp = 9; }
+      if (v < 0.12) this.nzRun = 1;
+      else if (this.nzRun && v > 0.45) { this.nzRun = 0; if (!inp.action) this.nudge(-0.6, 0, -0.1); }
+    }
+    const st = inp.stance;
+    if (st !== this.nzSt) {
+      if (this.nzSt === 'stand' && st === 'sneak') this.nudge(0.35, 0, -0.55);
+      else if (this.nzSt === 'sneak' && st === 'stand') this.nudge(-0.2, 0, 0.42);
+      this.nzSt = st;
+    }
+    for (let i = 0; i < 3; i++) {
+      // damped springs: stiff and a little under-damped (one visible overshoot)
+      const K = i === 2 ? 150 : 90, D = i === 2 ? 13 : 10;
+      this.nzV[i] += (-this.nz[i] * K - this.nzV[i] * D) * dt;
+      this.nz[i] += this.nzV[i] * dt;
+      if (Math.abs(this.nz[i]) < 1e-4 && Math.abs(this.nzV[i]) < 1e-3) { this.nz[i] = 0; this.nzV[i] = 0; }
+    }
+    if (this.nz[0] || this.nz[1] || this.nz[2]) {
+      const a = clamp(this.nz[0], -0.4, 0.4), r = clamp(this.nz[1], -0.4, 0.4);
+      p.bodyPitch = (p.bodyPitch ?? 0) + a * 0.5 * up; add(p, 'spine', a * 0.5 * up, 0, r * 0.4 * up); add(p, 'head', -a * 0.3 * up, 0, -r * 0.3 * up);
+      p.bodyRoll = (p.bodyRoll ?? 0) + r * 0.6 * up;
+      p.rootY = (p.rootY ?? 0) + clamp(this.nz[2], -0.12, 0.08) * up;
+    }
   }
 
   // ================================================================ carried over a shoulder: the body hangs and swings
@@ -532,7 +580,9 @@ export class HumanAnimator {
     this.idleT = idle ? this.idleT + dt : 0;
     this.weightT -= dt;
     if (this.weightT <= 0) { this.weightT = 3 + hash(t + this.seed) * 5; this.weightTarget = hash(t * 1.7 + this.seed) < 0.5 ? -1 : 1; if (hash(t * 3.1) < 0.25) this.weightTarget = 0; }
-    this.weight = lerp(this.weight, idle ? this.weightTarget : 0, 1 - Math.exp(-1.6 * dt));
+    // round 24: a bad leg carries no weight standing still: the body hangs off the good one, the hurt foot just touching
+    const wt = limp > 0.25 ? (inp.limpSide === 'R' ? 1 : -1) * Math.min(1.4, 0.6 + limp) : this.weightTarget;
+    this.weight = lerp(this.weight, idle ? wt : 0, 1 - Math.exp(-(limp > 0.25 ? 3 : 1.6) * dt));
     this.lookT -= dt;
     const nervous = panic > 0.3;
     if (this.lookT <= 0) {
@@ -719,6 +769,22 @@ export class HumanAnimator {
       add(p, 'uarmR', -0.45 * c, 0, 0.32 * c - sh); add(p, 'farmR', -1.25 * c, -0.4 * c, 0);
       add(p, 'chest', 0.1 * c, 0, sh); add(p, 'head', 0.1 * c, 0, Math.sin(t * 37) * 0.02 * c); add(p, 'neck', 0.06 * c, 0, 0);
     }
+    // round 24: a fever or a chill shakes the body: a fine tremble, and every few seconds a hard shudder through the shoulders
+    const chill = Math.max(inp.cold > 0.35 ? inp.cold : 0, (inp.sick ?? 0) > 0.45 ? (inp.sick ?? 0) * 0.8 : 0);
+    if (chill > 0) {
+      const tr = Math.sin(t * 47) * 0.012 * chill + Math.sin(t * 31 + 1) * 0.008 * chill;
+      add(p, 'chest', 0, 0, tr); add(p, 'head', tr * 0.6, 0, tr); add(p, 'uarmL', tr, 0, 0); add(p, 'uarmR', -tr, 0, 0);
+      this.shudT -= dt;
+      if (this.shudT <= 0) { this.shudT = 3.5 + hash(t + this.seed * 5) * 6 / chill; this.shud = 0.55; }
+    }
+    if (this.shud > 0) {
+      this.shud = Math.max(0, this.shud - dt);
+      const e = Math.sin((this.shud / 0.55) * Math.PI) * Math.min(1, chill + 0.3), j = Math.sin(t * 38) * e;
+      add(p, 'chest', 0.06 * e, 0, j * 0.05); add(p, 'spine', 0.05 * e, 0, 0); add(p, 'neck', -0.08 * e, 0, 0); add(p, 'head', 0.06 * e + j * 0.04, j * 0.05, 0);
+      add(p, 'uarmL', -0.12 * e, 0, -0.12 * e + j * 0.04); add(p, 'uarmR', -0.12 * e, 0, 0.12 * e - j * 0.04);
+      add(p, 'farmL', -0.25 * e, 0, 0); add(p, 'farmR', -0.25 * e, 0, 0);
+      p.rootY = (p.rootY ?? 0) - 0.02 * e;
+    }
     const drunk = inp.drunk ?? 0;
     if (drunk > 0.2) {
       // the floor tilts: slow sway of the whole body, a heavy head, a lurch now and then
@@ -771,13 +837,17 @@ export class HumanAnimator {
     // ---------------- fidgets
     if (idle && inp.fidget !== false && exh < 0.25 && panic < 0.35 && inp.cold < 0.3 && !clutch) {
       this.fidT -= dt;
+      // worn out: a yawn and a stretch instead of a fidget now and then
+      if (!this.fid && this.fidT <= 0 && this.idleT > 2.5 && tired > 0.45 && hash(t * 2.9 + this.seed) < 0.45) { this.playEmote('yawn'); this.fidT = 8 + hash(t) * 8; }
       if (!this.fid && this.fidT <= 0 && this.idleT > 2.5) {
-        const opts: Fidget[] = ['look', 'scratch', 'stretch', 'neck', 'shift', 'rub'];
+        const opts: Fidget[] = ['look', 'scratch', 'stretch', 'neck', 'shift', 'rub', 'glance', 'boot', 'knuckles', 'look'];
+        if (inp.hasPack !== false) opts.push('pack');
+        if (inp.holding) { const i = opts.indexOf('knuckles'); if (i >= 0) opts.splice(i, 1); }
         if (inp.hasWatch !== false) opts.push('watch', 'watch');
         if ((inp.hot ?? 0) > 0.3) opts.push('wipe', 'wipe');
         if (inp.holding) { const i = opts.indexOf('scratch'); if (i >= 0) opts.splice(i, 1); }
         const k = opts[Math.floor(hash(t + this.seed * 3) * opts.length)];
-        this.fid = { k, t: 0, dur: k === 'stretch' ? 3.2 : k === 'watch' ? 2.4 : k === 'look' ? 3.5 : 2.2, side: hash(t * 9) < 0.5 ? 1 : -1 };
+        this.fid = { k, t: 0, dur: k === 'stretch' ? 3.2 : k === 'watch' ? 2.4 : k === 'look' ? 3.5 : k === 'pack' ? 2.6 : k === 'glance' ? 2.4 : k === 'boot' ? 2.8 : 2.2, side: hash(t * 9) < 0.5 ? 1 : -1 };
         this.fidT = 6 + hash(t * 4 + this.seed) * 10;
       }
     } else if (!idle) { this.fid = null; this.fidT = Math.max(this.fidT, 3); }
@@ -868,6 +938,8 @@ export class HumanAnimator {
     if (act !== 'kick_obj') this.ikTR = ikT;
     else if (ikT === 0) this.ikTR = 0;
     this.ikTL = ikT;
+    // a boot scuffed against the floor (fidget): that foot lifts off its planted spot for a moment
+    if (this.fid && this.fid.k === 'boot' && ikT) { if (this.fid.side > 0) this.ikTR = 0.2; else this.ikTL = 0.2; }
     if (ikT === 0) { this.reachL.w = 0; this.reachR.w = 0; }
     return p;
   }
@@ -1077,6 +1149,43 @@ function fidgetPose(p: Pose, k: Fidget, u: number, side: number, t: number, hold
       const sw = Math.sin(u * Math.PI * 3) * 0.3;
       set(q, 'uarmR', -1.5, 0.3, -0.5 + sw * 0.4); set(q, 'farmR', -1.9, sw, 0); set(q, 'head', -0.15, 0, 0);
       mask = ['uarmR', 'farmR', 'handR', 'head'];
+      break;
+    }
+    case 'pack': {
+      // thumbs under the straps, a hitch of the shoulders to settle the pack higher, a tug down on the straps
+      const h = Math.max(0, Math.sin(clamp((u - 0.3) / 0.35, 0, 1) * Math.PI)), tug = Math.max(0, Math.sin(clamp((u - 0.62) / 0.2, 0, 1) * Math.PI));
+      set(q, 'uarmL', -0.55 - h * 0.15, -0.35, 0.28 + h * 0.1); set(q, 'farmL', -1.85 + tug * 0.3, 0, 0); set(q, 'handL', 0.2, 0, 0.3);
+      set(q, 'uarmR', -0.55 - h * 0.15, 0.35, -0.28 - h * 0.1); set(q, 'farmR', -1.85 + tug * 0.3, 0, 0); set(q, 'handR', 0.2, 0, -0.3);
+      set(q, 'chest', -0.08 * h + 0.04 * tug, 0, 0); set(q, 'spine', 0.04 * tug, 0, 0); set(q, 'neck', 0.05 * h, 0, 0); set(q, 'head', 0.1 + 0.05 * h, 0, 0);
+      q.gripL = 0.85; q.gripR = holding ? 0.95 : 0.85;
+      p.packY = (p.packY ?? 0) + h * 0.03;
+      p.rootY = (p.rootY ?? 0) + h * 0.012 * e;
+      mask = holding ? ['uarmL', 'farmL', 'handL', 'chest', 'spine', 'neck', 'head'] : UPPER;
+      break;
+    }
+    case 'glance': {
+      // a look right round over the shoulder, a beat, back (the chest and spine take it the last part of the way)
+      const g = u < 0.3 ? ease(u / 0.3) : u < 0.62 ? 1 : 1 - ease((u - 0.62) / 0.3);
+      set(q, 'head', -0.05, 1.05 * side * g, 0); set(q, 'neck', 0, 0.35 * side * g, 0); set(q, 'chest', 0, 0.35 * side * g, 0); set(q, 'spine', 0, 0.22 * side * g, 0);
+      mask = ['head', 'neck', 'chest', 'spine'];
+      break;
+    }
+    case 'boot': {
+      // a look down at a boot, the toe scuffed against the floor, twice
+      const sc = Math.max(0, Math.sin(clamp((u - 0.25) / 0.5, 0, 1) * Math.PI * 2));
+      set(q, 'head', 0.55, -0.15 * side, 0); set(q, 'neck', 0.2, 0, 0); set(q, 'spine', 0.08, 0, 0);
+      const L = side > 0 ? 'R' : 'L';
+      set(q, ('thigh' + L) as JointName, -0.12 - sc * 0.08, 0, 0); set(q, ('shin' + L) as JointName, 0.25 + sc * 0.15, 0, 0); set(q, ('foot' + L) as JointName, 0.25 + sc * 0.35, 0, 0);
+      mask = ['head', 'neck', 'spine', ('thigh' + L) as JointName, ('shin' + L) as JointName, ('foot' + L) as JointName];
+      break;
+    }
+    case 'knuckles': {
+      // the hands meet in front of the belly, fingers laced, pressed out until they crack
+      const pr = Math.max(0, Math.sin(clamp((u - 0.3) / 0.4, 0, 1) * Math.PI));
+      set(q, 'uarmL', -0.6 - pr * 0.25, -0.5, 0.05); set(q, 'farmL', -1.2 + pr * 0.5, 0, 0); set(q, 'handL', 0.3, 0, 0.4);
+      set(q, 'uarmR', -0.6 - pr * 0.25, 0.5, -0.05); set(q, 'farmR', -1.2 + pr * 0.5, 0, 0); set(q, 'handR', 0.3, 0, -0.4);
+      set(q, 'head', 0.25, 0, 0); set(q, 'chest', 0.04, 0, 0);
+      q.gripL = 0.5 + pr * 0.3; q.gripR = 0.5 + pr * 0.3;
       break;
     }
     case 'support': break;

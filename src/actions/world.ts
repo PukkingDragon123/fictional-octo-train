@@ -45,6 +45,8 @@ export class DoorAction extends TimedAction {
         op('edge', edgeArgs(this.p, this.x, this.y, this.side, { open: !e.open, swing: swingAway(this.p, this.x, this.y, this.side) }));
         G.audio?.at?.(e.open ? 'door_close' : 'door_open', this.x + 0.5, this.y + 0.5);
         noise(this.p, this.x, this.y, e.open ? 5 : 4, 'door');
+        // the hand on the handle (src/entities/motion.ts plays the push or the pull)
+        bus.emit('doorUsed', this.p, !!e.open);
         break;
       case 'lock': case 'unlock':
         op('edge', edgeArgs(this.p, this.x, this.y, this.side, { locked: this.mode === 'lock' }));

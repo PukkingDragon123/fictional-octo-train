@@ -1,5 +1,6 @@
 import { G } from '../game/G';
-import { resolve } from '../world/collision';
+import { resolve, objFootprint } from '../world/collision';
+import { objDef } from '../world/objects';
 import type { RagWorld } from './humanRagdoll';
 import type { Player } from './player';
 
@@ -29,9 +30,33 @@ const ragOpts = { ignoreLow: true };
 /** floor + walls for a survivor's ragdoll */
 export function ragWorldFor(p: Player): RagWorld {
   return {
-    ground: (x, z) => { const y = floorY(p.zoneKey, x, z); return Number.isNaN(y) ? p.y : y; },
+    ground: (x, z, py) => {
+      const y0 = floorY(p.zoneKey, x, z), y = Number.isNaN(y0) ? p.y : y0;
+      // round 24: a body that falls onto a crate, a counter or a bed lies on top of it instead of sinking through
+      // (only when the point is already above the top: an arm under a table stays under it)
+      return py === undefined ? y : y + propTop(p.zoneKey, x, z, py - y);
+    },
     collide: (m) => { const zn = G?.zones?.get?.(p.zoneKey); if (zn) resolve(zn, m, ragOpts); },
   };
+}
+
+/** the top of a low solid prop under a world point (0 for none), counted only for a point already above it (h over the floor) */
+function propTop(zoneKey: string, x: number, z: number, h: number): number {
+  if (h < 0.12) return 0;
+  const zn = G?.zones?.get?.(zoneKey);
+  if (!zn) return 0;
+  const tx = Math.floor(x), ty = Math.floor(z);
+  if (!zn.inb(tx, ty)) return 0;
+  let top = 0;
+  try {
+    for (const o of zn.objectsAt(tx, ty)) {
+      const d = objDef(o.key);
+      if (!d || !d.block || d.block === 'none' || d.height < 0.2 || d.height > 1.2 || d.height < top || h < d.height - 0.2) continue;
+      const f = objFootprint(zn, o, d);
+      if (x > f.x0 + 0.03 && x < f.x1 - 0.03 && z > f.z0 + 0.03 && z < f.z1 - 0.03) top = d.height;
+    }
+  } catch { return 0; }
+  return top;
 }
 
 export interface LookTarget { x: number; y: number; z: number; w: number; until: number; kind: string; id: string }
