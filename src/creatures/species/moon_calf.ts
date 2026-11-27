@@ -116,7 +116,7 @@ const BLADDER_KIT: KitDef = { key: 'moon_calf_bladder', variants: 3, W: 64, H: 6
 function buildCalf(): Rig { return buildKitRig(CALF_KIT, 0, 0.7); }
 
 // ------------------------------------------------------------------ animation: slow lunar bounds, grazing, the bladder breathing
-interface CalfDrive { t: number; dt: number; speed: number; graze: number; dead: number; seed: number; flinch: number }
+interface CalfDrive { t: number; dt: number; speed: number; graze: number; dead: number; seed: number; flinch: number; sleep?: number }
 function poseCalf(K: KitRig, d: CalfDrive) {
   const P = K.parts, ud = K.kit.m as Record<string, number>, t = d.t, s7 = d.seed * 7;
   const mv = Math.min(1, d.speed / 0.5) * (1 - d.dead);
@@ -149,6 +149,25 @@ function poseCalf(K: KitRig, d: CalfDrive) {
   }
   P.tail.rotation.set(-0.3 + Math.sin(t * 2.3 + s7) * 0.25, Math.sin(t * 1.7) * 0.3, 0);
   P.tail2.rotation.set(Math.sin(t * 3.1) * 0.3, 0, 0);
+  // round 25, asleep in a pen: folded down onto the straw, legs tucked under, the head laid along the flank, the
+  // bladder slack and rising and falling slowly
+  const sl = d.sleep ?? 0;
+  if (sl > 0.01) {
+    const br = Math.sin(t * 0.7 + s7);
+    P.base.position.y = -0.26 * sl;
+    P.body.rotation.z += 0.08 * sl;
+    P.bladder.scale.multiplyScalar(1 - 0.25 * sl + br * 0.04 * sl);
+    P.neck.rotation.set(P.neck.rotation.x * (1 - sl) + 0.5 * sl, P.neck.rotation.y * (1 - sl) + 0.9 * sl, 0);
+    P.head.rotation.set(P.head.rotation.x * (1 - sl) + 0.3 * sl, 0.4 * sl, 0.3 * sl);
+    for (const [sd, k] of SIDES) {
+      P['ear' + sd].rotation.z += -k * 0.4 * sl;
+      for (const f of ['f', 'b'] as const) {
+        P[`hip${f}${sd}`].rotation.x = P[`hip${f}${sd}`].rotation.x * (1 - sl) + (f === 'f' ? -1.1 : 1.2) * sl;
+        P[`knee${f}${sd}`].rotation.x = P[`knee${f}${sd}`].rotation.x * (1 - sl) + (f === 'f' ? 2.1 : -2.2) * sl;
+      }
+    }
+    P.tail.rotation.set(0.2 * sl, 0.6 * sl, 0);
+  }
   if (d.flinch > 0) P.body.position.x += Math.sin(t * 70) * 0.02 * d.flinch;
 }
 function animateCalf(rig: Rig, c: Creature, t: number, dt: number) {
@@ -159,7 +178,8 @@ function animateCalf(rig: Rig, c: Creature, t: number, dt: number) {
   const n = netOf(c), ud = K.kit.m as Record<string, number>;
   ud.gz = (ud.gz ?? 0) + ((n.gz ? 1 : 0) - (ud.gz ?? 0)) * Math.min(1, dt * 2);
   const was = (ud.air ?? 0) > 0.3;
-  poseCalf(K, { t, dt, speed: c.dead ? 0 : c.speed, graze: ud.gz, dead: c.dead ? 1 : 0, seed: hashId(c.id, 2), flinch: flinchOf(c) });
+  ud.zz = (ud.zz ?? 0) + ((n.pn === 'sleep' ? 1 : 0) - (ud.zz ?? 0)) * Math.min(1, dt * 0.8);
+  poseCalf(K, { t, dt, speed: c.dead ? 0 : c.speed, graze: ud.gz, dead: c.dead ? 1 : 0, seed: hashId(c.id, 2), flinch: flinchOf(c), sleep: ud.zz });
   // the landing: a soft thump and a sigh out of the bladder
   if (was && (ud.air ?? 0) < 0.15 && c.visibleToLocal) playAt('lumen_puff', c, 0.5, 12, 0.6 + Math.random() * 0.2);
   const F = K.kit.F.fx.value; F.y += dt; F.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
@@ -206,7 +226,7 @@ const CALF = def({
 CALF.animateGallery = (rig: Rig, t: number) => {
   const q = new URLSearchParams(location.search).get('pose') || ['graze', 'hop', 'idle'][Math.floor(t / 4) % 3];
   const K = rig as KitRig; kitSync(K);
-  poseCalf(K, { t, dt: 1 / 60, speed: q === 'hop' ? 1.2 : 0, graze: q === 'graze' ? 1 : 0, dead: 0, seed: 0.4, flinch: 0 });
+  poseCalf(K, { t, dt: 1 / 60, speed: q === 'hop' ? 1.2 : 0, graze: q === 'graze' ? 1 : 0, dead: 0, seed: 0.4, flinch: 0, sleep: q === 'sleep' ? 1 : 0 });
 };
 horrify(CALF, { twitch: 0.15, snap: 0.08, parts: /ear|tail|lip/ });
 void mixHex;

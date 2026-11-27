@@ -12,6 +12,7 @@ import { Player } from '../entities/player';
 import { pick, PickTarget, targetName } from '../game/picking';
 import { OCCUPATIONS, TRAITS } from '../survival/traits';
 import { itemIcon, iconRes } from './icons';
+import './discovery';
 import { sfx } from './menus/sfx';
 import { calm } from './menus/settings';
 import './holo/diegetic.css';

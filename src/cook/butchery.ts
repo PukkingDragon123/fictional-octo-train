@@ -55,6 +55,9 @@ export const HARVEST: Record<string, HarvestDef> = {
   tallow_pigeon: { flesh: [['bird_meat_raw', 1]], odd: [['part_tallow', 1]], time: 7 },
   moon_calf: { flesh: [['moon_meat', 2], ['flesh_strips', 1]], organs: O3, fat: [['fat_raw', 1]], hide: [['hide_raw', 1]], bones: [['bone', 2]], time: 16 },
   moon_strider: { flesh: [['moon_meat', 3]], hide: [['hide_raw', 1]], bones: [['long_bone', 1], ['bone', 2]], time: 18 },
+  // round 25: the yard
+  pale_hen: { flesh: [['bird_meat_raw', 2]], organs: [['organ_heart', 1, 0.6], ['organ_offal', 1, 0.5]], fat: [['fat_raw', 1, 0.4]], bones: [['bone', 1]], odd: [['hen_down', 1]], time: 8 },
+  carpet_grub: { flesh: [['worm_meat', 2]], fat: [['fat_raw', 1]], odd: [['grub_silk', 1, 0.7]], carcass: 'husk', time: 6 },
   strider: { human: true, flesh: [['cut_gristle', 3]], organs: O3, bones: [['bone', 2]], odd: [['strider_tendon', 2], ['strider_skin', 1], ['long_bone', 2]], time: 28 },
   hollow: { human: true, flesh: [['cut_gristle', 1]], organs: [['organ_heart', 1]], odd: [['part_static_node', 1]], time: 14 },
   lifeguard: { human: true, flesh: [['cut_gristle', 2]], organs: O3, odd: [['part_drowned_lung', 1]], time: 16 },

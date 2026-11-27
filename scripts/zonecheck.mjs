@@ -31,7 +31,9 @@ const ow = console.warn;
 console.warn = (...a) => { warns.push(a.join(' ')); };
 let wg, objects, defs;
 try {
-  await server.ssrLoadModule('/src/content/index.ts');
+  const content = await server.ssrLoadModule('/src/content/index.ts');
+  // register every texture module, as the game does at boot, so models built during generation find their textures
+  content.registerContent();
   await server.ssrLoadModule('/src/world/zones.ts');
   wg = await server.ssrLoadModule('/src/world/worldGraph.ts');
   objects = await server.ssrLoadModule('/src/world/objects.ts');

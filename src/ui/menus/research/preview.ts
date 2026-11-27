@@ -24,11 +24,14 @@ import { makeHeldMesh } from '../../../items/itemMeshes';
 import { hasItemDef } from '../../../items/item';
 import { loadProp } from '../props/glb';
 import { species } from '../../../creatures/registry';
+import { objDef, objectGeometry } from '../../../world/objects';
+import { worldMaterial } from '../../../gfx/materials';
+import type { TileObject } from '../../../world/zone';
 import type { TreeNode } from '../../../game/unitTree';
 // the combat clips (cb_*) are registered with the animator when this loads; the menu does not load the fight otherwise
 import '../../../combat/anims';
 
-export type SetKey = 'combat' | 'medic' | 'weld' | 'bench' | 'cook' | 'garden' | 'pen' | 'store' | 'lab';
+export type SetKey = 'combat' | 'medic' | 'weld' | 'bench' | 'cook' | 'garden' | 'pen' | 'store' | 'lab' | 'grow';
 /** what the unit does: an action clip (the animator's names), its length, the rest between, and where it lands */
 export interface Act { name: string; dur: number; rest?: number; full?: string; hit?: number; two?: boolean; weapon?: string; alt?: string }
 export interface Shot { set: SetKey; act: Act; held?: string[]; heldL?: string[]; variant?: string }
@@ -43,6 +46,38 @@ const pick = (keys?: string[]) => keys?.find((k) => hasItemDef(k));
 const SHOTS = new Map<string, Shot>();
 /** HOOK: show this scene on the lattice's monitor for a node key, e.g. previewShot('pf_hd_milk', { set: 'pen', act: { name: 'craft', dur: 1.6, full: 'kneel' }, variant: 'milk' }) */
 export function previewShot(key: string, shot: Shot) { SHOTS.set(key, shot); }
+// round 25, the farm and the yard (src/game/economy/trades.ts, registry.ts HUSBANDRY): their nodes' scenes
+// garden variants: 'harvest' a bed of ripe exit-sign peppers picked by hand, 'hydro' a fluorescent hydroponic tray of
+// strip cress, 'pest' a mint bed crawling with lint mites being sprayed; pen variants: 'hen' pallid hens pecking in the
+// straw, 'egg' the incubator among them, 'grub' carpet grubs on their silk; cook 'pickle' the larder's jars and the
+// cheese; lab 'herbal' bluecaps and tinctures on the bench, 'specimen' a scan of an egg and a cap under the lamp.
+const FARM_SHOTS: [string, Shot][] = [
+  ['pf_bt_yield', { set: 'garden', act: { name: 'harvest', dur: 1.8, rest: 0.4 }, variant: 'harvest' }],
+  ['pf_bt_pest', { set: 'garden', act: { name: 'shear', dur: 2.2, rest: 0.6 }, held: ['mite_spray'], variant: 'pest' }],
+  ['pf_bt_hydro', { set: 'garden', act: { name: 'harvest', dur: 1.8, rest: 0.5 }, variant: 'hydro' }],
+  ['pf_bt_herbal', { set: 'lab', act: { name: 'mix', dur: 2.4 }, held: ['hush_mint'], variant: 'herbal' }],
+  ['pf_bt_seeds', { set: 'garden', act: { name: 'harvest', dur: 1.8, rest: 0.4 }, variant: 'harvest' }],
+  ['pf_hd_milk', { set: 'pen', act: { name: 'milk', dur: 2.4, rest: 0.2 }, variant: 'milk' }],
+  ['pf_hd_breed', { set: 'pen', act: { name: 'harvest', dur: 1.8, rest: 0.6 }, variant: 'egg' }],
+  ['pf_hd_shear', { set: 'pen', act: { name: 'shear', dur: 2.2, rest: 0.4 }, held: ['shears'], variant: 'hen' }],
+  ['pf_hd_incub', { set: 'pen', act: { name: 'harvest', dur: 1.8, rest: 0.6 }, variant: 'egg' }],
+  ['pf_hd_water', { set: 'pen', act: { name: 'harvest', dur: 1.8, rest: 0.5 }, variant: 'grub' }],
+  ['pf_hd_hide', { set: 'pen', act: { name: 'shear', dur: 2.2, rest: 0.4 }, held: ['shears'], variant: 'grub' }],
+  ['pf_ck_pickle', { set: 'cook', act: { name: 'mix', dur: 2.2 }, held: ['exit_pepper'], variant: 'pickle' }],
+  ['pf_ck_cheese', { set: 'cook', act: { name: 'saw', dur: 1.4 }, held: ['knife_kitchen'], variant: 'pickle' }],
+  ['pf_ck_larder', { set: 'cook', act: { name: 'mix', dur: 2.2 }, held: ['pickle_jar'], variant: 'pickle' }],
+  ['pf_sc_forage', { set: 'garden', act: { name: 'harvest', dur: 1.8, rest: 0.4 }, variant: 'pest' }],
+  ['pf_rs_specimen', { set: 'lab', act: { name: 'scanner', dur: 3 }, held: ['data_probe', 'multimeter'], variant: 'specimen' }],
+  ['pf_rs_codex', { set: 'lab', act: { name: 'scanner', dur: 3 }, held: ['data_probe', 'multimeter'], variant: 'specimen' }],
+  ['pf_c_crude', { set: 'combat', act: { name: 'cb_club', dur: 0.48, rest: 0.9, hit: 0.5, weapon: 'blunt', alt: 'swing' }, held: ['spiked_club', 'bat'] }],
+  ['hb_hydro', { set: 'garden', act: { name: 'harvest', dur: 1.8, rest: 0.5 }, variant: 'hydro' }],
+  ['hb_ipm', { set: 'garden', act: { name: 'shear', dur: 2.2, rest: 0.6 }, held: ['mite_spray'], variant: 'pest' }],
+  ['hb_incubate', { set: 'pen', act: { name: 'harvest', dur: 1.8, rest: 0.6 }, variant: 'egg' }],
+  ['hb_breeding', { set: 'pen', act: { name: 'pour', dur: 2.6 }, held: ['feed_sack', 'bucket'], variant: 'hen' }],
+  ['bp_hydro_tray', { set: 'garden', act: { name: 'harvest', dur: 1.8, rest: 0.5 }, variant: 'hydro' }],
+];
+// the grow room is its own set (bright tubes, a hydroponic tray, beds at every stage): the garden variants play there
+for (const [k, sh] of FARM_SHOTS) previewShot(k, sh.set === 'garden' ? { ...sh, set: 'grow', act: sh.variant === 'hydro' ? { name: 'craft', dur: 2.2 } : sh.act } : sh);
 /** the scene for a lattice node: its trade (or research branch), its lane, its key */
 export function shotFor(n: TreeNode): Shot {
   const k = n.key, br = n.branch;
@@ -91,7 +126,40 @@ interface SetV {
   dummy?: { g: THREE.Group; w: Wobble; down: THREE.Group; bag: THREE.Group };
   patient?: { at: THREE.Vector3; yaw: number };
   props: THREE.Object3D[];
+  /** round 25: the set's own framing, restored when a variant has moved it; and each variant's extra props */
+  base?: { at: THREE.Vector3; yaw: number; look: THREE.Vector3; cam: THREE.Vector3 };
+  vp?: Map<string, THREE.Group>;
 }
+
+// ================================================================== variants (round 25: the farm and the yard)
+type V2 = [number, number];
+interface VariantDef {
+  /** the unit's spot and facing, the camera's look-at and offset */
+  at?: V2; yaw?: number; look?: [number, number, number]; cam?: [number, number, number];
+  /** world objects (their own models, src/content/furniture) placed in the set: key, state, x, z, turn (quarter turns) */
+  objs?: [string, Record<string, unknown>, number, number, number?][];
+  /** item models on surfaces: keys (first defined), position, rotation */
+  items?: [string[], [number, number, number], [number, number, number]?, number?][];
+  /** the animals in the pen */
+  beasts?: 'pale_hen' | 'carpet_grub' | 'moon_calf';
+}
+const VARIANTS: Record<string, VariantDef> = {
+  'grow:harvest': { at: [-1.64, 0.3], yaw: Math.PI / 2, look: [-0.95, 0.62, 0.15], cam: [1.15, 0.72, 2.05] },
+  'grow:pest': { at: [-0.12, 0.45], yaw: Math.PI / 2, look: [0.3, 0.75, 0.35], cam: [0.75, 0.6, 2.0] },
+  'grow:hydro': { at: [0.5, -0.7], yaw: Math.PI / 2, look: [0.95, 1.0, -0.6], cam: [-0.6, 0.55, 2.2] },
+  'pen:hen': { beasts: 'pale_hen', at: [-0.32, -0.3], yaw: 0.05, look: [-0.2, 0.55, 0.0], cam: [0.55, 0.75, 2.3] },
+  'pen:egg': { beasts: 'pale_hen', at: [0.3, -0.3], yaw: -0.1, look: [0.2, 0.5, 0.05], cam: [0.65, 0.85, 2.3],
+    items: [[['incubator'], [0.28, 0.012, 0.25], [0, 0.3, 0], 1.3], [['pallid_egg'], [0.62, 0.03, 0.42], [0, 0, 0.2], 1.4], [['feed_sack'], [1.15, 0, -1.05], [0, -0.3, 0]]] },
+  'pen:grub': { beasts: 'carpet_grub', at: [-0.15, -0.45], yaw: 0.1, look: [0.0, 0.8, -0.1], cam: [0.55, 0.72, 2.75], items: [[['grub_silk'], [0.45, 0.03, 0.45], [0, 0.7, 0], 1.5], [['watering_can', 'bucket'], [1.1, 0, -0.95], [0, -0.6, 0]]] },
+  'pen:milk': { beasts: 'moon_calf' },
+  'cook:pickle': { at: [1.05, -0.78], yaw: 0, look: [0.95, 1.05, -0.2], cam: [0.25, 0.45, 1.6], items: [[['pickle_jar'], [1.3, 0.955, -0.12], [0, 0.3, 0], 1.6], [['moon_cheese'], [0.82, 0.975, 0.0], [0, 0.6, 0], 1.6], [['salted_eggs'], [1.5, 0.955, 0.02], [0, -0.4, 0], 1.6], [['potted_meat'], [1.12, 0.955, 0.08], [0, 0.2, 0], 1.6], [['exit_pepper'], [0.6, 0.975, -0.05], [0, 1.1, 0], 1.6]] },
+  'lab:herbal': { look: [-0.05, 1.02, -0.3], cam: [0.6, 0.38, 1.35], items: [[['bluecap'], [-0.3, 0.912, -0.22], [0, 0.4, 0], 1.6], [['tincture_bluecap'], [0.36, 0.912, -0.12], [0, 0.3, 0], 1.6], [['tincture_hush'], [0.46, 0.912, -0.02], [0, -0.4, 0], 1.6], [['hush_mint'], [-0.05, 0.912, -0.12], [0, 0.9, 0], 1.6], [['herb_salve'], [0.24, 0.912, 0.0], [0, 0, 0], 1.6]] },
+  'lab:specimen': { look: [-0.05, 1.02, -0.3], cam: [0.6, 0.38, 1.35], items: [[['pallid_egg'], [-0.25, 0.912, -0.2], [0, 0.3, 0], 1.6], [['bluecap'], [0.02, 0.912, -0.12], [0, 1.2, 0], 1.6], [['grub_silk'], [0.32, 0.912, -0.05], [0, -0.5, 0], 1.6], [['hen_down'], [-0.45, 0.912, -0.05], [0, 0, 0], 1.6]] },
+};
+const BEAST_AT: Record<string, [number, number, number, number][]> = {
+  pale_hen: [[-0.95, -0.15, 0.5, 1.0], [0.95, 0.12, -2.3, 0.95], [-0.32, 0.18, 2.6, 1.05]],
+  carpet_grub: [[-0.75, -0.2, 0.4, 1.0], [0.1, 0.25, -1.9, 1.1], [0.95, -0.05, 2.5, 0.9]],
+};
 
 const GRADE: Grade = { exposure: 1.45, lift: [0.84, 0.95, 1.1], gain: [1.1, 1.0, 0.9], vig: 0.5, sat: 1.14, contrast: 1.12, haze: 0.25, hazeColor: 0x5a6a8a, ao: 0.9, aoRad: 0.22, scatter: 0.45, bounce: 0.3 };
 
@@ -107,6 +175,9 @@ export class ActionPreview implements StageView {
   private patient: HumanRig | null = null;
   private calf: { root: THREE.Object3D; rig: unknown; anim?: (r: unknown, t: number) => void } | null = null;
   private calfLoading = false;
+  /** round 25: the pen's other animals (pallid hens, carpet grubs), built from their species the first time */
+  private beasts = new Map<string, { root: THREE.Object3D; rig: unknown; anim?: (r: unknown, t: number) => void }[]>();
+  private beastLoading = new Set<string>();
   private mats: FMats; private low: boolean;
   private t = 0; private actT = 0; private fired = false;
   private yaw = 0; private pitch = 0; private zoomK = 1; private yawS = 0; private pitchS = 0; private zoomS = 1;
@@ -145,6 +216,7 @@ export class ActionPreview implements StageView {
     if (this.cur && this.cur !== set) this.cur.g.visible = false;
     this.cur = set; set.g.visible = true;
     this.actT = 0; this.fired = false;
+    const V = this.variant(set, s.variant);
     const a = this.ensureActor();
     set.g.add(a.root);
     a.root.position.copy(set.at); a.root.rotation.y = set.yaw;
@@ -162,7 +234,7 @@ export class ActionPreview implements StageView {
       set.g.add(p.root); p.root.position.copy(set.patient.at); p.root.rotation.y = set.patient.yaw; p.root.visible = true;
     } else if (this.patient) this.patient.root.visible = false;
     if (set.dummy) { set.dummy.g.visible = s.variant !== 'down' && s.variant !== 'bag'; set.dummy.down.visible = s.variant === 'down'; set.dummy.bag.visible = s.variant === 'bag'; }
-    if (s.set === 'pen') this.ensureCalf(set);
+    if (s.set === 'pen') { const kind = V?.beasts ?? 'moon_calf'; if (kind === 'moon_calf') this.ensureCalf(set); this.showBeasts(set, kind); }
     for (const p of this.puffs) p.m.visible = false;
     this.spark.length = 0;
     if (this.thrown) this.thrown.visible = false;
@@ -189,7 +261,15 @@ export class ActionPreview implements StageView {
     if (on && !this.fired && this.actT >= hitAt) { this.fired = true; this.onHit(set, s); }
     if (this.patient?.root.visible) this.patient.update(dt, { speed: 0, stance: 'stand', full: 'sit', action: '', fidget: true } as never);
     if (this.patient?.root.visible) this.posePatient(this.patient, t);
-    if (set.key === 'pen' && this.calf?.anim) { try { this.calf.anim(this.calf.rig, (t % 3.95)); } catch { /* a pose that wants the world */ } }
+    if (set.key === 'pen' && this.calf?.anim && this.calf.root.visible) { try { this.calf.anim(this.calf.rig, (t % 3.95)); } catch { /* a pose that wants the world */ } }
+    for (const [k, list] of this.beasts) for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (!b.root.visible || !b.anim || set.key !== 'pen') continue;
+      try { b.anim(b.rig, t * (0.9 + i * 0.07) + i * 3.1); } catch { /* */ }
+      void k;
+    }
+    // the spray drifts off the nozzle over the mint, red with pepper
+    if (set.key === 'grow' && s.variant === 'pest' && on && this.actT > A.dur * 0.25 && Math.random() < dt * 16) this.addPuff(new THREE.Vector3(0.22 + Math.random() * 0.2, 0.78, 0.42 + (Math.random() - 0.5) * 0.2), 0xffc8b8, 0.7, 0.04, -0.3);
     set.tick?.(dt, t, this.fired ? Math.max(0, 1 - (this.actT - hitAt) * 3) : 0, on ? this.actT / A.dur : 0);
     // the practical lamp (a weld arc stutters, a burner breathes)
     set.prac.intensity = set.pracBase * set.pracK(t, on ? 1 : 0);
@@ -247,6 +327,58 @@ export class ActionPreview implements StageView {
     p.j.head.rotation.set(0.05, 0.55 + Math.sin(t * 0.4) * 0.05, 0);
     p.j.uarmR.rotation.set(-0.35, 0, -0.25); p.j.farmR.rotation.set(-1.2, 0, 0);
   }
+  /** the set's framing and props for a variant (restoring its own first); returns the variant's definition */
+  private variant(set: SetV, v?: string): VariantDef | undefined {
+    set.base ||= { at: set.at.clone(), yaw: set.yaw, look: set.look.clone(), cam: set.cam.clone() };
+    set.at.copy(set.base.at); set.yaw = set.base.yaw; set.look.copy(set.base.look); set.cam.copy(set.base.cam);
+    set.vp ||= new Map();
+    for (const g of set.vp.values()) g.visible = false;
+    const V = VARIANTS[`${set.key}:${v ?? ''}`];
+    if (!V) return undefined;
+    if (V.at) { set.at.x = V.at[0]; set.at.z = V.at[1]; }
+    if (V.yaw !== undefined) set.yaw = V.yaw;
+    if (V.look) set.look.set(...V.look);
+    if (V.cam) set.cam.set(...V.cam);
+    let g = set.vp.get(v!);
+    if (!g) {
+      g = new THREE.Group(); g.name = 'variant:' + v;
+      for (const [key, st, x, z, r] of V.objs ?? []) { const m = objMesh(key, st, r ?? 0); if (m) { m.position.set(x, 0, z); g.add(m); } }
+      // the variant's exhibits sit a little larger than life so they read on the monitor
+      for (const [keys, p, r, sc] of V.items ?? []) {
+        const k = pick(keys); const m = k ? makeHeldMesh(k) : null; if (!m) continue;
+        m.position.set(...p); if (r) m.rotation.set(...r); if (sc) m.scale.setScalar(sc);
+        // a held mesh hangs from its grip: stand it on the surface instead
+        m.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(m); m.position.y += p[1] - bb.min.y;
+        m.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh) { me.castShadow = true; me.receiveShadow = true; } });
+        g.add(m);
+      }
+      set.g.add(g); set.vp.set(v!, g);
+    }
+    g.visible = true;
+    return V;
+  }
+  /** the pen's animals for a variant: the calf, or a few pallid hens / carpet grubs, the others hidden */
+  private showBeasts(set: SetV, kind: string) {
+    if (this.calf) this.calf.root.visible = kind === 'moon_calf';
+    for (const [k, list] of this.beasts) for (const b of list) b.root.visible = k === kind;
+    if (kind === 'moon_calf' || this.beasts.has(kind) || this.beastLoading.has(kind)) return;
+    this.beastLoading.add(kind);
+    const load = kind === 'pale_hen' ? import('../../../creatures/species/pale_hen') : import('../../../creatures/species/carpet_grub');
+    load.then(() => {
+      const sp = species(kind) as { build(): { root: THREE.Object3D }; animateGallery?: (r: unknown, t: number) => void } | undefined;
+      if (!sp || !this.sets.has('pen')) return;
+      const list = (BEAST_AT[kind] ?? []).map(([x, z, yaw, sc]) => {
+        const rig = sp.build();
+        rig.root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.frustumCulled = false; } });
+        rig.root.position.set(x, 0, z); rig.root.rotation.y = yaw; rig.root.scale.setScalar(sc * 1.25);
+        (this.sets.get('pen') ?? set).g.add(rig.root);
+        return { root: rig.root, rig: rig as unknown, anim: sp.animateGallery };
+      });
+      this.beasts.set(kind, list);
+      const want = this.shot?.set === 'pen' ? (VARIANTS['pen:' + (this.shot.variant ?? '')]?.beasts ?? 'moon_calf') : '';
+      for (const b of list) b.root.visible = want === kind;
+    }).catch((e) => console.warn('[preview] no', kind, e)).finally(() => this.beastLoading.delete(kind));
+  }
   private async ensureCalf(set: SetV) {
     if (this.calf) { set.g.add(this.calf.root); return; }
     if (this.calfLoading) return;
@@ -260,6 +392,7 @@ export class ActionPreview implements StageView {
       rig.root.position.set(-0.72, 0, -0.42); rig.root.rotation.y = Math.PI / 2; rig.root.scale.setScalar(1.15);
       this.calf = { root: rig.root, rig, anim: sp?.animateGallery };
       (this.sets.get('pen')?.g ?? set.g).add(rig.root);
+      rig.root.visible = !this.shot || this.shot.set !== 'pen' || (VARIANTS['pen:' + (this.shot.variant ?? '')]?.beasts ?? 'moon_calf') === 'moon_calf';
     } catch (e) { console.warn('[preview] no moon calf', e); }
   }
 
@@ -390,11 +523,21 @@ export class ActionPreview implements StageView {
     for (const d of this.disposables) d.dispose();
     this.sparks.geometry.dispose(); (this.sparks.material as THREE.Material).dispose();
     this.scene.clear();
-    this.sets.clear(); this.cur = null; this.shot = null; this.calf = null;
+    this.sets.clear(); this.cur = null; this.shot = null; this.calf = null; this.beasts.clear();
   }
 }
 
 const Y = new THREE.Vector3(0, 1, 0), ORIGIN = new THREE.Vector3(), COL = new THREE.Color();
+/** a world object's own model (planters, the hydro tray, the pen: src/content/furniture) as a set prop */
+function objMesh(key: string, state: Record<string, unknown>, rot: number): THREE.Mesh | null {
+  const d = objDef(key); if (!d) return null;
+  const g = objectGeometry(d, { uid: 0, key, x: 0, y: 0, rot, state } as unknown as TileObject);
+  if (!g) return null;
+  const m = new THREE.Mesh(g, worldMaterial({}));
+  // 'prop:' : the geometry is the world's cache, not ours to dispose
+  m.name = 'prop:obj:' + key; m.rotation.y = -rot * Math.PI / 2; m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
 const PUFF_GEO = new THREE.PlaneGeometry(1, 1);
 
 // what the unit wears for each kind of work (the game's own clothes)
@@ -408,6 +551,7 @@ const OUTFIT: Record<SetKey, string[]> = {
   pen: ['hoodie', 'jeans', 'boots_work'],
   store: ['hoodie', 'jeans', 'sneakers'],
   lab: ['lab_coat', 'slacks', 'dress_shoes'],
+  grow: ['hoodie', 'jeans', 'boots_work', 'gloves_rubber'],
 };
 
 interface BuildCtx {
@@ -757,6 +901,58 @@ const BUILD: Record<SetKey, Builder> = {
       set.at.set(-0.15, 0.0, -0.82); set.yaw = 0; set.look.set(-0.1, 0.98, -0.45); set.cam.set(0.95, 0.55, 2.3); set.fov = 40;
       set.pracK = () => 1;
       set.tick = (dt, _t, _h, act) => { if (act > 0.3 && act < 0.8 && Math.random() < dt * 12) c.prev.addPuff(new THREE.Vector3(-0.05, 0.6, -0.3), 0xc8e8ff, 0.6, 0.03, -0.6); };
+    },
+  },
+  // ---- THE GROW ROOM (round 25): pale tiles under racks of fluorescent tubes; a hydroponic tray of strip cress down the
+  // right wall, a fungus bed of glowing bluecaps in the back corner, beds at every stage (cress just sprouting, cotton
+  // burst, peppers ripe and red, hush mint crawling with mites, one bed wilted), the irrigation line along the back,
+  // seed on a shelf, a can and a hoe. The unit kneels at the pepper bed and picks by hand.
+  grow: {
+    shell: { w: 4.4, d: 3.8, wall: 0x9ab8a4, floor: 'tile', floorCol: 0xa8b0a2, tileCol: 0xdde8d8, wains: 1.2 },
+    light: { key: [1.1, 2.7, 1.4], keyAt: [-0.3, 0.5, -0.3], keyCol: 0xf6fbff, keyI: 30, fill: [-1.4, 1.9, 1.4], fillCol: 0xd8eeff, fillI: 6, prac: [0.9, 1.6, -0.7], pracCol: 0xeafff2, pracI: 2.4, pracDist: 2.8 },
+    make(c) {
+      const { b, set, g } = c;
+      const O = (key: string, st: Record<string, unknown>, x: number, z: number, r = 0) => { const m = objMesh(key, st, r); if (m) { m.position.set(x, 0, z); g.add(m); } };
+      // a third wall on the right (the hydro tray's shot looks that way): tiles to the wainscot, paint above, a skirting
+      b.add('paint', cbox(0.08, 2.7, 3.8, 0.006), 0x9ab8a4, at(2.24, 1.35, 0), { rep: 0.9 });
+      b.add('tile', cbox(0.03, 1.2, 3.8, 0.004), 0xdde8d8, at(2.19, 0.6, 0), { rep: 0.15 });
+      b.add('wood', cbox(0.04, 0.1, 3.8, 0.004), 0x3a5a44, at(2.17, 0.05, 0));
+      O('bld_hydro_tray', { crop: 'strip_cress', stage: 4, water: 80 }, 1.45, -0.7, 1);
+      O('bld_fungus_bed', { crop: 'bluecap', stage: 4, water: 60 }, -1.6, -1.45);
+      O('bld_planter', { crop: 'lint_cotton', stage: 4, water: 60 }, -0.55, -1.48);
+      O('bld_planter', { crop: 'strip_cress', stage: 1, water: 70 }, 0.42, -1.5);
+      O('bld_planter', { crop: 'exit_pepper', stage: 4, water: 70, tilled: true }, -0.85, 0.3);
+      O('bld_planter', { crop: 'hush_mint', stage: 3, water: 70, pest: 0.85 }, 0.55, 0.45);
+      O('bld_planter', { crop: 'exit_pepper', stage: 5, water: 10 }, -1.72, -0.45, 1);
+      // the tube racks over the beds: green steel hoods on chains, two tubes each, a pool of light on the soil
+      for (const [x, z, w] of [[-0.85, 0.3, 1.1], [0.55, 0.45, 1.1], [-0.1, -1.48, 2.2]] as [number, number, number][]) {
+        b.add('metal', cbox(w, 0.05, 0.26, 0.01), 0x3a5a44, at(x, 2.15, z));
+        for (const dz of [-0.06, 0.06]) b.add('lamp', cbox(w - 0.08, 0.022, 0.03, 0.004), 0xf4fff8, at(x, 2.115, z + dz));
+        for (const dx of [-w * 0.4, w * 0.4]) b.add('chrome', prism(0.005, 0.55, 4), 0xffffff, at(x + dx, 2.45, z));
+        const pool = glowCard(w + 0.5, 0.9, 0xf0fff4, 0.07); pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.5, z); g.add(pool);
+      }
+      // irrigation along the back wall: a copper line, drip spurs, a brass tap and a green hose to the front beds
+      b.add('copper', tube([[-2.0, 0.62, -1.82], [2.0, 0.62, -1.82]], 0.016, 2, 6, false), 0xc87a4a);
+      for (let i = 0; i < 10; i++) b.add('copper', prism(0.006, 0.1, 4), 0xc87a4a, at(-1.8 + i * 0.4, 0.57, -1.8));
+      b.add('brass', lathe([[0, 0], [0.05, 0], [0.05, 0.02], [0, 0.03]], 6), 0xc8a050, at(-2.0, 1.0, -1.82, Math.PI / 2));
+      b.add('rubber', tube([[-1.95, 0.98, -1.78], [-1.9, 0.04, -1.0], [-1.25, 0.03, 0.85], [0.1, 0.03, 0.95]], 0.016, 14, 5), 0x2e6a3a);
+      // a shelf of seed and spray on the back wall, a timer box, a clipboard
+      b.add('wood', cbox(1.2, 0.03, 0.26, 0.006), 0x8a6a48, at(-0.4, 1.32, -1.76));
+      for (const x of [-0.9, 0.1]) b.add('metal', cbox(0.03, 0.18, 0.2, 0.004), 0x4a4e50, at(x, 1.23, -1.78));
+      c.item(['spawn_bluecap'], [-0.85, 1.335, -1.74], [0, 0.3, 0]);
+      c.item(['seeds_cress'], [-0.55, 1.335, -1.72], [0, 0.6, 0]);
+      c.item(['seeds_pepper'], [-0.3, 1.335, -1.72], [0, -0.4, 0]);
+      c.item(['mite_spray'], [0.0, 1.335, -1.74]);
+      c.item(['seeds_mint'], [-0.1, 1.335, -1.7], [0, 0.2, 0]);
+      b.add('paint', cbox(0.22, 0.28, 0.06, 0.01), 0xe8e0c8, at(1.0, 1.4, -1.86));
+      b.add('lamp', cbox(0.06, 0.03, 0.004, 0.001), 0x3aff6a, at(1.0, 1.46, -1.828));
+      c.item(['watering_can', 'bucket'], [0.0, 0.0, 0.95], [0, -0.7, 0]);
+      c.item(['hoe'], [-2.08, 0.02, 0.6], [0, 0.2, 1.25]);
+      c.item(['exit_pepper'], [-0.2, 0.0, 0.85], [0, 0.4, 0]);
+      c.glb('gallon', [1.7, 0, 0.75], 30);
+      c.glb('plant_small', [1.85, 0, 1.1], 60);
+      set.at.set(-1.48, 0.0, 0.3); set.yaw = Math.PI / 2; set.look.set(-0.95, 0.62, 0.15); set.cam.set(1.15, 0.72, 2.05); set.fov = 40;
+      set.pracK = (t) => 1 + Math.sin(t * 47) * 0.015;
     },
   },
   // ---- THE PEN: plank fencing, straw bedding, a trough in the middle with the moon calf at it side on; the handler

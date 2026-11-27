@@ -47,6 +47,7 @@ import {
 } from './matter';
 import { wireHomestead, penStep, homesteadUpdate } from './homestead';
 import { seedEconomyLoot } from '../../content/items/ze_economy';
+import { seedFarmLoot } from '../../content/items/zf_farm';
 import { selfThought } from '../debt/voice';
 import { wireFabCamp } from './fabCamp';
 import './registry';
@@ -110,7 +111,7 @@ let wired = false;
 export function installEconomy(g: Game) {
   wireHomestead();
   wireFabCamp();
-  try { seedEconomyLoot(); } catch (e) { console.warn('economy loot', e); }
+  try { seedEconomyLoot(); seedFarmLoot(); } catch (e) { console.warn('economy loot', e); }
   g.addSystem(new EconomySystem());
   setScripPerToken(hasUnlock('pr_stamp') ? 15 : 25);
   migratePressTokens();

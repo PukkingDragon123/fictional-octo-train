@@ -1,5 +1,5 @@
 import { G } from '../game/G';
-import { profFromSkill } from '../game/professions';
+import { profFromSkill, profMul } from '../game/professions';
 import { GameSystem } from '../game/game';
 import { Player } from '../entities/player';
 import { bus } from '../core/events';
@@ -129,7 +129,9 @@ export class SurvivalSystem implements GameSystem {
       if (p.lightItem.uses <= 0) { p.flashlightOn = false; bus.emit('think', p, 'The batteries are dead.'); }
     }
     // food in inventory ages (fridge handled by containers system)
-    for (const it of p.allItems()) it.age += dh;
+    // round 25: the Larder and Pickling trades ('preserve') slow it for food
+    const keep = 1 / Math.max(0.2, profMul('preserve'));
+    for (const it of p.allItems()) it.age += itemDef(it.key).food ? dh * keep : dh;
     p.body.update(dh, dt, env);
     this.mind.update(p, env, dt, dh);
     this.quirks.update(p, env, dt);

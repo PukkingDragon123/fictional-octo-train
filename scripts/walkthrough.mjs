@@ -16,7 +16,7 @@ const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
 let failed = 0, passed = 0;
 /** steps in a full run (main chain + side chain); update when a step is added */
-const EXPECT = 41;
+const EXPECT = 43;
 
 async function session() {
   const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
@@ -347,6 +347,67 @@ if (!mainOnly) {
     const c1 = m.profTotal('combat'), e1 = m.profTotal('engineer');
     if (!(c1 > c0) || !(e1 > e0)) throw new Error(`no trade xp: combat ${c0}->${c1}, engineer ${e0}->${e1}`);
     return { combat: [c0, c1, m.profLevel('combat')], engineer: [e0, e1] };
+  });
+  // round 25: the farm and the yard (src/build/farm.ts, src/game/economy/homestead.ts)
+  await S('farm: a hydroponic tray of exit-sign peppers sown, grown under its own tubes, harvested by hand (peppers, seed, Botanist xp)', async () => {
+    const T = window.T, pm = await import('/src/game/professions.ts'), ops = await import('/src/game/ops.ts'), rng = await import('/src/core/rng.ts');
+    const farm = T.g.systems.find((s) => s.name === 'build').farm;
+    const z = T.g.getZone(T.p.zoneKey), uid = rng.uid();
+    const [x, y] = T.g.nearestWalkable(z, T.p.tileX() + 2, T.p.tileY());
+    ops.op('objAdd', { z: z.key, obj: { uid, key: 'bld_hydro_tray', x, y, rot: 0, state: { built: 1 } } });
+    const o = z.objects.get(uid); if (!o) throw new Error('no tray');
+    T.p.inv.add(window.__dev.newItem('seeds_pepper')); T.emitInv();
+    T.near(o); await T.sleep(300);
+    const b0 = pm.profTotal('botanist');
+    await T.menu(o, 'Pepper Seed');
+    await T.until(() => o.state.crop === 'exit_pepper', 30000, 'sown');
+    // a few game days under the tubes (kept watered, kept clean)
+    let i = 0;
+    for (; i < 60 && Math.floor(o.state.stage ?? 0) < 4; i++) { o.state.water = 100; o.state.pest = 0; o.state.blight = 0; farm.update(4); }
+    if (Math.floor(o.state.stage ?? 0) < 4) throw new Error('did not ripen: stage ' + o.state.stage);
+    const n0 = T.p.allItems().filter((it) => it.key === 'exit_pepper').length;
+    await T.menu(o, 'Harvest');
+    await T.until(() => !o.state.crop, 30000, 'harvested');
+    const n1 = T.p.allItems().filter((it) => it.key === 'exit_pepper').length, b1 = pm.profTotal('botanist');
+    if (!(n1 > n0)) throw new Error('no peppers');
+    if (!(b1 > b0)) throw new Error('no botanist xp');
+    return { peppers: n1 - n0, hours: i * 4, botanist: [b0, b1] };
+  });
+  await S('yard: a pallid hen tamed by hand, led into a pen, fed and watered, lays; eggs collected (Handler xp)', async () => {
+    const T = window.T, pm = await import('/src/game/professions.ts'), ops = await import('/src/game/ops.ts'), rng = await import('/src/core/rng.ts'), hs = await import('/src/game/economy/homestead.ts');
+    const z = T.g.getZone(T.p.zoneKey), uid = rng.uid();
+    const [x, y] = T.g.nearestWalkable(z, T.p.tileX() - 4, T.p.tileY());
+    ops.op('objAdd', { z: z.key, obj: { uid, key: 'bld_pen', x, y, rot: 0, state: { built: 1 } } });
+    const pen = z.objects.get(uid); if (!pen) throw new Error('no pen');
+    for (const k of ['strip_cress', 'strip_cress', 'strip_cress', 'feed_mash', 'water_bottle']) T.p.inv.add(window.__dev.newItem(k));
+    T.emitInv();
+    // she is set down at the unit's feet (a walkable spot: no wall between the hand and the hen)
+    const hen = T.g.creatures.spawn('pale_hen', z.key, T.p.x + 0.25, T.p.z + 0.1, {}); if (!hen) throw new Error('no hen');
+    const h0 = pm.profTotal('handler');
+    for (let i = 0; i < 4 && !hen.tamedBy; i++) {
+      const f0 = hen.feeds;
+      const op = T.g.creatures.menuOptions(T.p, hen).find((q) => q.label === 'Offer food');
+      if (!op || op.disabled) throw new Error('cannot offer food: ' + (op && op.disabled));
+      op.action();
+      await T.until(() => hen.feeds > f0, 30000, 'fed by hand');
+    }
+    if (!hen.tamedBy) throw new Error('not tamed');
+    T.near(pen); await T.sleep(300);
+    await T.menu(pen, 'Lead the pallid hen in');
+    if (hen.mem.pen !== pen.uid) throw new Error('not penned');
+    await T.menu(pen, 'Fill the trough');
+    await T.until(() => (pen.state.feed ?? 0) > 0, 30000, 'trough');
+    await T.menu(pen, 'Fill the water pan');
+    await T.until(() => (pen.state.water ?? 0) > 0, 30000, 'water');
+    hs.homesteadUpdate(12);
+    const eggs = (pen.state.store || {}).pallid_egg | 0;
+    if (!eggs) throw new Error('nothing laid: ' + JSON.stringify(pen.state.store));
+    const e0 = T.p.allItems().filter((it) => it.key === 'pallid_egg').length;
+    await T.menu(pen, 'Collect from the straw');
+    await T.until(() => T.p.allItems().filter((it) => it.key === 'pallid_egg').length > e0, 30000, 'collected');
+    const h1 = pm.profTotal('handler');
+    if (!(h1 > h0)) throw new Error('no handler xp');
+    return { eggs: T.p.allItems().filter((it) => it.key === 'pallid_egg').length - e0, feed: Math.round(pen.state.feed), water: Math.round(pen.state.water), handler: [h0, h1] };
   });
   await S('lobby: fit fuse 1', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 1); });
   await S('lobby: fit fuse 2', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 2); });

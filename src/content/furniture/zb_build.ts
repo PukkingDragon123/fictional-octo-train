@@ -10,7 +10,7 @@ import type { ModelBuilder } from '../../gfx/modelBuilder';
 import { makeRamp, ph, bayer } from '../../gfx/pixel';
 import { rod } from './b_common';
 import { PIECES, piece } from '../../build/pieces';
-import { lookOf, plantRow } from '../../game/economy/plantModels';
+import { lookOf, plantRow, plantVariant, drawTrouble } from '../../game/economy/plantModels';
 
 const T = ['build', 'buildable'];
 const SEAM = 0xffd890;
@@ -304,12 +304,13 @@ function crops(mb: ModelBuilder, s: Record<string, any>, y: number, w: number, n
     const h = 0.08 + Math.min(4, st) * 0.09;
     mb.cross(x, y, 0, 0.18 + st * 0.05, h, 'grass', { color: leaf, rot: i * 0.7, sway: 0.6 });
     if (st >= 4 && !dead) mb.sphere(x + 0.03, y + h * 0.55, 0.03, 0.04, 5, 4, 'plastic_white', { color: s.cc ?? 0xd83a2a });
+    if ((s.pest ?? 0) > 0.02 || (s.blight ?? 0) > 0.02) drawTrouble(mb, x, y, 0, st, s.pest ?? 0, s.blight ?? 0, i);
   }
 }
 defObj({
   key: 'bld_planter', name: 'Welded Planter', height: 0.55, block: 'low', sound: 'metal', flammable: 0, hp: 300,
   tags: [...T, 'farm', 'bplanter', 'station'], desc: 'A steel trough of dark soil cut with carpet fibre. Sow, water, wait under the lights.',
-  variant: (s) => `${s.crop ?? ''}:${Math.floor(s.stage ?? 0)}:${s.dead ? 1 : 0}:${(s.water ?? 0) > 20 ? 1 : 0}`,
+  variant: plantVariant,
   model: (mb, s) => {
     legs(mb, 0.84, 0.6, 0.18, 0.02);
     mb.box(0, 0.18, 0, 0.92, 0.3, 0.66, { all: 'bt_plate', top: (s.water ?? 0) > 20 ? 'bt_soil' : 'q_soil_bed' }, { color: 0xffffff });
@@ -322,7 +323,7 @@ defObj({
   key: 'bld_hydro', name: 'Hydro Rack', height: 1.8, block: 'solid', sound: 'metal', flammable: 0, hp: 350,
   tags: [...T, 'farm', 'bplanter', 'hydro', 'station'], desc: 'Two trays, a dripping pipe loop and a row of warm grow bulbs. Grows fast, drinks little.',
   light: { color: 0xffb878, intensity: 0.45, radius: 2.5, y: 1.0, kind: 'bulb', power: false },
-  variant: (s) => `${s.crop ?? ''}:${Math.floor(s.stage ?? 0)}:${s.dead ? 1 : 0}`,
+  variant: plantVariant,
   model: (mb, s) => {
     legs(mb, 0.86, 0.56, 1.75, 0.022, ST);
     for (const y of [0.25, 0.95]) {

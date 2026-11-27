@@ -22,6 +22,8 @@ import type { Matter } from './matter';
 import { DOLLARS_PER_TOKEN } from './money';
 // round 20: the fab machines' camp blueprints register with the rest (src/game/economy/fabCamp.ts)
 import './fabCamp';
+// round 25: the farm's trade nodes on the professions' branches (src/game/economy/trades.ts)
+import './trades';
 
 // ------------------------------------------------------------------ creation patterns
 export interface Pattern {
@@ -103,6 +105,12 @@ export const PLANTS: PlantDef[] = [
   { crop: 'hum_cap', name: 'Hum Cap', look: 'humcap', days: 4, yield: [2, 5], item: 'hum_cap', color: 0x5a7aa8, dark: true, seed: 'spawn_humcap', desc: 'Slate caps that lean toward electrical hum. Calming, eaten raw.' },
   { crop: 'tallow_puffball', name: 'Tallow Puffball', look: 'puffball', days: 2, yield: [1, 2], item: 'puffball', color: 0xf2eee4, dark: true, seed: 'spawn_puffball', desc: 'A fast white puffball. Harvest it white.' },
   { crop: 'ceiling_truffle', name: 'Ceiling Truffle', look: 'truffle', days: 9, yield: [1, 2], item: 'ceiling_truffle', color: 0x2a2220, dark: true, seed: '', forage: 'forage_truffle', desc: 'Fruits inside fallen ceiling tiles. Only ever found, never grown.' },
+  // round 25: the grow room (planters, hydro trays and fungus beds; bluecap and hush mint also grow wild)
+  { crop: 'bluecap', name: 'Bluecap', look: 'bluecap', days: 4, yield: [2, 4], item: 'bluecap', color: 0x3a6ad8, dark: true, seed: 'spawn_bluecap', forage: 'forage_bluecap', desc: 'A blue mushroom from drowned carpet whose gills glow cyan when it is ready. Bitter, numbing: the base of every tincture.' },
+  { crop: 'strip_cress', name: 'Strip Cress', look: 'cress', days: 2, yield: [2, 4], item: 'strip_cress', color: 0x8ad86a, seed: 'seeds_cress', desc: 'Cress that grows on felt under fluorescent tubes and nowhere else. Two days from seed to plate; fastest in a hydro tray.' },
+  { crop: 'exit_pepper', name: 'Exit-Sign Pepper', look: 'pepper', days: 5, yield: [3, 6], item: 'exit_pepper', color: 0xff3a2a, seed: 'seeds_pepper', desc: 'A chilli that ripens red under exit signs and keeps a little of their glow. Hot enough to keep mites off a crop.' },
+  { crop: 'lint_cotton', name: 'Lint Cotton', look: 'cotton', days: 6, yield: [2, 4], item: 'lint_boll', color: 0xdcd8d0, seed: 'seeds_cotton', desc: 'A shrub from the duct dust whose bolls burst into grey lint. Spun, it is thread; woven, cloth.' },
+  { crop: 'hush_mint', name: 'Hush Mint', look: 'mint', days: 3, yield: [2, 5], item: 'hush_mint', color: 0xb88ae8, seed: 'seeds_mint', forage: 'forage_mint', desc: 'Mint from under vent grilles. The leaves are cold; the flowers hum. Calming, chewed or steeped.' },
 ];
 for (const p of PLANTS) CROP_LOOK.set(p.crop, p.look);
 
@@ -115,13 +123,18 @@ export interface Livestock {
   feeds: number;
   /** produce: item, every N in-game hours while fed */
   produce: [string, number][];
+  /** round 25: how they breed in a pen (egg: an incubator hatches their eggs; pair: two of a kind make a third) */
+  breed?: 'egg' | 'pair';
   desc: string;
 }
 export const LIVESTOCK: Livestock[] = [
   { species: 'bumble_bee', name: 'Giant Bumble Bee', food: ['meat_raw', 'small_meat_raw', 'biomass', 'feed_mash', 'honeycomb'], feeds: 2, produce: [['honeycomb', 20], ['honey_wax', 30]], desc: 'Too fat to do anything but eat remains and make wax and honey. In a pen, it does exactly that.' },
   { species: 'tallow_pigeon', name: 'Tallow Pigeon', food: ['vent_tuber', 'feed_mash', 'lamp_moss', 'biomass', 'seeds_vent_tuber'], feeds: 3, produce: [['pigeon_egg', 14], ['pigeon_tallow', 24]], desc: 'Lays small waxy eggs and sheds curls of tallow you can scrape off with a thumbnail.' },
-  { species: 'moon_calf', name: 'Moon Calf', food: ['lamp_moss', 'feed_mash', 'biomass', 'lettuce', 'cabbage', 'almond_burr'], feeds: 2, produce: [['moon_milk', 18]], desc: 'Gives a jar of pale, faintly glowing milk a day if it is fed.' },
+  { species: 'moon_calf', name: 'Moon Calf', food: ['lamp_moss', 'feed_mash', 'biomass', 'lettuce', 'cabbage', 'almond_burr', 'strip_cress', 'hush_mint'], feeds: 2, produce: [['moon_milk', 18]], breed: 'pair', desc: 'Gives a jar of pale, faintly glowing milk a day if it is fed.' },
   { species: 'paper_grazer', name: 'Wallpaper Grazer', food: ['paper', 'feed_mash', 'wallpaper_ear', 'biomass'], feeds: 3, produce: [['biomass', 16], ['spawn_ear', 40]], desc: 'Eats paper and sheds fibrous dung that is half fungus spawn already.' },
+  // round 25: the yard's two new keepers (src/creatures/species/pale_hen.ts, carpet_grub.ts)
+  { species: 'pale_hen', name: 'Pallid Hen', food: ['strip_cress', 'feed_mash', 'lint_boll', 'seeds_cotton', 'vent_tuber', 'biomass'], feeds: 2, produce: [['pallid_egg', 10], ['hen_down', 30]], breed: 'egg', desc: 'A featherless hen the colour of candle wax, with a long neck and a soft down under its wings. Lays every half day if fed and watered; its eggs hatch in an incubator.' },
+  { species: 'carpet_grub', name: 'Carpet Grub', food: ['paper', 'feed_mash', 'strip_cress', 'lint_boll', 'biomass'], feeds: 3, produce: [['grub_silk', 16]], breed: 'pair', desc: 'A fat segmented larva that eats carpet and paper and spins a pale, strong silk round itself to sleep. Two in a pen breed.' },
 ];
 export const livestockOf = (sp: string) => LIVESTOCK.find((l) => l.species === sp);
 
@@ -134,6 +147,9 @@ export const HOMESTEAD: Piece[] = [
   { key: 'worktable', name: 'Carpenter\'s Workbench', cat: 'machine', kind: 'obj', obj: 'bld_worktable', w: 2, d: 1, h: 1.0, cost: [['plank', 5], ['nails', 8], ['scrap_metal', 1]], weld: 6, join: 'nail', stats: { comfort: 1 }, station: 'forge', desc: 'A heavy plank bench with a vice and a tool rack. Counts as a workbench.' },
   { key: 'lantern', name: 'Wax Lantern Post', cat: 'living', kind: 'obj', obj: 'bld_lantern', h: 1.7, cost: [['plank', 1], ['glass_shard', 2], ['wire', 1]], weld: 2, join: 'nail', stats: { comfort: 2 }, desc: 'A glass lantern on a post, burning a slow wax candle. Warm light for a room the tubes forgot.' },
   { key: 'pen', name: 'Livestock Pen', cat: 'farm', kind: 'obj', obj: 'bld_pen', w: 3, d: 2, h: 1.0, cost: [['plank', 6], ['nails', 10], ['rope', 1]], weld: 8, join: 'nail', node: 'bp_pen', stats: { food: 2 }, station: 'farm', desc: 'A plank fence round a bed of straw, a trough and a water pan. Lead a tamed animal in (E), fill the trough, collect what it makes.' },
+  // round 25: the grow room's tray table and the yard's water trough (src/content/furniture/zf_farm.ts)
+  { key: 'hydro_tray', name: 'Hydroponic Tray', cat: 'farm', kind: 'obj', obj: 'bld_hydro_tray', w: 2, d: 1, h: 1.75, cost: [['steel_frame', 1], ['plastic_scrap', 2], ['fluoro_tube', 1], ['pipe', 1]], weld: 7, node: 'bp_hydro_tray', stats: { food: 2 }, station: 'farm', desc: 'A nutrient tray on a steel table under its own pair of fluorescent tubes. Six plants at a time, twice as fast as soil. Two make a grow room.' },
+  { key: 'trough', name: 'Water Trough', cat: 'farm', kind: 'obj', obj: 'bld_trough', w: 2, d: 1, h: 0.7, cost: [['sheet_metal', 2], ['plank', 2], ['nails', 4]], weld: 5, join: 'nail', stats: { food: 1 }, station: 'farm', desc: 'A galvanised trough on trestles with a ball-cock. Every pen within two tiles drinks from it.' },
   { key: 'fungus_bed', name: 'Fungus Bed', cat: 'farm', kind: 'obj', obj: 'bld_fungus_bed', h: 0.5, cost: [['plank', 3], ['nails', 4], ['cloth', 1]], weld: 3, join: 'nail', node: 'bp_fungus', stats: { food: 1 }, station: 'farm', desc: 'A box of wet sawdust and coffee grounds under a damp sack. Fungi fruit fastest in the dark.' },
 ];
 for (const p of HOMESTEAD) defPiece(p);
@@ -143,6 +159,10 @@ export const HUSBANDRY: TreeOffer[] = [
   { key: 'hb_mycology', category: 'farm', lane: 'Plants & fungus', title: 'Mycology', cost: 3, item: 'carpet_morel', alt: ['seeds_potato'], desc: 'Spawn, substrate and darkness.', gives: 'fungi grow half again as fast' },
   { key: 'hb_compost', category: 'farm', lane: 'Plants & fungus', title: 'Hot Compost', cost: 4, item: 'biomass', requires: ['hb_mycology'], desc: 'Biomass worked into the soil.', gives: 'every harvest yields one more' },
   { key: 'hb_rations', category: 'farm', lane: 'Livestock', title: 'Feed Ratios', cost: 3, item: 'feed_mash', desc: 'Measured feed, no waste.', gives: 'a full trough lasts twice as long' },
+  // round 25
+  { key: 'hb_hydro', category: 'farm', lane: 'Plants & fungus', title: 'Nutrient Film', cost: 4, item: 'strip_cress', alt: ['seeds_potato'], requires: ['hb_mycology'], desc: 'Roots in moving water, not soil.', gives: 'hydro trays and racks grow a quarter faster again' },
+  { key: 'hb_ipm', category: 'farm', lane: 'Plants & fungus', title: 'Pest Watch', cost: 3, item: 'exit_pepper', alt: ['seeds_potato'], desc: 'Look under the leaves every morning.', gives: 'mites and blight take hold half as often' },
+  { key: 'hb_incubate', category: 'farm', lane: 'Livestock', title: 'Incubation', cost: 4, item: 'pallid_egg', alt: ['pigeon_egg'], requires: ['hb_rations'], desc: 'Warm, turned, never left.', gives: 'eggs hatch in two thirds the time' },
   { key: 'hb_breeding', category: 'farm', lane: 'Livestock', title: 'Selective Breeding', cost: 6, item: 'honeycomb', alt: ['honey_wax'], requires: ['hb_rations'], desc: 'Keep the ones that give the most.', gives: 'penned animals produce half again as often' },
 ];
 
@@ -166,7 +186,7 @@ const ITEM_FALLBACK = ['scrap_metal'];
 treeOffers([
   ...PATTERNS.map((p): TreeOffer => ({ key: p.key, category: 'matter', lane: p.lane, title: 'Pattern: ' + p.item.replace(/_/g, ' '), cost: p.rp, requires: p.requires, item: p.item, alt: ITEM_FALLBACK, desc: p.desc + ' Printed at the printer from filament spools and dollars.', gives: `the printer can make ${p.item.replace(/_/g, ' ')} (${p.tok} credits)` })),
   ...PRESS_UPGRADES.map((u): TreeOffer => ({ key: u.key, category: 'device', lane: 'Remittance Press', title: u.title, cost: u.rp, requires: u.requires, item: u.item, alt: ITEM_FALLBACK, desc: u.desc, gives: u.gives })),
-  ...HOMESTEAD.filter((p) => p.node).map((p): TreeOffer => ({ key: p.node!, category: 'build', lane: 'Homestead', title: p.name, cost: p.key === 'pen' ? 4 : 3, item: p.key === 'pen' ? 'rope' : 'spawn_ear', alt: ['plank'], desc: p.desc, gives: 'blueprint: ' + p.name })),
+  ...HOMESTEAD.filter((p) => p.node).map((p): TreeOffer => ({ key: p.node!, category: 'build', lane: 'Homestead', title: p.name, cost: p.key === 'pen' || p.key === 'hydro_tray' ? 4 : 3, item: p.key === 'pen' ? 'rope' : p.key === 'hydro_tray' ? 'fluoro_tube' : 'spawn_ear', alt: ['plank'], desc: p.desc, gives: 'blueprint: ' + p.name })),
   ...HUSBANDRY,
 ]);
 

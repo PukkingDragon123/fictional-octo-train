@@ -20,6 +20,7 @@ import { itemDef, type Item } from '../items/item';
 import { allRecipes, type Recipe } from '../items/recipes';
 import { resolveContainer } from '../game/worldOps';
 import { grantNode, hasUnlock, researchNode } from '../game/research';
+import { profMul, profXp } from '../game/professions';
 import type { Container } from '../items/container';
 import type { Player } from '../entities/player';
 import type { TileObject } from '../world/zone';
@@ -111,26 +112,35 @@ const DISCOVER_BP: [RegExp, string, string][] = [
   [/compactor|press/, 'bp_compactor', 'Scrap Compactor'],
 ];
 
-/** something was looked at closely or taken apart: learn what it teaches */
-export function discoverFrom(key: string, how: 'scan' | 'strip') {
+/**
+ * Something was looked at closely, taken apart or (round 25) found: grown, picked, milked, sheared, collected, an
+ * inhabitant scanned. Learn the schematics it teaches (recipes with it in `discover`). A scan always teaches; a find
+ * teaches sometimes, more often with the 'discover' trade stat (Codex Habit, Specimen Eye). Each find is a moment on
+ * screen (src/ui/discovery.ts: the lens, the thing, what it makes) and trains the Researcher trade.
+ */
+export function discoverFrom(key: string, how: 'scan' | 'strip' | 'find') {
   const p = G.local as (Player & { knownRecipes?: Set<string> }) | null;
   if (!p || !key) return;
   const known = p.knownRecipes || (p.knownRecipes = new Set<string>());
-  const learned: string[] = [];
-  for (const r of allRecipes()) {
-    if (!r.learned || known.has(r.key) || !r.discover?.includes(key)) continue;
-    known.add(r.key); learned.push(r.name);
+  const cand = allRecipes().filter((r) => r.learned && !known.has(r.key) && r.discover?.includes(key));
+  if (how === 'find') {
+    if (!cand.length || Math.random() > Math.min(1, 0.4 * profMul('discover'))) return;
+    // a find teaches one thing at a time (a second with a keen eye)
+    cand.splice(profMul('discover') > 1.25 ? 2 : 1);
   }
-  for (const [re, node, name] of DISCOVER_BP) {
+  const learned: string[] = [], keys: string[] = [];
+  for (const r of cand) { known.add(r.key); learned.push(r.name); keys.push(r.key); }
+  if (how !== 'find') for (const [re, node, name] of DISCOVER_BP) {
     if (!re.test(key) || hasUnlock(node) || !researchNode(node)) continue;
     grantNode(node); learned.push('blueprint: ' + name);
   }
   if (!learned.length) return;
   G.audio?.ui?.('nodeUnlock', 0.5);
-  const verb = how === 'scan' ? 'The scan shows how it is put together' : 'Taking it apart shows how it was made';
+  const verb = how === 'scan' ? 'The scan shows how it is put together' : how === 'find' ? 'Turning it over in my hands, I see what it is good for' : 'Taking it apart shows how it was made';
   bus.emit('think', p, `${verb}. ${learned.slice(0, 2).join(', ')}${learned.length > 2 ? ' and more' : ''}.`);
-  bus.emit('halo', p, 'Learned: ' + learned[0].replace(/^Cut |^Rivet |^Solder |^Rebuild /, ''), 'good');
   bus.emit('recipeDiscovered', learned);
+  bus.emit('discovery', { from: key, how, recipes: keys, names: learned });
+  if (keys.length) profXp('researcher', 4 * keys.length, 'discover');
   G.missions?.set?.('craft:discover');
 }
 
@@ -138,7 +148,7 @@ let wired = false;
 export function wireDiscovery() {
   if (wired) return;
   wired = true;
-  bus.on('scanEntry', (e: { kind: string; key: string }) => { if (e?.kind === 'item' || e?.kind === 'object') discoverFrom(e.key, 'scan'); });
+  bus.on('scanEntry', (e: { kind: string; key: string }) => { if (e?.kind === 'item' || e?.kind === 'object' || e?.kind === 'creature') discoverFrom(e.key, 'scan'); });
   bus.on('crafted', (p: Player, r: Recipe) => {
     if (p !== G.local || !r?.key?.startsWith('strip_')) return;
     discoverFrom(r.key.slice(6), 'strip');

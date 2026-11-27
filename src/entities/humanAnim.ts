@@ -46,6 +46,8 @@ export type ActionAnim =
   | 'drag' | 'smash' | 'kick_obj'
   /** Remittance Programme: hauled limp by the arms, curled under a beating, kneeling, landing hard, getting up, staggering, a BAILIFF shock */
   | 'dragged' | 'beaten' | 'kneel' | 'fall_land' | 'get_up' | 'stagger' | 'shocked'
+  /** round 25, the farm: hand harvest (kneel, grip, tug, pull, drop into the other hand), milking, shearing */
+  | 'harvest' | 'milk' | 'shear'
   /** any other name is accepted and falls back to plain locomotion */
   | (string & {});
 
@@ -1420,6 +1422,51 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
       set(q, 'thighL', -1.35 * d, 0, 0.12); set(q, 'shinL', 1.65 * d, 0, 0); set(q, 'footL', -0.3 * d, 0, 0);
       set(q, 'thighR', -0.45 * d, 0, -0.12); set(q, 'shinR', 1.9 * d, 0, 0); set(q, 'footR', 0.55 * d, 0, 0);
       q.gripR = pick && u > 0.5 ? 1 : 0.5; q.gripL = 0.5;
+      return { pose: q, mask: [...UPPER, ...LEGS] };
+    }
+    case 'harvest': {
+      // round 25, the farm: crouched at a bed, the right hand reaches in and takes the crop low, tugs it twice
+      // against the roots, pulls it up with a lean back, turns and drops it into the cupped left hand
+      const c = (t / 1.8) % 1;
+      const reach = c < 0.25 ? ease(c / 0.25) : c < 0.62 ? 1 : 1 - ease((c - 0.62) / 0.3);
+      const tug = c > 0.25 && c < 0.5 ? Math.sin((c - 0.25) / 0.25 * Math.PI * 4) : 0;
+      const pull = c > 0.5 && c < 0.75 ? Math.sin((c - 0.5) / 0.25 * Math.PI) : 0;
+      const drop = c > 0.72 ? Math.sin(Math.min(1, (c - 0.72) / 0.28) * Math.PI) : 0;
+      const q: Pose = {};
+      q.rootY = -0.52;
+      set(q, 'spine', 0.5 + reach * 0.2 - pull * 0.25, 0.08 * drop, 0); set(q, 'chest', 0.2 + tug * 0.05, -0.1 * reach + 0.25 * drop, 0); set(q, 'head', 0.4 - pull * 0.15, 0.2 * drop, 0);
+      set(q, 'uarmR', -0.6 - reach * 0.55 + pull * 0.5 + drop * 0.2, 0.1 + tug * 0.05, -0.15 - drop * 0.25); set(q, 'farmR', -0.45 - pull * 0.6 - drop * 0.9 + tug * 0.12, 0, 0); set(q, 'handR', 0.2 * reach - 0.3 * pull, 0, 0);
+      set(q, 'uarmL', -0.55 - drop * 0.25, -0.1, 0.25); set(q, 'farmL', -1.1 - drop * 0.3, 0.3, 0); set(q, 'handL', -0.5, 0, 0.6);
+      set(q, 'thighL', -1.35, 0, 0.14); set(q, 'shinL', 1.7, 0, 0); set(q, 'footL', -0.3, 0, 0);
+      set(q, 'thighR', -0.4, 0, -0.14); set(q, 'shinR', 1.95, 0, 0); set(q, 'footR', 0.55, 0, 0);
+      q.gripR = reach > 0.6 && c < 0.8 ? 1 : 0.3; q.gripL = 0.4 + drop * 0.4;
+      return { pose: q, mask: [...UPPER, ...LEGS] };
+    }
+    case 'milk': {
+      // kneeling at the flank: both hands under it, squeezing in turn, the head leaning in against the warm side
+      const r = Math.sin(t * 6), l = Math.sin(t * 6 + Math.PI);
+      const q: Pose = {};
+      q.rootY = -0.45;
+      set(q, 'spine', 0.42, 0.1, 0); set(q, 'chest', 0.12, 0.05, 0); set(q, 'head', 0.35, -0.25, 0.1);
+      set(q, 'uarmR', -0.95 + r * 0.08, 0.2, -0.08); set(q, 'farmR', -0.6 - Math.max(0, r) * 0.25, 0, 0); set(q, 'handR', 0.3, 0, 0);
+      set(q, 'uarmL', -0.95 + l * 0.08, -0.2, 0.08); set(q, 'farmL', -0.6 - Math.max(0, l) * 0.25, 0, 0); set(q, 'handL', 0.3, 0, 0);
+      set(q, 'thighL', -1.4, 0, 0.18); set(q, 'shinL', 1.75, 0, 0); set(q, 'footL', -0.3, 0, 0);
+      set(q, 'thighR', -0.2, 0, -0.12); set(q, 'shinR', 2.1, 0, 0); set(q, 'footR', 0.6, 0, 0);
+      q.gripR = 0.4 + Math.max(0, r) * 0.6; q.gripL = 0.4 + Math.max(0, l) * 0.6;
+      return { pose: q, mask: [...UPPER, ...LEGS] };
+    }
+    case 'shear': {
+      // crouched over an animal (or a low bed): the left hand holds the down (or parts the leaves), the right works
+      // the shears (or the spray's trigger) in short closes, low and forward
+      const sn = Math.max(0, Math.sin(t * 9));
+      const q: Pose = {};
+      q.rootY = -0.34;
+      set(q, 'spine', 0.62, 0.12, 0); set(q, 'chest', 0.18, 0.08, 0); set(q, 'head', 0.35, 0.1, 0);
+      set(q, 'uarmR', -0.75, 0.2, -0.12); set(q, 'farmR', -0.55 - sn * 0.15, 0, 0); set(q, 'handR', 0.25, 0, -0.15 + sn * 0.15);
+      set(q, 'uarmL', -0.85, -0.2, 0.18); set(q, 'farmL', -0.45, 0, 0); set(q, 'handL', 0.3, 0, 0.3);
+      set(q, 'thighL', -1.05, 0, 0.12); set(q, 'shinL', 1.45, 0, 0); set(q, 'footL', -0.35, 0, 0);
+      set(q, 'thighR', -0.55, 0, -0.1); set(q, 'shinR', 1.2, 0, 0); set(q, 'footR', -0.2, 0, 0);
+      q.gripR = 0.7 + sn * 0.3; q.gripL = 0.9;
       return { pose: q, mask: [...UPPER, ...LEGS] };
     }
     case 'craft': case 'type': case 'bandage': case 'stitch': case 'mix': case 'cook': {

@@ -4,8 +4,9 @@ import { worldMaterial } from '../gfx/materials';
 import { itemDef } from './item';
 import { DETAIL } from './detailModels';
 import { DETAIL3 } from './detailModels3';
-// the art pass's models (wave 3) take over from the older entries for the same items
-Object.assign(DETAIL, DETAIL3);
+import { DETAIL4 } from './detailModels4';
+// the art pass's models (wave 3) take over from the older entries for the same items; wave 4 is the farm (round 25)
+Object.assign(DETAIL, DETAIL3, DETAIL4);
 import { bakeLook } from './itemLook';
 import { isSoftItem } from './softItems';
 

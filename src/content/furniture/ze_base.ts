@@ -7,7 +7,7 @@
 import { defObj } from '../../world/objects';
 import type { ModelBuilder } from '../../gfx/modelBuilder';
 import { rod } from './b_common';
-import { drawPlant, lookOf, type PlantLook } from '../../game/economy/plantModels';
+import { drawPlant, drawTrouble, lookOf, plantVariant, type PlantLook } from '../../game/economy/plantModels';
 
 const T = ['build', 'buildable'];
 const PL = 'q_rough_plank', DW = 'wood_dark', LW = 'wood_light', POLE = 'q_pole_wood';
@@ -141,7 +141,7 @@ const PEN_W = 3, PEN_D = 2;
 defObj({
   key: 'bld_pen', name: 'Livestock Pen', w: PEN_W, d: PEN_D, height: 1.0, block: 'none', sound: 'wood', flammable: 0.6, hp: 400,
   tags: [...T, 'farm', 'pen', 'station'], desc: 'A plank fence round a bed of straw, a trough, a water pan and a gate on a rope latch. Lead a tamed animal in, fill the trough, collect what it leaves.',
-  variant: (s) => `${(s.feed ?? 0) > 0 ? 1 : 0}:${Math.min(3, Object.values((s.store || {}) as Record<string, number>).reduce((a, b) => a + b, 0))}`,
+  variant: (s) => `${(s.feed ?? 0) > 0 ? 1 : 0}:${Math.min(3, Object.values((s.store || {}) as Record<string, number>).reduce((a, b) => a + b, 0))}:${(s.water ?? 0) > 0 ? 1 : 0}:${s.incub ? (s.hatch ? 2 : 1) : 0}`,
   model: (mb, s) => {
     const hw = PEN_W / 2 - 0.06, hd = PEN_D / 2 - 0.06;
     // straw: a bed of tufts over the whole floor
@@ -172,7 +172,18 @@ defObj({
     mb.pop();
     // a dented water pan (back right)
     mb.cylinder(0.95, 0.01, -0.6, 0.2, 0.08, 12, 'metal_grey', { rTop: 0.22 });
-    mb.cylinder(0.95, 0.075, -0.6, 0.19, 0.004, 12, 'water', { color: 0x9ab8c0, emissive: 0.1 });
+    if ((s.water ?? 0) > 0) mb.cylinder(0.95, 0.075, -0.6, 0.19, 0.004, 12, 'water', { color: 0x9ab8c0, emissive: 0.1 });
+    else mb.cylinder(0.95, 0.02, -0.6, 0.18, 0.003, 12, 'dirt', { color: 0x8a7a5a });
+    // round 25: an incubator in the straw (front right): a plank box under a glass lid, a warm bulb, eggs in a nest
+    if (s.incub) {
+      mb.push().translate(0.95, 0, 0.45);
+      mb.box(0, 0, 0, 0.42, 0.2, 0.3, PL, { color: 0xe8dcc8 });
+      mb.box(0, 0.2, 0, 0.44, 0.012, 0.32, 'glass', { color: 0xfff0d8, emissive: s.hatch ? 0.5 : 0.15 });
+      mb.cylinder(-0.14, 0.12, 0, 0.03, 0.05, 6, 'plastic_white', { color: 0xffc070, emissive: s.hatch ? 2 : 0.3 });
+      if (s.hatch) for (let i = 0; i < 3; i++) mb.sphere(0.02 + i * 0.07, 0.14, (i % 2) * 0.05 - 0.02, 0.028, 7, 5, 'plastic_white', { color: 0xf4ecdc, sy: 1.25 });
+      mb.cross(0.06, 0.1, 0, 0.26, 0.05, 'q_hay', { color: 0xe8d090 });
+      mb.pop();
+    }
     // what they left in the straw
     const n = Math.min(3, Object.values((s.store || {}) as Record<string, number>).reduce((a, b) => a + b, 0));
     for (let i = 0; i < n; i++) mb.sphere(0.2 + i * 0.16, 0.05, 0.25 - i * 0.1, 0.035, 7, 5, 'plastic_white', { color: [0xf0e8d0, 0xe8a02a, 0xe8e4f8][i], sy: 1.2 });
@@ -183,7 +194,7 @@ defObj({
 defObj({
   key: 'bld_fungus_bed', name: 'Fungus Bed', height: 0.5, block: 'low', sound: 'wood', flammable: 0.5, hp: 220,
   tags: [...T, 'farm', 'bplanter', 'dark_bed', 'station'], desc: 'A plank box of wet sawdust and coffee grounds, half under a damp sack. Fungi fruit fastest in the dark; vegetables sulk.',
-  variant: (s) => `${s.crop ?? ''}:${Math.floor(s.stage ?? 0)}:${s.dead ? 1 : 0}:${(s.water ?? 0) > 20 ? 1 : 0}`,
+  variant: plantVariant,
   model: (mb, s) => {
     mb.box(0, 0, 0, 0.9, 0.34, 0.7, { all: PL, top: 'ec_substrate' }, { color: 0xffffff });
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) mb.box(sx * 0.44, 0, sz * 0.34, 0.06, 0.4, 0.06, DW);
@@ -197,13 +208,16 @@ defObj({
     if (s.crop) {
       const look = lookOf(s.crop) ?? 'tuber';
       const st = Math.floor(s.stage ?? 0);
-      for (let i = 0; i < 3; i++) drawPlant(mb, look, -0.28 + i * 0.28, 0.34, 0.12 - (i % 2) * 0.06, st, !!s.dead, i);
+      for (let i = 0; i < 3; i++) {
+        drawPlant(mb, look, -0.28 + i * 0.28, 0.34, 0.12 - (i % 2) * 0.06, st, !!s.dead, i);
+        if ((s.pest ?? 0) > 0.02 || (s.blight ?? 0) > 0.02) drawTrouble(mb, -0.28 + i * 0.28, 0.34, 0.12 - (i % 2) * 0.06, st, s.pest ?? 0, s.blight ?? 0, i);
+      }
     }
   },
 });
 
 // ---------------------------------------------------------------- forage spots: state.at = in-game hour last picked (null: ready)
-const FORAGE_LOOK: Record<string, PlantLook> = { forage_moss: 'moss', forage_thistle: 'thistle', forage_ear: 'ear', forage_morel: 'morel', forage_truffle: 'truffle' };
+const FORAGE_LOOK: Record<string, PlantLook> = { forage_moss: 'moss', forage_thistle: 'thistle', forage_ear: 'ear', forage_morel: 'morel', forage_truffle: 'truffle', forage_bluecap: 'bluecap', forage_mint: 'mint' };
 function forage(key: string, name: string, desc: string, under: (mb: ModelBuilder) => void, spots: [number, number, number][]) {
   defObj({
     key, name, height: 0.35, block: 'none', sound: 'fabric', flammable: 0.3, hp: 30,
@@ -235,6 +249,19 @@ forage('forage_ear', 'Wallpaper Ears', 'A slab of sodden drywall slumped against
 forage('forage_morel', 'Carpet Morels', 'Morels pushed up through a patch of black, wet carpet. The smell is the first thing.', (mb) => {
   mb.flat(0, 0.003, 0, 0.9, 0.8, 'dirt', { color: 0x3a3024 });
 }, [[-0.2, 0, -0.1], [0.12, 0, 0.12], [0.18, 0, -0.2], [-0.05, 0, 0.25]]);
+// round 25: bluecaps in a drowned corner of carpet, hush mint by a ventilation grille
+forage('forage_bluecap', 'Bluecaps', 'Blue caps in a corner where the carpet never dried, their gills lit like a phone screen under the cap.', (mb) => {
+  mb.flat(0, 0.003, 0, 0.9, 0.8, 'carpet_wet', { color: 0x4a5a6a });
+  mb.flat(0.1, 0.004, -0.05, 0.6, 0.5, 'dirt', { color: 0x2a3440 });
+  mb.box(-0.3, 0.004, 0.22, 0.22, 0.01, 0.14, 'plastic_white', { color: 0xd8d4c4 });
+}, [[-0.18, 0, -0.12], [0.14, 0, 0.1], [0.2, 0, -0.22], [-0.05, 0, 0.22]]);
+forage('forage_mint', 'Hush Mint', 'Mint gone wild in the warm draught under a vent grille. The leaves are cold and the flowers hum.', (mb) => {
+  mb.push().translate(0, 0.02, -0.4);
+  mb.box(0, 0, 0, 0.6, 0.3, 0.03, 'metal_grey', { color: 0xc8ccd0 });
+  for (let i = 0; i < 6; i++) mb.box(0, 0.03 + i * 0.045, 0.018, 0.54, 0.012, 0.01, 'metal_dark');
+  mb.pop();
+  mb.flat(0, 0.003, -0.1, 0.9, 0.6, 'dirt', { color: 0x4a4030 });
+}, [[-0.2, 0, -0.15], [0.05, 0, -0.2], [0.22, 0, -0.08], [-0.02, 0, 0.08]]);
 forage('forage_truffle', 'Ceiling Truffles', 'A ceiling tile came down and broke open. Black knuckles in the grit inside it.', (mb) => {
   for (const s of [-1, 1]) { mb.push().translate(s * 0.18, 0.01, 0).rotateZ(s * 0.12).rotateY(s * 0.2); mb.box(0, 0, 0, 0.32, 0.022, 0.6, 'plastic_white', { color: 0xd8d4c4 }); mb.pop(); }
 }, [[0, 0.02, 0]]);
