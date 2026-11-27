@@ -717,7 +717,10 @@ export type IconKind = 'gear' | 'wrench' | 'play' | 'tape' | 'clipboard' | 'door
   // balance, a sample flask, a filament spool, a filing cabinet
   | 'crt' | 'lattice' | 'scale' | 'flask' | 'spool' | 'cabinet'
   // the Institute's credit (src/ui/creditIcon.ts): a thick digital coin, milled edge, the meridian glyph, a lit circuit trace
-  | 'credit';
+  | 'credit'
+  // round 25 (the lattice's trades, src/ui/menus/research/tradeIcons.ts): a nailed club, a first-aid tin, a stock
+  // pot, a potted seedling, a feed pail
+  | 'club' | 'medkit' | 'pot' | 'sprout' | 'pail';
 /** icon models built outside this file (registered before their first sheet is drawn) */
 export interface IconExtra { build(m: Mold, g: THREE.Group, u: number): void; glow?: [number, number, number]; free?: boolean }
 export const ICON_EXTRA = new Map<IconKind, IconExtra>();

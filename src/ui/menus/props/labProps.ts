@@ -23,14 +23,15 @@ export const LAB_SPOTS: Partial<Record<MenuRoomId, Spot[]>> = {
   // the control room (rooms/research.ts: W 3.6, back -3.0, front 3.3) and its fab bay along the front wall
   research: [
     // steel shelving against the back wall between the fridge and the main computer, stocked
-    { a: 'shelves', p: [-1.75, 0, -2.72] },
-    { a: 'carton', p: [-1.75, 0.135, -2.72], r: 90 },
-    { a: 'gallon', p: [-1.9, 0.625, -2.7], r: 20 },
-    { a: 'kettle', p: [-1.6, 0.625, -2.72], r: -30 },
-    { a: 'toolbox', p: [-1.75, 1.155, -2.72], r: 4 },
-    { a: 'bunsen', p: [-1.5, 1.155, -2.7] },
-    { a: 'plant_small', p: [-1.62, 1.635, -2.7] },
-    { a: 'clipboard', p: [-1.88, 1.635, -2.72], r: 8 },
+    // (round 25: moved clear of the lattice's left edge, which it covered)
+    { a: 'shelves', p: [-2.02, 0, -2.72] },
+    { a: 'carton', p: [-2.02, 0.135, -2.72], r: 90 },
+    { a: 'gallon', p: [-2.17, 0.625, -2.7], r: 20 },
+    { a: 'kettle', p: [-1.87, 0.625, -2.72], r: -30 },
+    { a: 'toolbox', p: [-2.02, 1.155, -2.72], r: 4 },
+    { a: 'bunsen', p: [-1.8, 1.155, -2.7] },
+    { a: 'plant_small', p: [-1.89, 1.635, -2.7] },
+    { a: 'clipboard', p: [-2.15, 1.635, -2.72], r: 8 },
     // a breaker box on the back wall over the stores in the right corner
     { a: 'power_box', p: [2.75, 1.35, -2.8] },
     // a glassware cart in the open floor left of the dissection table, a stool at the microscope bench

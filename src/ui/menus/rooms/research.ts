@@ -1054,6 +1054,8 @@ export class ResearchLab implements StageRoom {
     this.alarmT = Math.max(0, this.alarmT - dt);
     if (this.alarmLed) this.alarmLed.level = this.alarmT > 0 ? (Math.sin(t * 20) > 0 ? 1 : 0) : 0.05;
     this.wallGlow.color.setHex(this.alarmT > 0 && Math.sin(t * 20) > 0 ? 0xff4a3a : 0xffc890);
+    // (round 25: the wall glow sits just over the main computer's console: halved while the lattice is up, so the desk is not a glare)
+    this.wallGlow.intensity = damp(this.wallGlow.intensity, this.lattice.active ? 2.0 : 4.5, 3, dt);
     this.leds.update(t);
     if (full) this.dress.update(t);
     this.vault.update(t, dt);
@@ -1086,7 +1088,8 @@ export class ResearchLab implements StageRoom {
     if (full) this.pokes.update(dt, t, this.cam);
     if (!full) return;
     // ---- camera: the benches drive it while a sample is worked (the close-ups get a gentler exposure)
-    this.grade.exposure = damp(this.grade.exposure ?? 1.75, (this.bench && !this.bench.done) || this.talent.inspecting ? 1.3 : 1.75, 4, dt);
+    // (round 25: a touch lower while the lattice is up: its glass, plinths and the console under it, not a glare)
+    this.grade.exposure = damp(this.grade.exposure ?? 1.75, (this.bench && !this.bench.done) || this.talent.inspecting ? 1.3 : this.lattice.active ? 1.5 : 1.75, 4, dt);
     if (this.bench) { this.bench.update(dt, t); return; }
     this.ptrS.x = damp(this.ptrS.x, this.ptr.x, 3, dt); this.ptrS.y = damp(this.ptrS.y, this.ptr.y, 3, dt);
     this.build = damp(this.build, this.buildT, 3, dt);
@@ -1096,7 +1099,8 @@ export class ResearchLab implements StageRoom {
     const goal = this.build > 0.5 ? POSES.build : lg ?? this.talent.camGoal() ?? this.fab.camGoal() ?? POSES[this.pose] ?? POSES.room;
     const k = 1 - Math.exp(-dt * (lg ? 3.6 : 4.5));
     this.camP.lerp(goal.pos, k); this.camL.lerp(goal.look, k); this.camF += (goal.fov - this.camF) * k;
-    const par = lg || this.talent.active || this.fab.active ? 0.06 : this.pose === 'room' ? 1 : this.pose === 'obs' ? 0.45 : 0.25;
+    // (round 25: the lattice's overview sways with the pointer so its plinths show their depth; the close-up holds)
+    const par = lg ? (this.lattice.inspecting ? 0.1 : 0.45) : this.talent.active || this.fab.active ? 0.06 : this.pose === 'room' ? 1 : this.pose === 'obs' ? 0.45 : 0.25;
     this.cam.position.set(this.camP.x - this.ptrS.x * 0.18 * par + Math.sin(t * 0.27) * 0.01, this.camP.y + this.ptrS.y * 0.06 * par + Math.sin(t * 0.39) * 0.006, this.camP.z);
     this.cam.lookAt(this.v.set(this.camL.x + this.ptrS.x * 0.3 * par, this.camL.y - this.ptrS.y * 0.12 * par, this.camL.z));
   }

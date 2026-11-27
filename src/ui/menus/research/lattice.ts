@@ -50,13 +50,15 @@ import {
   type Branch, type TreeNode,
 } from '../../../game/unitTree';
 import type { Hot, StageView } from '../monitor/stage';
-import { FacetBuilder, at, cbox, prism, bolt, tube, C, glowCard, gameSound } from '../monitor/props';
+import { FacetBuilder, at, cbox, prism, bolt, tube, lathe, C, glowCard, gameSound } from '../monitor/props';
 import type { FMats } from '../scene/pixtex';
 import { nodeModel, matFor, type Look, type Exhibit } from './models';
 import { ActionPreview, shotFor } from './preview';
 import { crtMaterial, type CrtMaterial } from '../../../gfx/crt';
 import { branchProf, profProgress, profGate, type ProfKey } from '../../../game/professions';
-import { floatIcon } from '../../floatIcon';
+import { floatIcon, type FloatIcon } from '../../floatIcon';
+import type { IconKind } from '../../machine/decor';
+import './tradeIcons';
 import { mxFrame, panelSpec, type MxFrame } from '../../machine/kit';
 import { mxOk } from '../../machine/core';
 import { Toggle } from '../monitor/props';
@@ -151,6 +153,8 @@ export class TreeLattice {
   private readCv = document.createElement('canvas'); private readTex: THREE.CanvasTexture; private readSig = '';
   private tog3d!: Toggle;
   private full: { layer: HTMLElement; frame: MxFrame | null; drag: { x: number; y: number; id: number } | null } | null = null;
+  /** round 25: the deck's branches as floating keys under the rig (an icon, its short name under it) */
+  private tabs: { layer: HTMLElement; keys: Map<number, FloatIcon>; sig: string } | null = null;
 
   constructor(mats: FMats, hots: Hot[], o: LatticeOpts) {
     this.mats = mats; this.hots = hots; this.o = o;
@@ -168,7 +172,8 @@ export class TreeLattice {
     this.headCv.width = 400; this.headCv.height = 300;
     this.headTex = canvasTex(this.headCv);
     this.group.add(this.board, tick, this.frameRig(), this.light);
-    this.light.position.set(o.x, o.y - 0.1, o.z + 1.3);
+    // (round 25: a broad soft wash from well back over the console, not a hot spot on the nearest exhibits)
+    this.light.position.set(o.x, o.y + 0.8, o.z + 3.0); this.light.distance = 7; this.light.decay = 1;
     // the beads that run the lit conduits
     this.beads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.018, 0.018, 0.018), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), BEADS);
     this.beads.count = 0; this.beads.frustumCulled = false; this.beads.userData.noGlow = true;
@@ -376,41 +381,73 @@ export class TreeLattice {
     const rows = [...new Set([...treeLanes(br).map((l) => l.row), ...ns.map((n) => n.row)])].filter((r) => ns.some((n) => n.row === r)).sort((a, b) => a - b);
     const nc = Math.max(1, ...ns.map((n) => n.col + 1)), nl = Math.max(1, rows.length);
     const L0 = this.X0 + LABEL_W, R0 = this.X1 - BAY_W - 0.05, T0 = this.Y1 - HEADER - 0.025, B0 = this.Y0 + FOOT + 0.02;
-    const colW = Math.min(0.52, (R0 - L0) / nc), rowH = Math.min(0.34, (T0 - B0) / nl);
-    const gx = L0 + ((R0 - L0) - colW * nc) / 2, gy = T0 - ((T0 - B0) - rowH * nl) / 2;
-    const s = Math.min(colW * 0.6, rowH * 0.66, 0.21);
+    const trade = isProf(br);
+    // (a trade's grid keeps a strip free at the foot: the bottom row's names sit under its plinths)
+    const B1 = B0 + (trade ? 0.075 : 0);
+    const colW = Math.min(0.52, (R0 - L0) / nc), rowH = Math.min(trade ? 0.42 : 0.34, (T0 - B1) / nl);
+    const gx = L0 + ((R0 - L0) - colW * nc) / 2, gy = T0 - ((T0 - B1) - rowH * nl) / 2;
+    // round 25: the trades' nodes are specimen plinths standing off the glass on bracket arms (no plate, no frame);
+    // the lab's sockets sit high in their cells so a name gets two readable lines under each
+    const s = Math.min(colW * 0.6, rowH * (trade ? 0.66 : 0.56), trade ? 0.24 : 0.21);
+    const lift = trade ? 0 : rowH * 0.14;
     const root = new THREE.Group(); root.visible = false;
     const Z = this.Z;
     const fb = new FacetBuilder();
     const frameGeo = squareRing(s, s * 0.09);
-    const cageGeo = cage(s);
+    const cageGeo = cage(trade ? s * 0.85 : s);
     const lanes = rows.map((r, li) => ({ row: r, label: treeLanes(br).find((l) => l.row === r)?.label ?? '', y: gy - (li + 0.5) * rowH }));
     const nodes: NodeV[] = [];
     for (const n of ns) {
       const li = rows.indexOf(n.row);
-      const px = gx + (n.col + 0.5) * colW, py = gy - (li + 0.5) * rowH;
-      // the socket: a bolted back plate, a holo shelf on a strut
-      fb.add('metal', cbox(s, s, 0.014, 0.004), 0x3a3e40, at(px, py, Z + 0.008));
-      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) fb.add('chrome', bolt(0.006, 0.006), C.steel, at(px + dx * (s / 2 - 0.014), py + dy * (s / 2 - 0.014), Z + 0.015, Math.PI / 2));
-      const shY = py - s * 0.36;
-      fb.add('metal', cbox(s * 0.72, 0.014, 0.1, 0.003), 0x6a7072, at(px, shY, Z + 0.06));
-      fb.add('metal', cbox(0.012, 0.012, 0.11, 0.002), C.dark, at(px, shY - 0.03, Z + 0.05, -0.5));
-      const frame = new THREE.Mesh(frameGeo, this.frameMats.get('locked')!);
-      frame.position.set(px, py, Z + 0.0155); frame.userData.noGlow = true;
-      const emit = new THREE.Mesh(new THREE.PlaneGeometry(s * 0.6, 0.08), this.frameMats.get('locked')!);
-      emit.rotation.x = -Math.PI / 2; emit.position.set(px, shY + 0.0075, Z + 0.062); emit.userData.noGlow = true;
-      const hold = new THREE.Group(); hold.position.set(px, py + s * 0.05, Z + 0.075);
-      const spin = new THREE.Group(); hold.add(spin);
+      const px = gx + (n.col + 0.5) * colW, py = gy - (li + 0.5) * rowH + lift;
+      let frame: THREE.Mesh, emit: THREE.Mesh, hold: THREE.Group, cg: THREE.Mesh, hit: THREE.Mesh, pz = Z + 0.075, cy = py;
+      const spin = new THREE.Group();
       const ex = nodeModel(n);
-      ex.root.scale.setScalar(s * 0.62);
+      if (trade) {
+        // a hex flange on the glass, a gusseted arm out to the plinth (staggered in depth: the lattice has relief),
+        // an octagonal steel drum with a brass collar and a lit state band round its rim, the exhibit turning on top
+        const depth = 0.09 + ((li + n.col) % 2) * 0.07, base = py - s * 0.36, z1 = Z + depth;
+        fb.add('metal', prism(0.05, 0.022, 6), 0x3a3e40, at(px, base - 0.03, Z + 0.011, Math.PI / 2));
+        for (let k = 0; k < 6; k++) fb.add('chrome', bolt(0.005, 0.005), C.steel, at(px + Math.cos(k * 1.047) * 0.036, base - 0.03 + Math.sin(k * 1.047) * 0.036, Z + 0.022, Math.PI / 2));
+        fb.add('metal', cbox(0.05, 0.034, depth, 0.008), 0x5a6062, at(px, base - 0.03, Z + depth / 2 + 0.01));
+        fb.add('metal', cbox(0.014, 0.05, depth * 0.75, 0.003), C.dark, at(px, base - 0.058, Z + depth * 0.42, 0.45));
+        fb.add('metal', lathe([[0, 0], [s * 0.42, 0], [s * 0.44, 0.012], [s * 0.44, 0.034], [s * 0.38, 0.05], [0, 0.05]], 8), 0x6a7072, at(px, base - 0.05, z1));
+        fb.add('brass', lathe([[s * 0.36, 0], [s * 0.39, 0], [s * 0.39, 0.014], [s * 0.36, 0.014]], 8), 0xc8a050, at(px, base, z1));
+        fb.add('metal', lathe([[0, 0], [s * 0.34, 0], [s * 0.34, 0.008], [0, 0.008]], 8), 0x3a3e40, at(px, base + 0.004, z1));
+        frame = new THREE.Mesh(lathe([[s * 0.445, 0], [s * 0.455, 0], [s * 0.455, 0.014], [s * 0.445, 0.014]], 8), this.frameMats.get('locked')!);
+        frame.position.set(px, base - 0.035, z1); frame.userData.noGlow = true;
+        emit = new THREE.Mesh(new THREE.CircleGeometry(s * 0.3, 8), this.frameMats.get('locked')!);
+        emit.rotation.x = -Math.PI / 2; emit.position.set(px, base + 0.0125, z1); emit.userData.noGlow = true;
+        cy = base + s * 0.36; pz = z1;
+        hold = new THREE.Group(); hold.position.set(px, cy + s * 0.05, pz);
+        ex.root.scale.setScalar(s * 0.8);
+        cg = new THREE.Mesh(cageGeo, this.cageMat);
+        cg.position.set(px, base + 0.03, z1 + s * 0.34); cg.castShadow = false;
+        hit = new THREE.Mesh(new THREE.BoxGeometry(s * 1.05, s * 1.15, depth + 0.3), this.hitMat);
+        hit.position.set(px, py, Z + (depth + 0.3) / 2);
+      } else {
+        // the socket: a bolted back plate, a holo shelf on a strut
+        fb.add('metal', cbox(s, s, 0.014, 0.004), 0x3a3e40, at(px, py, Z + 0.008));
+        for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) fb.add('chrome', bolt(0.006, 0.006), C.steel, at(px + dx * (s / 2 - 0.014), py + dy * (s / 2 - 0.014), Z + 0.015, Math.PI / 2));
+        const shY = py - s * 0.36;
+        fb.add('metal', cbox(s * 0.72, 0.014, 0.1, 0.003), 0x6a7072, at(px, shY, Z + 0.06));
+        fb.add('metal', cbox(0.012, 0.012, 0.11, 0.002), C.dark, at(px, shY - 0.03, Z + 0.05, -0.5));
+        frame = new THREE.Mesh(frameGeo, this.frameMats.get('locked')!);
+        frame.position.set(px, py, Z + 0.0155); frame.userData.noGlow = true;
+        emit = new THREE.Mesh(new THREE.PlaneGeometry(s * 0.6, 0.08), this.frameMats.get('locked')!);
+        emit.rotation.x = -Math.PI / 2; emit.position.set(px, shY + 0.0075, Z + 0.062); emit.userData.noGlow = true;
+        hold = new THREE.Group(); hold.position.set(px, py + s * 0.05, Z + 0.075);
+        ex.root.scale.setScalar(s * 0.62);
+        cg = new THREE.Mesh(cageGeo, this.cageMat);
+        cg.position.set(px, py - s * 0.42, Z + 0.135); cg.castShadow = false;
+        hit = new THREE.Mesh(new THREE.BoxGeometry(s * 1.05, s * 1.05, 0.22), this.hitMat);
+        hit.position.set(px, py, Z + 0.11);
+      }
+      hold.add(spin);
       spin.add(ex.root);
-      const cg = new THREE.Mesh(cageGeo, this.cageMat);
-      cg.position.set(px, py - s * 0.42, Z + 0.135); cg.castShadow = false;
-      const hit = new THREE.Mesh(new THREE.BoxGeometry(s * 1.05, s * 1.05, 0.22), this.hitMat);
-      hit.position.set(px, py, Z + 0.11);
       root.add(frame, emit, hold, cg, hit);
       const v: NodeV = {
-        n, br, li, p: new THREE.Vector3(px, py, Z + 0.075), s, spin, ex, hold, frame, emit, cage: cg, hit, hot: null as unknown as Hot,
+        n, br, li, p: new THREE.Vector3(px, cy, pz), s, spin, ex, hold, frame, emit, cage: cg, hit, hot: null as unknown as Hot,
         vis: 'locked', look: 'lit', hover: false, lift: 0, cageK: 1, burst: 0, deny: 0, ph: Math.random() * 6.28, plunge: 1,
       };
       v.hot = { key: 'lt:n:' + n.key, objs: [hit], glow: [], label: '', off: true, press: () => this.pressNode(v), hover: (on) => this.hoverNode(v, on) };
@@ -504,19 +541,37 @@ export class TreeLattice {
         const [, y0] = this.toPx(0, L.y + bv.rowH / 2), [, y1] = this.toPx(0, L.y - bv.rowH / 2);
         if (i % 2 === 0) { c.fillStyle = 'rgba(255,184,72,0.035)'; c.fillRect(0, y0, W, y1 - y0); }
         c.fillStyle = 'rgba(255,184,72,0.25)'; c.fillRect(8, y1 - 1, W - 16, 1);
-        bitText(c, L.label.toUpperCase(), 16, (y0 + y1) / 2 - 14, { color: '#ffc860', outline: '#0a0602', maxW: (lx - 30) / 2, scale: 2, lh: 13 });
+        // (round 25: a word too wide for the column at twice the size is drawn a little smaller, never cut by the beam)
+        const lab = L.label.toUpperCase(), avail = lx - 34;
+        const widest = Math.max(...lab.split(' ').map((w) => bitMeasure(w)));
+        const k = Math.max(1.25, Math.min(2, avail / Math.max(1, widest)));
+        c.save(); c.translate(16, Math.round((y0 + y1) / 2 - 7 * k)); c.scale(k, k);
+        bitText(c, lab, 0, 0, { color: '#ffc860', outline: '#0a0602', maxW: avail / k, lh: 13 });
+        c.restore();
       });
       // each socket's name under it, coloured by its state
+      const trade = isProf(bv.key);
+      // a trade's names share one size on one line: the largest that fits every name in its column
+      const tk = [2, 1.75, 1.5].find((q) => bv.nodes.every((v) => bitMeasure(v.n.title.toUpperCase()) <= (bv.colW * PPM - 6) / q)) ?? 1.5;
       for (const v of bv.nodes) {
-        const [x, y] = this.toPx(v.p.x, v.p.y - v.s / 2 - 0.006);
-        const maxW = (bv.colW * PPM - 8);
-        let t = v.n.title.toUpperCase();
-        while (t.length > 3 && bitMeasure(t) > maxW) t = t.slice(0, -2) + '.';
-        const col = v.vis === 'max' || v.vis === 'owned' ? '#7aff9a' : v.vis === 'open' ? '#ffd890' : v.vis === 'poor' ? '#a88a58' : '#4a5a4e';
-        bitText(c, t, x, y, { color: col, outline: '#020403', align: 'center' });
+        // round 25: the names readable from the console: the trades' at twice the size on one line, the lab's at one
+        // and a half on up to two lines (a word too long for the column is cut)
+        const k = trade ? tk : 1.5;
+        // (a trade's name sits under its plinth's drum, clear of it even seen from above the rig)
+        const [x, y] = this.toPx(v.p.x, trade ? v.p.y - v.s * 0.36 - 0.095 : v.p.y - v.s * 0.5 - 0.006);
+        const lines = fitLines(v.n.title.toUpperCase(), (bv.colW * PPM - 6) / k, trade ? 1 : 2);
+        const col = v.vis === 'max' || v.vis === 'owned' ? '#7aff9a' : v.vis === 'open' ? '#ffd890' : v.vis === 'poor' ? '#c8a060' : '#8aa894';
+        lines.forEach((ln, i) => { c.save(); c.translate(Math.round(x), Math.round(y + i * 14 * k)); c.scale(k, k); bitText(c, ln, 0, 0, { color: col, outline: '#020403', align: 'center' }); c.restore(); });
         const rank = v.n.ranks > 1 ? `${rankOf(v.n)}/${v.n.ranks}` : rankOf(v.n) ? 'OWNED' : `${v.n.costs[rankPlanned(v.n)] ?? '-'} RP`;
-        const [rx, ry] = this.toPx(v.p.x + v.s / 2 - 0.004, v.p.y + v.s / 2 - 0.004);
-        bitText(c, rank, rx, ry, { color: v.vis === 'open' ? '#ffb030' : '#5a7a62', outline: '#020403', align: 'right' });
+        // (a trade's beside its plinth on the right, clear of the exhibit; a lab socket's on its plate's corner)
+        const rc = v.vis === 'open' ? '#ffb030' : '#7a9a82';
+        if (trade) {
+          const [rx, ry] = this.toPx(v.p.x + bv.colW / 2 - 0.012, v.p.y + v.s * 0.46);
+          c.save(); c.translate(Math.round(rx), Math.round(ry)); c.scale(1.5, 1.5); bitText(c, rank, 0, 0, { color: rc, outline: '#020403', align: 'right' }); c.restore();
+        } else {
+          const [rx, ry] = this.toPx(v.p.x + v.s / 2 - 0.004, v.p.y + v.s / 2 - 0.004);
+          bitText(c, rank, rx, ry, { color: rc, outline: '#020403', align: 'right' });
+        }
         // round 17: a requirement quest still open (src/game/reqQuests.ts): amber cells and the count, top left of the socket
         const rq = rankOf(v.n) < 1 ? nodeQuest(v.n.rn[0]) : null;
         if (rq && !rq.done) {
@@ -535,46 +590,28 @@ export class TreeLattice {
         }
       }
     }
-    // the key strip
-    // keys only (the lever and the sockets say the rest)
-    const hint = 'ARROWS   ENTER   R   Q / E   ESC';
-    bitText(c, hint, W / 2, fy + (H - fy) / 2 - 8, { color: '#6aff8e', outline: null, align: 'center' });
     // scanlines and a roll bar
     c.fillStyle = 'rgba(0,0,0,0.2)';
     for (let y = 0; y < H; y += 2) c.fillRect(0, y, W, 1);
     this.boardTex.needsUpdate = true;
   }
+  /** the ticker: the points banked and the codex on the right; a flash when a sample is filed. (Round 25: the
+   *  branch tabs are floating keys under the rig and the node is named on the glass, so the strip stays quiet.) */
   private drawTicker() {
     this.tickDirty = false;
     const c = this.tickCv.getContext('2d')!, W = this.tickCv.width, H = this.tickCv.height;
     c.fillStyle = '#080402'; c.fillRect(0, 0, W, H);
     c.fillStyle = '#2a1a08'; c.fillRect(0, H - 2, W, 2);
-    let x = 10;
-    BRANCHES.forEach((b, i) => {
-      if ((isProf(b.key) ? 0 : 1) !== this.deck) return;
-      const on = i === this.bi, w = bitMeasure(b.code) * 2 + 16;
-      c.fillStyle = on ? '#ffb030' : '#1e1408'; c.fillRect(x, 4, w, H - 10);
-      bitText(c, b.code, x + 8, 8, { color: on ? '#1a0c02' : '#8a6a30', outline: null, scale: 2 });
-      x += w + 6;
-    });
-    x += 14;
     const st = codexStats();
     const right = `${researchPoints()} RP  ·  CODEX ${st.pct}%`;
     bitText(c, right, W - 12, 8, { color: '#6aff8e', outline: null, scale: 2, align: 'right' });
-    const room = W - 12 - bitMeasure(right) * 2 - 30 - x;
-    let msg = '', col = '#ffd890';
-    if (this.flashMsg) { msg = this.flashMsg.text; col = Math.floor(this.flashMsg.t * 4) % 2 ? '#ffffff' : '#7aff9a'; }
-    else {
-      const v = this.focused ?? this.sel;
-      if (v) {
-        const st2 = nodeState(v.n), r = rankPlanned(v.n);
-        const rq2 = st2 === 'locked' ? fieldReq(v.n) : null;
-        msg = `${v.n.title.toUpperCase()} · ${st2 === 'max' ? 'COMPLETE' : st2 === 'open' ? `OPEN ${v.n.costs[r]} RP` : st2 === 'poor' ? `SHORT ${v.n.costs[r]} RP` : rq2 && !rq2.done ? (rq2.lvl ? rq2.text.toUpperCase() : rq2.goal ? `FIELD QUEST ${rq2.progress}/${rq2.goal}` : 'FIELD QUEST') : 'LOCKED'}`;
-        col = st2 === 'open' ? '#ffd890' : st2 === 'max' ? '#7aff9a' : st2 === 'poor' ? '#c89a58' : '#7a8a7e';
-      } else msg = `R-NET 7 · ${BRANCHES[this.bi].name.toUpperCase()} · ${BRANCHES[this.bi].sub.toUpperCase()}`;
+    if (this.flashMsg) {
+      let msg = this.flashMsg.text;
+      const room = W - 12 - bitMeasure(right) * 2 - 40;
+      while (msg.length > 4 && bitMeasure(msg) * 2 > room) msg = msg.slice(0, -2);
+      c.fillStyle = '#080402'; c.fillRect(0, 0, room + 20, H - 2);
+      bitText(c, msg, 12, 8, { color: Math.floor(this.flashMsg.t * 4) % 2 ? '#ffffff' : '#7aff9a', outline: null, scale: 2 });
     }
-    while (msg.length > 4 && bitMeasure(msg) * 2 > room) msg = msg.slice(0, -2);
-    bitText(c, msg, x, 8, { color: col, outline: null, scale: 2 });
     this.tickTex.needsUpdate = true;
   }
   /** the reader's CRT: the focused node's file, or standby */
@@ -677,6 +714,7 @@ export class TreeLattice {
     this.shown = null;
     this.feedMat.crt.target = 1;
     this.readSig = '';
+    this.buildTabs();
   }
   close() {
     if (!this.active) return;
@@ -686,6 +724,7 @@ export class TreeLattice {
     this.feedMat.crt.target = 0;
     this.feedMat.uniforms.uTex.value = BLACK_TEX;
     this.preview?.dispose(); this.preview = null; this.shown = null;
+    this.tabs?.layer.remove(); this.tabs = null;
     this.focused = null;
     if (this.sel) { this.sel = null; }
     this.nav?.destroy(); this.nav = null;
@@ -837,6 +876,7 @@ export class TreeLattice {
     for (const v of this.cur.nodes) v.plunge = instant ? 0 : 1;
     this.sel = this.active ? this.cur.nodes.find((v) => v.vis === 'open') ?? this.cur.nodes[0] ?? null : null;
     this.paintKeys();
+    this.buildTabs();
     this.refresh();
     this.applyState();
     if (this.active) this.announce();
@@ -844,6 +884,31 @@ export class TreeLattice {
   }
   /** a sample was filed (after a bench run): the ticker says so */
   flash(text: string) { this.flashMsg = { text, t: 0 }; this.tickDirty = true; this.refresh(); }
+
+  // ================================================================== round 25: the floating branch keys
+  /** the current deck's branches as floating keys (icon and short name) under the rig, and the deck swap */
+  private buildTabs() {
+    if (!this.active) return;
+    const sig = this.deck + ':' + BRANCHES.map((b) => b.key).join();
+    if (this.tabs?.sig === sig) { this.lightTabs(); return; }
+    this.tabs?.layer.remove();
+    const layer = document.createElement('div');
+    layer.className = 'lt-tabs';
+    const keys = new Map<number, FloatIcon>();
+    BRANCHES.forEach((b, i) => {
+      if ((isProf(b.key) ? 0 : 1) !== this.deck) return;
+      const k = floatIcon(BRANCH_ICON[b.key] ?? 'lattice', shortName(b.name), () => this.setBranch(i), { size: 40, aria: b.name });
+      keys.set(i, k);
+      layer.append(k);
+    });
+    const sw = floatIcon(this.deck ? 'club' : 'lattice', this.deck ? 'Trades' : 'Lab', () => this.turnDeck(), { size: 40, aria: this.deck ? 'The trades' : "The lab's research" });
+    sw.classList.add('lt-deck');
+    layer.append(sw);
+    document.body.append(layer);
+    this.tabs = { layer, keys, sig };
+    this.lightTabs();
+  }
+  private lightTabs() { for (const [i, k] of this.tabs?.keys ?? []) k.setOn(i === this.bi); }
 
   // ================================================================== round 25: the action feed and the 3D mode
   /** the stage's preRender: the feed's scene through the menu's post pass into the monitor's tube */
@@ -929,11 +994,21 @@ export class TreeLattice {
     if (!this.active) return null;
     const v = this.focused;
     if (!v) return { pos: new THREE.Vector3(this.o.x, this.o.y - 0.06, this.Z + 2.55), look: new THREE.Vector3(this.o.x, this.o.y - 0.12, this.Z), fov: 50 };
-    const side = this.dockSide(v);
-    const look = new THREE.Vector3(v.p.x + side * 0.22, v.p.y - 0.01, this.Z + 0.15);
-    return { pos: look.clone().add(new THREE.Vector3(0, 0.05, 1.05)), look, fov: 46 };
+    // round 25: the close-up keeps the bay's monitor in frame: the node, the reader docked beside it and the
+    // monitor, fitted (a node near the bay is a tight shot, one far across the rig a wider one)
+    const side = this.dockSide(v), rx = v.p.x + side * 0.42;
+    const x0 = Math.min(v.p.x - v.s * 0.7, rx - 0.26), x1 = this.X1 + 0.02;
+    // (down to the console's edge: the floating keys and Dr. Calder's line keep the strip under the rig to themselves)
+    const y0 = Math.min(v.p.y - v.s * 0.75, this.readerGoal().y - 0.2, this.Y0 - 0.22), y1 = Math.max(v.p.y + v.s * 0.6, this.Y1 - HEADER + 0.02);
+    const fov = 46, t = Math.tan(THREE.MathUtils.degToRad(fov / 2));
+    const d = Math.max((y1 - y0) / 2 / t, (x1 - x0) / 2 / (t * 1.7)) * 1.06 + 0.15;
+    const look = new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, this.Z + 0.15);
+    return { pos: look.clone().add(new THREE.Vector3(0, 0.04, d)), look, fov };
   }
-  private dockSide(v: NodeV) { return v.p.x > this.X1 - 0.75 ? -1 : 1; }
+  /** the reader docks on the node's left (away from the bay), or on its right at the rig's left edge */
+  private dockSide(v: NodeV) { return v.p.x < this.X0 + LABEL_W + 0.45 ? 1 : -1; }
+  /** a node is inspected (the camera is in close) */
+  get inspecting() { return !!this.focused; }
   /** where the reader parks beside the inspected node (or its rest spot) */
   private readerGoal() {
     const fv = this.focused, park = this.park();
@@ -960,7 +1035,7 @@ export class TreeLattice {
     // keep keyboard and pad focus on the focus key; the pad's X researches
     if (this.active && this.btn && document.activeElement !== this.btn && !(document.activeElement instanceof HTMLInputElement)) this.btn.focus({ preventScroll: true });
     if (this.active) { try { const p = navigator.getGamepads?.()[0]; const x = !!p?.buttons[2]?.pressed, y = !!p?.buttons[3]?.pressed; if (x && !this.padX) this.pull(); if (y && !this.padY) this.toggle3d(); this.padX = x; this.padY = y; } catch { /* no pads */ } }
-    this.light.intensity = damp(this.light.intensity, this.active ? 3.2 : 0.6, 3, dt);
+    this.light.intensity = damp(this.light.intensity, this.active ? 1.8 : 0.5, 3, dt);
     if (!full && !this.active) return;
     const cur = this.cur;
     if (cur) {
@@ -1064,6 +1139,13 @@ export class TreeLattice {
 }
 
 // ================================================================== helpers
+/** the floating keys' models: the trades (research/tradeIcons.ts) and the lab's branches */
+const BRANCH_ICON: Record<string, IconKind> = {
+  p_combat: 'club', p_medic: 'medkit', p_engineer: 'wrench', p_scavenger: 'crate', p_cook: 'pot', p_botanist: 'sprout', p_handler: 'pail', p_researcher: 'flask',
+  design: 'boot', recipe: 'clipboard', build: 'blueprint', matter: 'spool', device: 'compass', farm: 'sprout', chip: 'plug', talent: 'scale', limb: 'gear',
+};
+/** a branch's short name for its floating key ('Unit designs' -> 'Designs', 'The Printer' -> 'Printer') */
+const shortName = (name: string) => { const w = name.split(' '); return w.length > 1 ? w[w.length - 1].charAt(0).toUpperCase() + w[w.length - 1].slice(1) : name; };
 /** amber seven-segment digits (the readout's tubes): lit segments over their dark ghosts */
 const SEG: Record<string, string> = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', ' ': '' };
 function seg7(c: CanvasRenderingContext2D, txt: string, x0: number, y0: number, w: number, h: number) {
@@ -1133,6 +1215,21 @@ function fieldReq(n: TreeNode): { text: string; progress: number; goal: number; 
   }
   if (rn.gate && !rn.gate()) return { text: rn.gateHint || 'not yet earned', progress: 0, goal: 0, done: false };
   return null;
+}
+/** a name in at most n lines of maxW (font px at scale 1): whole words, a word too long cut with a full stop */
+function fitLines(t: string, maxW: number, n: number): string[] {
+  const cut = (w: string) => { while (w.length > 3 && bitMeasure(w) > maxW) w = w.slice(0, -2) + '.'; return w; };
+  const out: string[] = [];
+  let cur = '';
+  for (const w of t.split(' ')) {
+    const nx = cur ? cur + ' ' + w : w;
+    if (bitMeasure(nx) <= maxW) { cur = nx; continue; }
+    if (cur) out.push(cur);
+    cur = bitMeasure(w) > maxW ? cut(w) : w;
+  }
+  if (cur) out.push(cur);
+  if (out.length > n) { const rest = out.slice(n - 1).join(' '); out.length = n; out[n - 1] = cut(rest); }
+  return out;
 }
 /** cut a text to at most `lines` wrapped lines of maxW font px (an ellipsis on the last) */
 function clip(s: string, maxW: number, lines: number): string {

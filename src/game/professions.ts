@@ -175,20 +175,20 @@ const N = (prof: ProfKey, lane: string, rows: [string, string, string, number[],
 };
 // ---- COMBAT
 N('combat', 'Mastery', [
-  ['pf_m_blunt', 'Blunt Mastery', 'Clubs, pipes, hammers and the big two-handers: the swing finds the head and the knee.', [3, 6, 10], [1, 3, 5], [{}, {}, {}], ['+8% damage, +3% crit with blunt', '+16% damage, a club rings heads longer', '+24% damage, knocks things off their feet'], 'bat', ['pipe']],
-  ['pf_m_blade', 'Blade Mastery', 'Knives, machetes, axes and spears: cleaner lines, deeper cuts, limbs that come away.', [3, 6, 10], [1, 3, 5], [{}, {}, {}], ['+8% damage, +3% crit with blades', '+16% damage, severs more often', '+24% damage, a cut through a limb takes it'], 'machete', ['knife_kitchen']],
-  ['pf_m_improv', 'Improvised Mastery', 'Chair legs, bottles, fists: whatever is to hand, used like you meant it.', [3, 5, 8], [1, 2, 4], [{}, {}, {}], ['+10% damage with improvised and bare hands', '+20% damage, more poise damage', '+30% damage, grapples go your way'], 'chair_leg', ['plank']],
-  ['pf_m_thrown', 'Thrown Mastery', 'Bottles, bricks, knives through the air: further, harder, on the mark.', [3, 5, 8], [1, 2, 4], [{}, {}, {}], ['+15% thrown damage, +1 m', '+30% thrown damage, +2 m', '+45% thrown damage, +3 m'], 'brick', ['bottle']],
+  ['pf_m_blunt', 'Blunt', 'Clubs, pipes, hammers and the big two-handers: the swing finds the head and the knee.', [3, 6, 10], [1, 3, 5], [{}, {}, {}], ['+8% damage, +3% crit with blunt', '+16% damage, a club rings heads longer', '+24% damage, knocks things off their feet'], 'bat', ['pipe']],
+  ['pf_m_blade', 'Blade', 'Knives, machetes, axes and spears: cleaner lines, deeper cuts, limbs that come away.', [3, 6, 10], [1, 3, 5], [{}, {}, {}], ['+8% damage, +3% crit with blades', '+16% damage, severs more often', '+24% damage, a cut through a limb takes it'], 'machete', ['knife_kitchen']],
+  ['pf_m_improv', 'Improvised', 'Chair legs, bottles, fists: whatever is to hand, used like you meant it.', [3, 5, 8], [1, 2, 4], [{}, {}, {}], ['+10% damage with improvised and bare hands', '+20% damage, more poise damage', '+30% damage, grapples go your way'], 'chair_leg', ['plank']],
+  ['pf_m_thrown', 'Thrown', 'Bottles, bricks, knives through the air: further, harder, on the mark.', [3, 5, 8], [1, 2, 4], [{}, {}, {}], ['+15% thrown damage, +1 m', '+30% thrown damage, +2 m', '+45% thrown damage, +3 m'], 'brick', ['bottle']],
 ]);
 N('combat', 'Moves', [
-  ['pf_mv_overhead', 'Heavy Overhead', 'A charged blunt blow comes straight down over the head with the whole body behind it.', [4], [1], [{}], ['heavy blunt blows: the overhead (more damage, knockdown)'], 'sledgehammer', ['hammer']],
+  ['pf_mv_overhead', 'Overhead', 'A charged blunt blow comes straight down over the head with the whole body behind it.', [4], [1], [{}], ['heavy blunt blows: the overhead (more damage, knockdown)'], 'sledgehammer', ['hammer']],
   ['pf_mv_kick', 'Shove-Kick', 'The shove becomes a boot to the middle: it drives things back and down.', [4], [2], [{}], ['the shove is a kick: further back, drops small things'], 'boots_work', ['sneakers'], ['pf_mv_overhead']],
   ['pf_mv_counter', 'Counter', 'After a dodge or a broken grip the answer comes at once, and hard.', [6], [4], [{}], ['counters hit harder; grapples answer with a counter blow'], 'knife_scrap', ['knife_kitchen'], ['pf_mv_kick']],
   ['pf_mv_finisher', 'Finisher', 'Something on the floor stays on the floor: a finishing blow from above.', [9], [6], [{}], ['finish downed things sooner, with a killing blow'], 'axe', ['hatchet'], ['pf_mv_counter']],
 ]);
-N('combat', 'Conditioning', [
+N('combat', 'Grit', [
   ['pf_c_wind', 'Second Wind', 'Breath for one more swing when there is none left.', [3, 6], [1, 4], [{ stamina: 0.9 }, { stamina: 0.88 }], ['stamina drains 10% slower', 'stamina drains 21% slower'], 'water_bottle', ['almond_water']],
-  ['pf_c_grit', 'Grit', 'Wounds bleed less, fear builds slower.', [4], [3], [{ bleed: 0.88, panic: 0.9 }], ['bleeding -12%, panic builds 10% slower'], 'bandage', ['rag'], ['pf_c_wind']],
+  ['pf_c_grit', 'Iron Will', 'Wounds bleed less, fear builds slower.', [4], [3], [{ bleed: 0.88, panic: 0.9 }], ['bleeding -12%, panic builds 10% slower'], 'bandage', ['rag'], ['pf_c_wind']],
   ['pf_c_hands', 'Heavy Hands', 'Every blow carries more of the body.', [5, 9], [2, 6], [{ melee: 1.06 }, { melee: 1.06 }], ['+6% melee damage', '+12% melee damage'], 'gloves_work', ['gloves_rubber'], ['pf_c_grit']],
 ]);
 // ---- MEDIC
@@ -206,14 +206,14 @@ N('medic', 'Field kit', [
   ['pf_md_trauma', 'Trauma Drills', 'Practised until the hands work while the head panics.', [5], [4], [{ panic: 0.9, stamina: 0.95 }], ['panic builds 10% slower, stamina drains 5% slower'], 'clipboard', ['notebook'], ['pf_md_kit']],
 ]);
 // ---- ENGINEER
-N('engineer', 'Construction', [
+N('engineer', 'Building', [
   ['pf_en_weld', 'Quick Welds', 'Plates, hatches and barricades go up faster.', [3, 6], [1, 3], [{ build: 0.88 }, { build: 0.88 }], ['building and welding 12% faster', 'building and welding 23% faster'], 'welding_torch', ['blowtorch', 'hammer']],
   ['pf_en_brace', 'Bracing', 'Knows where the load goes.', [5], [4], [{ build: 0.92 }], ['building 8% faster again'], 'plank', ['steel_frame'], ['pf_en_weld']],
 ]);
 N('engineer', 'The bench', [
   ['pf_en_bench', 'Bench Hand', 'Crafting at the bench and by hand goes quicker.', [3, 6], [1, 3], [{ craft: 0.88 }, { craft: 0.88 }], ['crafting 12% faster', 'crafting 23% faster'], 'screwdriver', ['wrench']],
   ['pf_en_belt', 'Tool Belt', 'Everything on a hook, nothing in the way.', [4], [2], [{ carry: 1.5 }], ['+1.5 kg carrying capacity'], 'toolbox', ['wrench'], ['pf_en_bench']],
-  ['pf_en_jig', 'Jigs & Templates', 'Do it once properly, then do it fast.', [6], [5], [{ craft: 0.9 }], ['crafting 10% faster again'], 'notebook', ['magazine'], ['pf_en_belt']],
+  ['pf_en_jig', 'Templates', 'Do it once properly, then do it fast.', [6], [5], [{ craft: 0.9 }], ['crafting 10% faster again'], 'notebook', ['magazine'], ['pf_en_belt']],
 ]);
 N('engineer', 'Salvage', [
   ['pf_en_salvage', 'Salvage Eye', 'Sees the parts inside the junk.', [3], [2], [{ loot: 0.92, scan: 1.06 }], ['looting 8% faster, scanner +6%'], 'scrap_metal', ['wire']],
@@ -236,7 +236,7 @@ N('scavenger', 'Living rough', [
 // ---- COOK
 N('cook', 'The stove', [
   ['pf_ck_clean', 'Clean Kitchen', 'Raw and rotten food makes you sick less often.', [3], [1], [{ rawPoison: 0.7, poison: 0.88 }], ['sickness from raw -30%, from food -12%'], 'pot', ['can_soup']],
-  ['pf_ck_hearty', 'Hearty Portions', 'Meals that stay with you.', [4, 7], [2, 4], [{ hunger: 0.93 }, { hunger: 0.93 }], ['hunger rises 7% slower', 'hunger rises 14% slower'], 'can_soup', ['pot'], ['pf_ck_clean']],
+  ['pf_ck_hearty', 'Hearty Meals', 'Meals that stay with you.', [4, 7], [2, 4], [{ hunger: 0.93 }, { hunger: 0.93 }], ['hunger rises 7% slower', 'hunger rises 14% slower'], 'can_soup', ['pot'], ['pf_ck_clean']],
   ['pf_ck_brew', 'Brew Master', 'Tea, broth, boiled water: something warm to drink.', [4], [3], [{ thirst: 0.92 }], ['thirst rises 8% slower'], 'kettle', ['water_bottle'], ['pf_ck_hearty']],
 ]);
 N('cook', 'Butchery & larder', [
@@ -262,7 +262,7 @@ N('botanist', 'Soil', [
 ]);
 // ---- HANDLER
 N('handler', 'Husbandry', [
-  ['pf_hd_feed', 'Feeding Rounds', 'Animals fed on time give more.', [3, 6], [1, 3], [{ herd: 1.15, feed: 0.9 }, { herd: 1.15, feed: 0.9 }], ['livestock produce +15%, feed -10%', 'livestock produce +32%, feed -19%'], 'bucket', ['pot']],
+  ['pf_hd_feed', 'Feed Rounds', 'Animals fed on time give more.', [3, 6], [1, 3], [{ herd: 1.15, feed: 0.9 }, { herd: 1.15, feed: 0.9 }], ['livestock produce +15%, feed -10%', 'livestock produce +32%, feed -19%'], 'bucket', ['pot']],
   ['pf_hd_milk', 'Milking Hands', 'Calm hands, full pails.', [4], [2], [{ milk: 1.25 }], ['+25% milk and eggs'], 'milk', ['bucket'], ['pf_hd_feed']],
   ['pf_hd_breed', 'Breeding Pens', 'More young, healthier young.', [6], [5], [{ breed: 1.3 }], ['breeding 30% faster'], 'rope', ['twine'], ['pf_hd_milk']],
 ]);

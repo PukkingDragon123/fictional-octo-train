@@ -114,7 +114,8 @@ export function buildDressing(mats: FMats, room: { W: number; BACK: number; FRON
   }
   // caged work lamps hung off the back tray (from the second station built)
   if (level >= 2) {
-    const spots = level >= 4 ? [-W * 0.55, 0, W * 0.55] : [-W * 0.3, W * 0.3];
+    // (round 25: none hangs in front of the research lattice or its bay monitor: they glared over the nodes)
+    const spots = level >= 4 ? [-W * 0.62, W * 0.7] : [-W * 0.62, W * 0.7];
     for (const x of spots) {
       const z = BACK + inset + 0.18, y = ty - 0.42;
       b.add('chrome', cbox(0.01, 0.36, 0.01, 0.002), 0xa0a49e, at(x, ty - 0.2, z - 0.05));
@@ -123,7 +124,8 @@ export function buildDressing(mats: FMats, room: { W: number; BACK: number; FRON
       b.add('lamp', prism(0.05, 0.08, 8), 0xfff2c8, at(x, y - 0.04, z));
     }
     const L = new THREE.PointLight(0xffe2b0, 0.9 + level * 0.15, 6, 1.6);
-    L.position.set(0, ty - 0.6, BACK + inset + 0.4);
+    // (round 25: up and out from the wall: low against it, it put a hot spot on the lattice's exhibits)
+    L.position.set(0, ty - 0.1, BACK + inset + 1.5);
     g.add(L);
   }
   g.add(b.build(mats));

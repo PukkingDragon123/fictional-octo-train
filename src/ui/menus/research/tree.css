@@ -16,3 +16,12 @@
 .lt3d-keys .fi { pointer-events: auto; }
 /* the deco keys stay out of the 3D mode's picture */
 body:has(.lt3d) .dk-ui { visibility: hidden; }
+/* round 25: the lattice's branch keys, floating under the rig (an icon, its short name under it; no boxes) */
+.lt-tabs { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); display: flex; align-items: flex-end; gap: 2px; z-index: 120; pointer-events: none; }
+.lt-tabs .fi { pointer-events: auto; }
+.lt-tabs .lt-deck { margin-left: 22px; }
+body:has(.lt3d) .lt-tabs { visibility: hidden; }
+/* while the lattice is up: Dr. Calder's subtitle goes low, over the console and above the floating keys (the rig's
+   top row is the nodes'), and the room hub's keys step out of the picture */
+body:has(.lt-tabs) .dk-ui > .gd-sub { top: auto !important; bottom: 96px !important; }
+body:has(.lt-tabs) .dk-ui .dk-keys-top { visibility: hidden; }
