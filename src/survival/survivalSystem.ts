@@ -1,4 +1,5 @@
 import { G } from '../game/G';
+import { profFromSkill } from '../game/professions';
 import { GameSystem } from '../game/game';
 import { Player } from '../entities/player';
 import { bus } from '../core/events';
@@ -69,7 +70,7 @@ export class SurvivalSystem implements GameSystem {
         bus.emit('moodle', p, key, level, prev);
       };
       p.body.onXp = (sk, lvl) => bus.emit('skillUp', p, sk, lvl);
-      p.body.onXpGain = (sk) => this.unlocks.onXpGain(sk);
+      p.body.onXpGain = (sk, n) => { this.unlocks.onXpGain(sk); profFromSkill(sk, n); };
       ensureMind(p.body);
     }
     if (p.body.dead) return;

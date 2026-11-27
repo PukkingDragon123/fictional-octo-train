@@ -16,6 +16,7 @@ import type { Zone, TileObject } from '../world/zone';
 import type { MenuOption } from '../ui/ui';
 import { bump } from './progress';
 import { hasUnlock } from '../game/research';
+import { profMul } from '../game/professions';
 
 export const isPlanter = (o: TileObject) => o.key === 'farm_planter' || !!objDef(o.key)?.tags?.includes('bplanter');
 const isHydro = (o: TileObject) => o.key === 'bld_hydro';
@@ -127,7 +128,7 @@ export class Farm {
       if (!c || Math.floor(o.state.stage ?? 0) < 4 || o.state.dead) return;
       const skill = p.body.skill('farming');
       const mul = (isHydro(o) ? 1.5 : 1) * (1 + skill * 0.08);
-      const n = Math.max(1, Math.round((c.yield[0] + Math.random() * (c.yield[1] - c.yield[0])) * mul)) + (hasUnlock('hb_compost') ? 1 : 0);
+      const n = Math.max(1, Math.round((c.yield[0] + Math.random() * (c.yield[1] - c.yield[0])) * mul * profMul('yield'))) + (hasUnlock('hb_compost') ? 1 : 0);
       if (hasItemDef(c.item)) for (let i = 0; i < n; i++) p.inv.add(createItem(c.item));
       G.audio?.at?.('rummage', o.x + 0.5, o.y + 0.5, 0.7);
       // a few seeds come back
@@ -179,7 +180,7 @@ export class Farm {
         const powered = !hydro || !!G.items?.generatorPowers?.(z, o.x, o.y) || z.circuitPowered?.(z.roomAt(o.x, o.y).circuit);
         // fungi grow best in the dark: light slows them
         const lk = c.dark ? Math.max(0.25, 1.1 - light * 0.8) : light;
-        if (water > 5) growth += h / (c.days * 24) * 4 * lk * (c.dark && hasUnlock('hb_mycology') ? 1.5 : 1) * (hydro ? (powered ? 1.6 : 0.8) : 1) * (o.state.worker ? 1.2 : 1);
+        if (water > 5) growth += h / (c.days * 24) * 4 * lk * (c.dark && hasUnlock('hb_mycology') ? 1.5 : 1) * (hydro ? (powered ? 1.6 : 0.8) : 1) * (o.state.worker ? 1.2 : 1) * profMul('grow');
         const dry = water <= 0 ? (o.state.dry ?? 0) + h : 0;
         const stage = Math.min(5, Math.floor(growth));
         const patch: Record<string, any> = { water, growth, dry };

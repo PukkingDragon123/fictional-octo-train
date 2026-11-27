@@ -47,6 +47,8 @@ export interface PostUniforms {
   uShaftCol: { value: THREE.Vector3 };
   /** edge anti-aliasing (0 = off): a cheap FXAA-style blend across high-contrast steps */
   uAA: { value: number };
+  /** 1: write linear light (a feed into a texture a lit screen shows), 0: sRGB for the canvas */
+  uLinOut: { value: number };
 }
 
 const BLACK = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
@@ -153,7 +155,7 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
     uSharp: { value: 0.08 }, uKeepSat: { value: 0.45 }, uHaze: { value: new THREE.Vector4(0.42, 0.5, 0.62, 0.0) }, uHalation: { value: 0.35 },
     uAO: { value: 0 }, uAORad: { value: 0.32 }, uFocal: { value: 300 }, uScatter: { value: 0 },
     uCA: { value: 0 }, tFill: { value: BLACK }, uBounce: { value: 0 },
-    uShaft: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] }, uShaftCol: { value: new THREE.Vector3(1, 0.96, 0.9) }, uAA: { value: 0 },
+    uShaft: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] }, uShaftCol: { value: new THREE.Vector3(1, 0.96, 0.9) }, uAA: { value: 0 }, uLinOut: { value: 0 },
   };
   const mat = new THREE.ShaderMaterial({
     uniforms: u as unknown as Record<string, THREE.IUniform>,
@@ -163,7 +165,7 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
       uniform vec2 uRes; uniform float uNear, uFar, uTime, uFlash, uRed, uExposure, uOutline, uSat, uContrast, uVig, uGrain, uLensOn, uLevels, uFloor;
       uniform vec4 uSide; uniform vec3 uLift, uGain;
       uniform float uSharp, uKeepSat, uHalation; uniform vec4 uHaze;
-      uniform float uAO, uAORad, uFocal, uScatter, uCA, uBounce, uAA; uniform sampler2D tFill; uniform vec4 uShaft[3]; uniform vec3 uShaftCol;
+      uniform float uAO, uAORad, uFocal, uScatter, uCA, uBounce, uAA, uLinOut; uniform sampler2D tFill; uniform vec4 uShaft[3]; uniform vec3 uShaftCol;
       varying vec2 vUv;
       float linD(vec2 uv) { float z = texture2D(tDepth, uv).x; if (z >= 1.0) return uFar * 4.0; float n = z * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - n * (uFar - uNear)); }
       float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
@@ -269,7 +271,10 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
         // 8-bit with an ordered dither of one level (no banding in the haze, no visible pattern); fades out at black
         float dk = smoothstep(0.5 / uLevels, 2.5 / uLevels, max(c.r, max(c.g, c.b)));
         c = floor(c * uLevels + mix(0.5, bayer4(ip), dk)) / uLevels;
-        gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+        c = clamp(c, 0.0, 1.0);
+        // a feed for a screen in another room: back to linear light (that room's own pass grades it on the glass)
+        if (uLinOut > 0.5) c = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+        gl_FragColor = vec4(c, 1.0);
       }`,
     depthTest: false, depthWrite: false,
   });

@@ -6,8 +6,12 @@ import { addStat, stat, isUnlocked, unlock } from './profile';
 
 export function researchPoints(): number { return stat('rp'); }
 
+/** round 25: a multiplier on research earned (the researcher's Grant Writer, src/game/professions.ts sets it) */
+let rpMul = () => 1;
+export function setResearchMul(fn: () => number) { rpMul = fn; }
 export function grantResearch(n: number, reason = '') {
   if (!(n > 0)) return;
+  n = Math.round(n * rpMul());
   addStat('rp', n); addStat('rp_total', n);
   bus.emit('research', { n, reason, total: researchPoints() });
 }

@@ -20,7 +20,14 @@
 //   the reader    an XY gantry on a rail over the housing: a small CRT with a
 //                 RESEARCH lever. Pick a node and the camera closes on it while
 //                 the reader drives over beside it and prints the node's file
-//   the keys      a key per branch and LOG OFF on the console under the housing
+//   the keys      a key per branch of the deck on the console under the housing, the DECK key (the trades or
+//                 the lab's research), LOG OFF
+//   the bay       round 25: a machine-kit monitor at the rig's right whose tube plays a live 3D scene of a unit
+//                 doing what the node under the pointer is about (research/preview.ts, the menu's own post
+//                 pass), the trade's level and XP on an amber readout under it, and the 3D toggle (V, pad Y, or a
+//                 press on the tube): the scene fills the screen in the machine kit's housing; drag turns round it
+// The trades (src/game/professions.ts: Combat, Medic, Engineer, Scavenger, Cook, Botanist, Handler, Researcher) are
+// the first deck: their nodes also wait on the trade's level, earned in the runs by doing the work.
 // The branches are the categories of src/game/treeData.ts (designs, recipes,
 // building, devices, chips, limbs, and any registered as data): each open
 // re-reads them and rebuilds a branch whose nodes changed.
@@ -42,12 +49,24 @@ import {
   BRANCHES, treeNodes, treeNode, treeLanes, rankOf, rankPlanned, nodeState, stage, clearPlan, confirmPlan, researchFor, pointsLeft, syncTree,
   type Branch, type TreeNode,
 } from '../../../game/unitTree';
-import type { Hot } from '../monitor/stage';
-import { FacetBuilder, at, cbox, prism, bolt, C, glowCard, gameSound } from '../monitor/props';
+import type { Hot, StageView } from '../monitor/stage';
+import { FacetBuilder, at, cbox, prism, bolt, tube, C, glowCard, gameSound } from '../monitor/props';
 import type { FMats } from '../scene/pixtex';
 import { nodeModel, matFor, type Look, type Exhibit } from './models';
+import { ActionPreview, shotFor } from './preview';
+import { crtMaterial, type CrtMaterial } from '../../../gfx/crt';
+import { branchProf, profProgress, profGate, type ProfKey } from '../../../game/professions';
+import { floatIcon } from '../../floatIcon';
+import { mxFrame, panelSpec, type MxFrame } from '../../machine/kit';
+import { mxOk } from '../../machine/core';
+import { Toggle } from '../monitor/props';
+import '../../crt/crt.css';
 
 const HEADER = 0.12, FOOT = 0.075, LABEL_W = 0.46, PPM = 440;
+/** round 25: the bay on the rig's right: the action feed's monitor, the trade's readout, the 3D mode toggle */
+const BAY_W = 1.0;
+/** the two decks of branches on the console: the trades (professions) and the lab's research */
+const isProf = (k: string) => k.startsWith('p_');
 const ROMAN = ['0', 'I', 'II', 'III', 'IV', 'V'];
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 type Vis = 'max' | 'owned' | 'open' | 'poor' | 'locked';
@@ -59,7 +78,7 @@ interface NodeV {
   n: TreeNode; br: Branch; li: number;
   p: THREE.Vector3; s: number;
   spin: THREE.Group; ex: Exhibit; hold: THREE.Group;
-  frame: THREE.Mesh; emit: THREE.Mesh; cage: THREE.Mesh; pips: THREE.Mesh[];
+  frame: THREE.Mesh; emit: THREE.Mesh; cage: THREE.Mesh;
   hit: THREE.Mesh; hot: Hot;
   vis: Vis; look: Look; hover: boolean; lift: number; cageK: number; burst: number; deny: number; ph: number; plunge: number;
 }
@@ -110,7 +129,6 @@ export class TreeLattice {
   private frameMats = new Map<Vis, THREE.MeshBasicMaterial>();
   // the conduit cores: dead, fed, open (pulses), owned, the inspected node's live runs (pulse), its missing requirements (pulse)
   private coreMats = [0x241c12, 0x6a4a1c, 0xb87a28, 0x48dc70, 0xfff0c0, 0xff6a3a].map((c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false }));
-  private pipMats = { on: new THREE.MeshBasicMaterial({ color: 0x5aff8a, toneMapped: false }), next: new THREE.MeshBasicMaterial({ color: 0xffb030, toneMapped: false }), off: new THREE.MeshBasicMaterial({ color: 0x1a1612, toneMapped: false }) };
   private cageMat = new THREE.MeshStandardMaterial({ color: 0x6a6e70, metalness: 0.75, roughness: 0.35, flatShading: true });
   private hitMat = new THREE.MeshBasicMaterial({ visible: false });
   private beads: THREE.InstancedMesh;
@@ -120,10 +138,19 @@ export class TreeLattice {
   private layer: HTMLElement | null = null; private btn: HTMLButtonElement | null = null; private live: HTMLElement | null = null;
   private nav: FocusNav | null = null;
   private onClose: (() => void) | null = null;
-  private padX = false;
+  private padX = false; private padY = false;
   private dirty = true; private tickDirty = true; private headDirty = true;
   private t = 0;
   private m4 = new THREE.Matrix4(); private v = new THREE.Vector3(); private col = new THREE.Color();
+  // round 25: the bay (the action feed's monitor, the trade readout, the 3D toggle) and the decks
+  private deck = 0;
+  private preview: ActionPreview | null = null;
+  private shown: TreeNode | null = null;
+  private feedMat: CrtMaterial;
+  private feedLamp = new THREE.MeshBasicMaterial({ color: 0x40ff60, toneMapped: false });
+  private readCv = document.createElement('canvas'); private readTex: THREE.CanvasTexture; private readSig = '';
+  private tog3d!: Toggle;
+  private full: { layer: HTMLElement; frame: MxFrame | null; drag: { x: number; y: number; id: number } | null } | null = null;
 
   constructor(mats: FMats, hots: Hot[], o: LatticeOpts) {
     this.mats = mats; this.hots = hots; this.o = o;
@@ -148,8 +175,63 @@ export class TreeLattice {
     this.group.add(this.beads);
     this.burstCard.visible = false; this.group.add(this.burstCard);
     this.mast = this.reader();
+    this.readCv.width = 320; this.readCv.height = 96;
+    this.readTex = canvasTex(this.readCv);
+    this.feedMat = crtMaterial(BLACK_TEX, { curvature: 0.12, scan: 0.38, mask: 0.18, glow: 0.45, noise: 0.015, flicker: 0.15, vignette: 0.55, reflect: 0.18, tint: 0x9a9a96 }, [384, 288]);
+    this.feedMat.crt.on = 0; this.feedMat.crt.target = 0;
+    this.bay();
+    this.deck = BRANCHES.length && isProf(BRANCHES[0].key) ? 0 : 1;
     this.consoleKeys();
     this.show(0, true);
+  }
+
+  /** the bay at the rig's right: a machine-kit monitor (olive enamel, hazard foot, vents, glands) whose tube shows the
+   *  action feed (research/preview.ts), the trade's readout under it, and the 3D toggle that puts the feed on the screen */
+  private bay() {
+    const X = this.X1 - BAY_W / 2 - 0.02, Z = this.Z, top = this.Y1 - HEADER - 0.025;
+    const MW = BAY_W - 0.06, MH = 0.74, my = top - MH / 2, fz = Z + 0.2;
+    const b = new FacetBuilder();
+    // the housing: a deep olive enamel box, a dark bezel plate, the tube's black funnel
+    b.add('enamel', cbox(MW, MH, 0.2, 0.03), C.olive, at(X, my, Z + 0.1));
+    b.add('enamel', cbox(MW - 0.06, MH - 0.08, 0.02, 0.012), C.oliveDark, at(X, my + 0.012, fz + 0.005));
+    b.add('rubber', cbox(0.83, 0.62, 0.012, 0.004), 0x080808, at(X, my + 0.02, fz + 0.012));
+    // vents on the hood, bolts at the corners, a hazard foot, handles on the flanks, cable glands under it
+    for (let i = 0; i < 9; i++) b.add('metal', cbox(0.06, 0.008, 0.012, 0.002), C.darker, at(X - 0.3 + i * 0.075, my + MH / 2 - 0.022, fz + 0.012));
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add('chrome', bolt(0.012, 0.008), C.steel, at(X + dx * (MW / 2 - 0.035), my + dy * (MH / 2 - 0.035), fz + 0.016, Math.PI / 2));
+    b.add('hazard', cbox(MW - 0.1, 0.03, 0.008, 0.002), 0xffffff, at(X, my - MH / 2 + 0.03, fz + 0.016), { rep: 0.16 });
+    for (const sx of [-1, 1]) { b.add('chrome', prism(0.012, 0.36, 6), 0xffffff, at(X + sx * (MW / 2 + 0.03), my, Z + 0.16)); for (const dy of [-0.18, 0.18]) b.add('metal', cbox(0.05, 0.03, 0.03, 0.006), C.dark, at(X + sx * (MW / 2 + 0.012), my + dy, Z + 0.16)); }
+    for (const dx of [-0.25, 0.22]) { b.add('metal', prism(0.022, 0.04, 6), C.dark, at(X + dx, my - MH / 2 - 0.02, Z + 0.12)); b.add('rubber', tube([[X + dx, my - MH / 2 - 0.04, Z + 0.12], [X + dx + 0.02, my - MH / 2 - 0.2, Z + 0.08], [X + dx + 0.1, this.Y0 + FOOT + 0.01, Z + 0.04]], 0.012, 8, 5), dx < 0 ? 0x1a1a18 : 0xc8a020); }
+    // the readout under it: a steel plate with a sunk amber window, the 3D toggle on its right
+    const ry = this.Y0 + FOOT + 0.2;
+    b.add('metal', cbox(MW, 0.3, 0.07, 0.012), 0x4a5052, at(X, ry, Z + 0.035));
+    b.add('rubber', cbox(0.66, 0.2, 0.01, 0.003), 0x0a0604, at(X - 0.1, ry, Z + 0.072));
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add('chrome', bolt(0.008, 0.006), C.steel, at(X + dx * (MW / 2 - 0.025), ry + dy * 0.12, Z + 0.072, Math.PI / 2));
+    b.add('hazard', cbox(0.16, 0.2, 0.006, 0.002), 0xffffff, at(X + 0.355, ry, Z + 0.072), { rep: 0.12 });
+    this.group.add(b.build(this.mats, { cast: false }));
+    // the tube: a bulged pane of glass over the feed
+    const geo = new THREE.PlaneGeometry(0.8, 0.6, 12, 9);
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) { const x = pos.getX(i) / 0.4, y = pos.getY(i) / 0.3; pos.setZ(i, 0.018 * (1 - Math.min(1, (x * x + y * y) * 0.5))); }
+    geo.computeVertexNormals();
+    const tubeM = new THREE.Mesh(geo, this.feedMat);
+    tubeM.position.set(X, my + 0.02, fz + 0.02); tubeM.userData.noGlow = true;
+    this.group.add(tubeM);
+    // a pilot lamp on the bezel (green: a feed; amber: the 3D mode)
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.016, 0.01), this.feedLamp);
+    lamp.position.set(X + MW / 2 - 0.08, my - MH / 2 + 0.03, fz + 0.022); lamp.userData.noGlow = true;
+    this.group.add(lamp);
+    const rd = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.19), new THREE.MeshBasicMaterial({ map: this.readTex, toneMapped: false, color: 0xd8d0c0 }));
+    rd.position.set(X - 0.1, ry, Z + 0.078); rd.userData.noGlow = true;
+    this.group.add(rd);
+    // the 3D toggle: a bat-handle switch on its plate, stood on the hazard panel facing the room
+    this.tog3d = new Toggle(this.mats, { cap: 0xd8a030 });
+    this.tog3d.group.scale.setScalar(2.2);
+    this.tog3d.group.rotation.x = Math.PI / 2;
+    this.tog3d.group.position.set(X + 0.355, ry, Z + 0.08);
+    this.group.add(this.tog3d.group);
+    this.hots.push({ key: 'lt:3d', objs: [this.tog3d.group], label: '', off: true, press: () => this.toggle3d() });
+    // the tube is a hot too: a press on the feed puts it on the screen
+    this.hots.push({ key: 'lt:feed', objs: [tubeM], glow: [], label: '', off: true, press: () => this.toggle3d(true) });
   }
 
   // ================================================================== building
@@ -233,25 +315,28 @@ export class TreeLattice {
   }
   private park() { return { x: this.X1 - 0.26, y: this.o.railY - 0.26 }; }
 
-  /** a key per branch on the console's left (two rows of four) and LOG OFF on its right; rebuilt when branches are added */
+  /** the current deck's branches as keys on the console's left (two rows of up to five), the DECK key that swaps the
+   *  trades for the lab's research, and LOG OFF on its right; rebuilt when branches are added or the deck turns */
   private consoleKeys() {
     const K = this.o.keys;
     for (const k of this.keys) { this.group.remove(k.g); const i = this.hots.findIndex((h) => h.key === 'lt:key' + k.br); if (i >= 0) this.hots.splice(i, 1); }
     this.keys = [];
-    this.keySig = BRANCHES.map((b) => b.key).join();
-    const n = BRANCHES.length, OFF = 99;
+    this.keySig = this.deck + ':' + BRANCHES.map((b) => b.key).join();
+    const OFF = 99, DECK = 98;
+    const mine = BRANCHES.map((b, i) => [b, i] as const).filter(([b]) => (isProf(b.key) ? 0 : 1) === this.deck);
+    const n = mine.length, per = n > 8 ? Math.ceil(n / 2) : 4, step = per > 4 ? Math.max(0.1, 0.448 / (per - 1)) : 0.125;
     const word = (name: string) => { const w = name.split(' '); return (name.length <= 8 ? name : w[w.length - 1]).toUpperCase().slice(0, 8); };
-    const labels: [string, number][] = [...BRANCHES.map((b, i) => [word(b.name), i] as [string, number]), ['LOG OFF', OFF]];
-    labels.forEach(([label, i]) => {
+    const labels: [string, number, number][] = [...mine.map(([b, i], j) => [word(b.name), i, j] as [string, number, number]), [this.deck ? 'TRADES' : 'LAB', DECK, 0], ['LOG OFF', OFF, 0]];
+    labels.forEach(([label, i, j]) => {
       const g = new THREE.Group();
-      // two rows down the rake (back row higher), LOG OFF beside the tape reader
-      const row = i === OFF ? 0 : Math.floor(i / 4), col = i === OFF ? 0 : i % 4, dz = n > 4 ? (row ? 0.075 : -0.07) : 0;
-      g.position.set(i === OFF ? K.x + 1.72 : K.x + col * 0.125, K.y - dz * Math.tan(K.tilt), K.z + dz);
+      // two rows down the rake (back row higher); DECK and LOG OFF beside the tape reader
+      const row = i >= DECK ? (i === OFF ? 0 : 1) : Math.floor(j / per), col = i >= DECK ? 0 : j % per, dz = n > per || i >= DECK ? (row ? 0.075 : -0.07) : 0;
+      g.position.set(i >= DECK ? K.x + 1.72 : K.x - (per > 4 ? 0.06 + (per - 5) * 0.1 : 0) + col * step, K.y - dz * Math.tan(K.tilt), K.z + dz);
       g.rotation.x = K.tilt;
       const b = new FacetBuilder();
       b.add('metal', cbox(0.118, 0.012, 0.08, 0.003), C.darker, at(0, 0.004, 0));
       g.add(b.build(this.mats, { cast: false }));
-      const cap = new THREE.Mesh(cbox(0.1, 0.032, 0.062, 0.008), new THREE.MeshStandardMaterial({ color: i === OFF ? 0xa8261e : 0x2a2622, roughness: 0.45, flatShading: true }));
+      const cap = new THREE.Mesh(cbox(per > 4 && i < DECK ? Math.min(0.098, step - 0.008) : 0.1, 0.032, 0.062, 0.008), new THREE.MeshStandardMaterial({ color: i === OFF ? 0xa8261e : i === DECK ? 0xc89a20 : 0x2a2622, roughness: 0.45, flatShading: true }));
       cap.position.y = 0.026; cap.castShadow = true;
       const cv = document.createElement('canvas'); cv.width = 96; cv.height = 24;
       const tex = canvasTex(cv);
@@ -263,16 +348,24 @@ export class TreeLattice {
       this.group.add(g);
       const k = { g, cap, lit, tex, cv, label, dip: 0, br: i };
       this.keys.push(k);
-      this.hots.push({ key: 'lt:key' + i, objs: [cap], label: '', off: !this.active, press: () => { k.dip = 1; if (i === OFF) this.close(); else this.setBranch(i); } });
+      this.hots.push({ key: 'lt:key' + i, objs: [cap], label: '', off: !this.active, press: () => { k.dip = 1; if (i === OFF) this.close(); else if (i === DECK) this.turnDeck(); else this.setBranch(i); } });
     });
     this.paintKeys();
   }
+  /** the DECK key: the trades or the lab's research on the keys, the ticker and the rig (the first branch of the other deck) */
+  turnDeck() {
+    const to = this.deck ? 0 : 1;
+    const i = BRANCHES.findIndex((b) => (isProf(b.key) ? 0 : 1) === to);
+    if (i < 0) return;
+    sfx('lever', 0.7); gameSound('cy_clank', 0.5);
+    this.setBranch(i);
+  }
   private paintKeys() {
     for (const k of this.keys) {
-      const c = k.cv.getContext('2d')!, on = k.br === this.bi, off = k.br === 99;
-      c.fillStyle = off ? '#3a0a08' : on ? '#ffb030' : '#1a140c'; c.fillRect(0, 0, 96, 24);
-      c.fillStyle = off ? '#5a1410' : on ? '#fff0b0' : '#2a2014'; c.fillRect(0, 0, 96, 2);
-      bitText(c, k.label, 48, 4, { color: off ? '#ff9a80' : on ? '#2a1404' : '#b88a40', outline: null, align: 'center' });
+      const c = k.cv.getContext('2d')!, on = k.br === this.bi, off = k.br === 99, dk = k.br === 98;
+      c.fillStyle = off ? '#3a0a08' : dk ? '#2a1e04' : on ? '#ffb030' : '#1a140c'; c.fillRect(0, 0, 96, 24);
+      c.fillStyle = off ? '#5a1410' : dk ? '#6a4a10' : on ? '#fff0b0' : '#2a2014'; c.fillRect(0, 0, 96, 2);
+      bitText(c, k.label, 48, 4, { color: off ? '#ff9a80' : dk ? '#ffd060' : on ? '#2a1404' : '#b88a40', outline: null, align: 'center' });
       k.tex.needsUpdate = true;
     }
   }
@@ -282,7 +375,7 @@ export class TreeLattice {
     const ns = treeNodes(br);
     const rows = [...new Set([...treeLanes(br).map((l) => l.row), ...ns.map((n) => n.row)])].filter((r) => ns.some((n) => n.row === r)).sort((a, b) => a - b);
     const nc = Math.max(1, ...ns.map((n) => n.col + 1)), nl = Math.max(1, rows.length);
-    const L0 = this.X0 + LABEL_W, R0 = this.X1 - 0.06, T0 = this.Y1 - HEADER - 0.025, B0 = this.Y0 + FOOT + 0.02;
+    const L0 = this.X0 + LABEL_W, R0 = this.X1 - BAY_W - 0.05, T0 = this.Y1 - HEADER - 0.025, B0 = this.Y0 + FOOT + 0.02;
     const colW = Math.min(0.52, (R0 - L0) / nc), rowH = Math.min(0.34, (T0 - B0) / nl);
     const gx = L0 + ((R0 - L0) - colW * nc) / 2, gy = T0 - ((T0 - B0) - rowH * nl) / 2;
     const s = Math.min(colW * 0.6, rowH * 0.66, 0.21);
@@ -313,17 +406,11 @@ export class TreeLattice {
       spin.add(ex.root);
       const cg = new THREE.Mesh(cageGeo, this.cageMat);
       cg.position.set(px, py - s * 0.42, Z + 0.135); cg.castShadow = false;
-      const pips: THREE.Mesh[] = [];
-      if (n.ranks > 1) for (let r = 0; r < n.ranks; r++) {
-        const pp = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.01, 0.006), this.pipMats.off);
-        pp.position.set(px + (r - (n.ranks - 1) / 2) * 0.026, shY - 0.004, Z + 0.112); pp.userData.noGlow = true;
-        pips.push(pp);
-      }
       const hit = new THREE.Mesh(new THREE.BoxGeometry(s * 1.05, s * 1.05, 0.22), this.hitMat);
       hit.position.set(px, py, Z + 0.11);
-      root.add(frame, emit, hold, cg, hit, ...pips);
+      root.add(frame, emit, hold, cg, hit);
       const v: NodeV = {
-        n, br, li, p: new THREE.Vector3(px, py, Z + 0.075), s, spin, ex, hold, frame, emit, cage: cg, pips, hit, hot: null as unknown as Hot,
+        n, br, li, p: new THREE.Vector3(px, py, Z + 0.075), s, spin, ex, hold, frame, emit, cage: cg, hit, hot: null as unknown as Hot,
         vis: 'locked', look: 'lit', hover: false, lift: 0, cageK: 1, burst: 0, deny: 0, ph: Math.random() * 6.28, plunge: 1,
       };
       v.hot = { key: 'lt:n:' + n.key, objs: [hit], glow: [], label: '', off: true, press: () => this.pressNode(v), hover: (on) => this.hoverNode(v, on) };
@@ -380,7 +467,6 @@ export class TreeLattice {
     for (const v of bv.nodes) {
       const st = nodeState(v.n), r = rankOf(v.n);
       v.vis = r >= v.n.ranks ? 'max' : st === 'open' ? 'open' : r > 0 ? 'owned' : st === 'poor' ? 'poor' : st === 'locked' ? 'locked' : 'open';
-      v.pips.forEach((pp, i) => { pp.material = i < r ? this.pipMats.on : i === r && v.vis === 'open' ? this.pipMats.next : this.pipMats.off; });
     }
     for (const L of bv.links) {
       const fed = rankOf(L.from.n) > 0;
@@ -444,7 +530,7 @@ export class TreeLattice {
           if (fr && !fr.done) {
             const [qx, qy] = this.toPx(v.p.x - v.s / 2 + 0.004, v.p.y + v.s / 2 - 0.004);
             c.fillStyle = '#020403'; c.fillRect(qx - 1, qy - 1, 8, 8); c.fillStyle = '#f2ad32'; c.fillRect(qx + 1, qy + 1, 4, 4);
-            bitText(c, 'QUEST', qx + 10, qy - 1, { color: '#ffb030', outline: '#020403' });
+            bitText(c, fr.lvl ? `LV ${fr.goal}` : 'QUEST', qx + 10, qy - 1, { color: '#ffb030', outline: '#020403' });
           }
         }
       }
@@ -465,6 +551,7 @@ export class TreeLattice {
     c.fillStyle = '#2a1a08'; c.fillRect(0, H - 2, W, 2);
     let x = 10;
     BRANCHES.forEach((b, i) => {
+      if ((isProf(b.key) ? 0 : 1) !== this.deck) return;
       const on = i === this.bi, w = bitMeasure(b.code) * 2 + 16;
       c.fillStyle = on ? '#ffb030' : '#1e1408'; c.fillRect(x, 4, w, H - 10);
       bitText(c, b.code, x + 8, 8, { color: on ? '#1a0c02' : '#8a6a30', outline: null, scale: 2 });
@@ -482,7 +569,7 @@ export class TreeLattice {
       if (v) {
         const st2 = nodeState(v.n), r = rankPlanned(v.n);
         const rq2 = st2 === 'locked' ? fieldReq(v.n) : null;
-        msg = `${v.n.title.toUpperCase()} · ${st2 === 'max' ? 'COMPLETE' : st2 === 'open' ? `OPEN ${v.n.costs[r]} RP` : st2 === 'poor' ? `SHORT ${v.n.costs[r]} RP` : rq2 && !rq2.done ? (rq2.goal ? `FIELD QUEST ${rq2.progress}/${rq2.goal}` : 'FIELD QUEST') : 'LOCKED'}`;
+        msg = `${v.n.title.toUpperCase()} · ${st2 === 'max' ? 'COMPLETE' : st2 === 'open' ? `OPEN ${v.n.costs[r]} RP` : st2 === 'poor' ? `SHORT ${v.n.costs[r]} RP` : rq2 && !rq2.done ? (rq2.lvl ? rq2.text.toUpperCase() : rq2.goal ? `FIELD QUEST ${rq2.progress}/${rq2.goal}` : 'FIELD QUEST') : 'LOCKED'}`;
         col = st2 === 'open' ? '#ffd890' : st2 === 'max' ? '#7aff9a' : st2 === 'poor' ? '#c89a58' : '#7a8a7e';
       } else msg = `R-NET 7 · ${BRANCHES[this.bi].name.toUpperCase()} · ${BRANCHES[this.bi].sub.toUpperCase()}`;
     }
@@ -519,14 +606,14 @@ export class TreeLattice {
       y += 15 * Math.max(1, Math.ceil(bitMeasure(status) / (W - 40))) + 6;
       // round 17: a requirement quest (src/game/reqQuests.ts): what the field must see first, and how far along
       // (also a quest named by the research itself, or a gate's own hint: whatever the node waits on in the field)
-      const rq = rp < 1 ? fieldReq(n) : null;
+      const rq0 = fieldReq(n), rq = rq0 && (rp < 1 || rq0.lvl) ? rq0 : null;
       if (rq) {
-        const qc = rq.done ? '#7aff9a' : '#ffd040', qt = `${rq.done ? 'FIELD DONE' : 'FIELD QUEST'} · ${rq.text.toUpperCase()}`;
+        const qc = rq.done ? '#7aff9a' : '#ffd040', qt = rq.lvl ? `${rq.text.toUpperCase()} · NOW ${rq.progress}` : `${rq.done ? 'FIELD DONE' : 'FIELD QUEST'} · ${rq.text.toUpperCase()}`;
         // a lamp: lit amber while the field still owes it, green once done
         c.fillStyle = '#020403'; c.fillRect(9, y + 1, 10, 10); c.fillStyle = rq.done ? '#48dc70' : Math.floor(this.t * 2) % 2 ? '#ffb030' : '#7a4a10'; c.fillRect(11, y + 3, 6, 6);
         bitText(c, qt, 24, y, { color: qc, outline: null, maxW: W - 34 });
         y += 15 * Math.max(1, Math.ceil(bitMeasure(qt) / (W - 34))) + 2;
-        if (rq.goal > 0) {
+        if (rq.goal > 0 && !rq.lvl) {
           const cells = Math.min(20, rq.goal), cw = Math.max(3, Math.floor((W - 70) / cells)), lit = Math.round((rq.progress / rq.goal) * cells);
           for (let i = 0; i < cells; i++) { c.fillStyle = i < lit ? (rq.done ? '#48dc70' : '#f2ad32') : '#1a2a1e'; c.fillRect(10 + i * cw, y + 2, cw - 1, 8); }
           bitText(c, `${rq.progress}/${rq.goal}`, W - 12, y - 1, { color: qc, outline: null, align: 'right' });
@@ -541,7 +628,7 @@ export class TreeLattice {
         const lines = Math.max(1, Math.ceil(bitMeasure(gv) / (W - 52)));
         bitText(c, gv, 40, y, { color: own ? '#c8ffd0' : '#e8dcb8', outline: null, maxW: W - 52 }); y += 18 * lines;
       });
-      const where = n.branch === 'chip' || n.branch === 'limb' ? 'FIT IT ON THE UNIT IN UNIT ROOM 4' : n.branch === 'design' ? 'DRESS THE UNIT IN IT IN UNIT ROOM 4' : 'KNOWN ON EVERY NEW RUN';
+      const where = n.branch === 'chip' || n.branch === 'limb' ? 'FIT IT ON THE UNIT IN UNIT ROOM 4' : n.branch === 'design' ? 'DRESS THE UNIT IN IT IN UNIT ROOM 4' : isProf(n.branch) ? 'THE TRADE LEVELS BY DOING THE WORK' : 'KNOWN ON EVERY NEW RUN';
       bitText(c, where, 10, H - 42, { color: '#5a8a6a', outline: null });
       const blink = Math.floor(this.t * 2) % 2 === 0;
       c.fillStyle = st === 'open' ? (blink ? '#ffb030' : '#5a3a10') : '#1a120a'; c.fillRect(8, H - 24, W - 16, 18);
@@ -585,11 +672,20 @@ export class TreeLattice {
     this.announce();
     sfx('boot', 0.6); gameSound('cy_powerup', 0.4);
     this.tickDirty = true; this.headDirty = true;
+    // the action feed: one preview scene while the rig is up (disposed on close)
+    this.preview = new ActionPreview(this.mats);
+    this.shown = null;
+    this.feedMat.crt.target = 1;
+    this.readSig = '';
   }
   close() {
     if (!this.active) return;
+    if (this.full) this.toggle3d(false);
     this.active = false;
     clearPlan();
+    this.feedMat.crt.target = 0;
+    this.feedMat.uniforms.uTex.value = BLACK_TEX;
+    this.preview?.dispose(); this.preview = null; this.shown = null;
     this.focused = null;
     if (this.sel) { this.sel = null; }
     this.nav?.destroy(); this.nav = null;
@@ -603,12 +699,14 @@ export class TreeLattice {
   }
   /** Esc / B / a tap on nothing: out of the close-up, then off the lattice */
   back() {
+    if (this.full) { this.toggle3d(false); return; }
     if (this.focused) { this.focused = null; this.headDirty = true; this.tickDirty = true; sfx('back', 0.6); gameSound('cy_servo', 0.3); return; }
     this.close();
   }
   private onKey = (e: KeyboardEvent) => {
     if (!this.active) return;
     if (e.key === 'r' || e.key === 'R') { e.preventDefault(); e.stopPropagation(); this.pull(); }
+    else if (e.key === 'v' || e.key === 'V') { e.preventDefault(); e.stopPropagation(); this.toggle3d(); }
     else if (e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); this.back(); }
   };
   /** Enter / A / the focus key: inspect the selected node; on the one inspected, research it */
@@ -671,7 +769,7 @@ export class TreeLattice {
       v.deny = 1;
       // a node still waiting on its field quest answers in amber with the count, not a red refusal
       const rq = st === 'locked' ? fieldReq(v.n) : null;
-      this.headMsg = rq && !rq.done ? { text: rq.goal ? `FIELD QUEST ${rq.progress}/${rq.goal}` : 'FIELD QUEST', col: '#ffb030', t: 1.4 } : { text: st === 'max' ? 'COMPLETE' : st === 'poor' ? 'NOT ENOUGH RP' : 'LOCKED', col: '#ff6a4a', t: 1.4 };
+      this.headMsg = rq && !rq.done ? { text: rq.lvl ? `LEVEL ${rq.goal}` : rq.goal ? `FIELD QUEST ${rq.progress}/${rq.goal}` : 'FIELD QUEST', col: '#ffb030', t: 1.4 } : { text: st === 'max' ? 'COMPLETE' : st === 'poor' ? 'NOT ENOUGH RP' : 'LOCKED', col: '#ff6a4a', t: 1.4 };
       setTimeout(() => { sfx('error', 0.6); gameSound('buzzer', 0.35); }, 140);
       this.headDirty = true;
       return;
@@ -715,7 +813,7 @@ export class TreeLattice {
       this.branches.delete(k);
       if (this.cur === bv) this.cur = null;
     }
-    if (this.keySig !== BRANCHES.map((b) => b.key).join()) this.consoleKeys();
+    if (this.keySig !== this.deck + ':' + BRANCHES.map((b) => b.key).join()) this.consoleKeys();
     const i = Math.max(0, BRANCHES.findIndex((b) => b.key === curKey));
     this.show(i, true);
   }
@@ -731,6 +829,8 @@ export class TreeLattice {
     i = Math.max(0, Math.min(BRANCHES.length - 1, i));
     this.bi = i;
     const br = BRANCHES[i].key;
+    const dk = isProf(br) ? 0 : 1;
+    if (dk !== this.deck) { this.deck = dk; this.consoleKeys(); }
     if (this.cur) this.cur.root.visible = false;
     this.cur = this.branches.get(br) ?? this.buildBranch(br);
     this.cur.root.visible = true;
@@ -744,6 +844,84 @@ export class TreeLattice {
   }
   /** a sample was filed (after a bench run): the ticker says so */
   flash(text: string) { this.flashMsg = { text, t: 0 }; this.tickDirty = true; this.refresh(); }
+
+  // ================================================================== round 25: the action feed and the 3D mode
+  /** the stage's preRender: the feed's scene through the menu's post pass into the monitor's tube */
+  preRender(r: THREE.WebGLRenderer, t: number, low: boolean) {
+    if (!this.active || !this.preview || this.full) return;
+    this.preview.render(r, t, low);
+    const tex = this.preview.texture;
+    if (tex && this.feedMat.uniforms.uTex.value !== tex) this.feedMat.uniforms.uTex.value = tex;
+  }
+  /** the 3D mode: the feed's own scene on the whole screen (the stage renders it through its own post pass) */
+  fullView(): StageView | null { return this.active && this.full && this.preview ? this.preview : null; }
+  get in3d() { return !!this.full; }
+  /** the 3D mode on or off: the feed fills the screen in the machine kit's housing; drag turns round it, the wheel
+   *  moves in, the arrows still walk the lattice (the feed follows), Esc / B / the floating key come back */
+  toggle3d(on = !this.full) {
+    if (!this.active || on === !!this.full) return;
+    this.tog3d.flip(on);
+    sfx(on ? 'lever' : 'back', 0.8); gameSound(on ? 'cy_powerup' : 'cy_powerdown', 0.4);
+    if (on) {
+      if (!this.preview) return;
+      const layer = document.createElement('div');
+      layer.className = 'lt3d';
+      layer.innerHTML = '<div class="crt lt3d-tube"><i class="crt-scan"></i><i class="crt-roll"></i><i class="crt-vig"></i></div><div class="lt3d-keys"></div>';
+      document.body.append(layer);
+      let frame: MxFrame | null = null;
+      if (mxOk()) frame = mxFrame(layer, (w, h) => { const sp = panelSpec(w, h, { seed: 25, lamps: ['green', 'amber'], glands: 2, hazard: true, vents: true, guards: true, win: { l: 18, t: 18, r: 18, b: 84, cut: 9, lip: 5 } }); return sp; }, { over: true, pad: 0 });
+      const keys = layer.querySelector('.lt3d-keys') as HTMLElement;
+      keys.append(floatIcon('lattice', 'Lattice', () => this.toggle3d(false), { hint: 'Esc', size: 46 }));
+      const F = { layer, frame, drag: null as { x: number; y: number; id: number } | null };
+      layer.addEventListener('pointerdown', (e) => { if ((e.target as HTMLElement).closest('.fi')) return; F.drag = { x: e.clientX, y: e.clientY, id: e.pointerId }; layer.setPointerCapture?.(e.pointerId); });
+      layer.addEventListener('pointermove', (e) => { const d = F.drag; if (!d || d.id !== e.pointerId) return; this.preview?.orbit(e.clientX - d.x, e.clientY - d.y); d.x = e.clientX; d.y = e.clientY; });
+      const up = (e: PointerEvent) => { if (F.drag?.id === e.pointerId) F.drag = null; };
+      layer.addEventListener('pointerup', up); layer.addEventListener('pointercancel', up);
+      layer.addEventListener('wheel', (e) => { e.preventDefault(); this.preview?.zoom(e.deltaY > 0 ? 1.08 : 1 / 1.08); }, { passive: false });
+      this.full = F;
+      this.preview.audible = true;
+    } else {
+      const F = this.full!;
+      this.full = null;
+      F.frame?.dispose(); F.layer.remove();
+      this.preview?.resetView();
+      if (this.preview) this.preview.audible = false;
+      this.btn?.focus({ preventScroll: true });
+    }
+    this.feedLamp.color.setHex(on ? 0xffb030 : 0x40ff60);
+  }
+  /** the trade's readout under the monitor: the level huge in amber, the XP bar to the next; the lab's branches show the points */
+  private drawReadout() {
+    const br = BRANCHES[this.bi];
+    if (!br) return;
+    const pd = branchProf(br.key);
+    const pp = pd ? profProgress(pd.key as ProfKey) : null;
+    const sig = br.key + ':' + (pp ? `${pp.level}:${Math.floor(pp.xp)}` : researchPoints());
+    if (sig === this.readSig) return;
+    this.readSig = sig;
+    const c = this.readCv.getContext('2d')!, W = this.readCv.width, H = this.readCv.height;
+    c.imageSmoothingEnabled = false;
+    c.fillStyle = '#0a0602'; c.fillRect(0, 0, W, H);
+    c.fillStyle = 'rgba(255,160,40,0.06)'; for (let x = 0; x < W; x += 4) c.fillRect(x, 0, 1, H);
+    bitText(c, br.code, 10, 12, { color: '#8a5a18', outline: null });
+    if (pp && pd) {
+      bitText(c, 'LV', 10, 62, { color: '#c87a20', outline: null, scale: 2 });
+      seg7(c, String(pp.level).padStart(2, '0'), 52, 18, 24, 58);
+      // the bar to the next level: one continuous lit strip in a sunk channel
+      const bx = 128, bw = W - bx - 12, by = 56, bh = 14, f = Math.max(0, Math.min(1, pp.xp / pp.need));
+      c.fillStyle = '#1a0e04'; c.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+      c.fillStyle = '#3a2208'; c.fillRect(bx, by, bw, bh);
+      const g = c.createLinearGradient(bx, 0, bx + bw, 0); g.addColorStop(0, '#c86a10'); g.addColorStop(1, '#ffd060');
+      c.fillStyle = g; c.fillRect(bx, by, Math.round(bw * f), bh);
+      c.fillStyle = 'rgba(255,240,200,0.35)'; c.fillRect(bx, by, Math.round(bw * f), 3);
+      bitText(c, pp.level >= 10 ? 'MAX' : `${Math.floor(pp.xp)}/${pp.need}`, bx + bw, 26, { color: '#ffb030', outline: null, scale: 2, align: 'right' });
+    } else {
+      seg7(c, String(Math.min(9999, researchPoints())).padStart(4, ' '), 52, 18, 24, 58);
+      bitText(c, 'RP', W - 14, 52, { color: '#c87a20', outline: null, scale: 2, align: 'right' });
+    }
+    c.fillStyle = 'rgba(0,0,0,0.22)'; for (let y = 0; y < H; y += 2) c.fillRect(0, y, W, 1);
+    this.readTex.needsUpdate = true;
+  }
 
   // ================================================================== the camera
   /** where the camera should be while the rig is up (null: the room decides) */
@@ -781,14 +959,13 @@ export class TreeLattice {
     }
     // keep keyboard and pad focus on the focus key; the pad's X researches
     if (this.active && this.btn && document.activeElement !== this.btn && !(document.activeElement instanceof HTMLInputElement)) this.btn.focus({ preventScroll: true });
-    if (this.active) { try { const p = navigator.getGamepads?.()[0]; const x = !!p?.buttons[2]?.pressed; if (x && !this.padX) this.pull(); this.padX = x; } catch { /* no pads */ } }
+    if (this.active) { try { const p = navigator.getGamepads?.()[0]; const x = !!p?.buttons[2]?.pressed, y = !!p?.buttons[3]?.pressed; if (x && !this.padX) this.pull(); if (y && !this.padY) this.toggle3d(); this.padX = x; this.padY = y; } catch { /* no pads */ } }
     this.light.intensity = damp(this.light.intensity, this.active ? 3.2 : 0.6, 3, dt);
     if (!full && !this.active) return;
     const cur = this.cur;
     if (cur) {
       const pulse = 0.55 + 0.45 * Math.sin(t * 4.2);
       this.frameMats.get('open')!.color.setHex(STATE_COL.open).multiplyScalar(0.4 + 0.65 * pulse);
-      this.pipMats.next.color.setHex(0xffb030).multiplyScalar(Math.floor(t * 3) % 2 ? 1.2 : 0.25);
       this.coreMats[2].color.setHex(0xb87a28).multiplyScalar(0.55 + 0.6 * pulse);
       this.coreMats[3].color.setHex(0x48dc70).multiplyScalar(0.85 + 0.15 * Math.sin(t * 1.6));
       const fast = 0.5 + 0.5 * Math.sin(t * 7);
@@ -847,6 +1024,13 @@ export class TreeLattice {
       this.beads.instanceMatrix.needsUpdate = true;
       if (this.beads.instanceColor) this.beads.instanceColor.needsUpdate = true;
     }
+    // round 25: the action feed follows the node under the pointer (or the inspected one); the readout and the toggle
+    if (this.active && this.preview) {
+      const fv1 = this.focused ?? this.sel;
+      if (fv1 && fv1.n !== this.shown && !this.swap) { this.shown = fv1.n; this.preview.show(shotFor(fv1.n)); }
+      this.preview.update(dt, t);
+    }
+    if (full || this.active) { this.drawReadout(); this.tog3d.update(dt); }
     // the reader drives over beside the inspected node (or back to its park)
     const fv = this.focused;
     const { x: tx, y: ty } = this.readerGoal();
@@ -880,6 +1064,26 @@ export class TreeLattice {
 }
 
 // ================================================================== helpers
+/** amber seven-segment digits (the readout's tubes): lit segments over their dark ghosts */
+const SEG: Record<string, string> = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', ' ': '' };
+function seg7(c: CanvasRenderingContext2D, txt: string, x0: number, y0: number, w: number, h: number) {
+  const t = Math.max(3, Math.round(w * 0.2)), hh = Math.round(h / 2);
+  const bars: Record<string, [number, number, number, number]> = {
+    a: [t, 0, w - 2 * t, t], g: [t, hh - t / 2, w - 2 * t, t], d: [t, h - t, w - 2 * t, t],
+    f: [0, t, t, hh - t * 1.5], b: [w - t, t, t, hh - t * 1.5], e: [0, hh + t / 2, t, hh - t * 1.5], c: [w - t, hh + t / 2, t, hh - t * 1.5],
+  };
+  [...txt].forEach((ch, i) => {
+    const x = x0 + i * (w + 8), on = SEG[ch] ?? '';
+    for (const [k, [bx, by, bw, bh]] of Object.entries(bars)) {
+      const lit = on.includes(k);
+      c.fillStyle = lit ? '#ffb83a' : 'rgba(255,150,40,0.08)';
+      c.fillRect(x + bx + (h - by) * 0.08, y0 + by, bw, bh);
+      if (lit) { c.fillStyle = 'rgba(255,240,190,0.55)'; c.fillRect(x + bx + (h - by) * 0.08, y0 + by, bw, Math.max(1, bh / 3)); }
+    }
+  });
+}
+const BLACK_TEX = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+BLACK_TEX.needsUpdate = true;
 function canvasTex(cv: HTMLCanvasElement): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(cv);
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.colorSpace = THREE.SRGBColorSpace;
@@ -908,11 +1112,14 @@ function missing(n: TreeNode): string {
   const rn = researchFor(n, rankPlanned(n) + 1);
   for (const q of rn?.requires ?? []) { const m = treeNodes().find((t) => t.rn.includes(q)); if (m && rankPlanned(m) < 1 && !need.includes(m.title)) need.push(m.title); }
   const q = fieldReq(n);
-  return need.length ? need.join(', ') : q && !q.done ? 'a field quest' : 'an earlier node';
+  return need.length ? need.join(', ') : q && !q.done ? (q.lvl ? q.text : 'a field quest') : 'an earlier node';
 }
 /** what a node still waits on outside research: a requirement quest's count (src/game/reqQuests.ts), a quest named by
  *  the research (quest / reqQuest, read from the quest runtime), or its gate's hint (goal 0: no count to show) */
-function fieldReq(n: TreeNode): { text: string; progress: number; goal: number; done: boolean } | null {
+function fieldReq(n: TreeNode): { text: string; progress: number; goal: number; done: boolean; lvl?: boolean } | null {
+  // round 25: a trade's node waits on the trade's level (src/game/professions.ts), every rank
+  const pg = profGate(n.key);
+  if (pg) return { text: `${pg.prof.name} level ${pg.level}`, progress: pg.have, goal: pg.level, done: false, lvl: true };
   if (rankOf(n) >= 1) return null;
   const rq = nodeQuest(n.rn[0]);
   if (rq) return { text: rq.text, progress: rq.progress, goal: rq.goal, done: rq.done };

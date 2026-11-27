@@ -36,6 +36,7 @@ import { visualMotion, smoothBegin, smoothEnd, leanOf, type VisMotion } from './
 import { physUndo, physApply } from './kit/bodyphys';
 import { parasiteFrame } from '../survival/parasite';
 import { talentMul } from '../survival/talents';
+import { profXp, profMul } from '../game/professions';
 
 /** what a creature was hit with (passed to the gore system) */
 export interface GoreHit { dmg: number; kind: string; fx: number; fz: number; crit?: boolean; by?: string; head?: boolean }
@@ -780,7 +781,7 @@ export class CreatureSystem implements GameSystem {
     { const so = creatureSampleOption(p, c); if (so) out.push(so); }
     if (c.sp.tame && !c.tamedBy) {
       const food = p.findItem((it) => c.sp.tame!.food.includes(it.key));
-      out.push({ label: 'Offer food', disabled: !food ? 'needs ' + c.sp.tame.food.map((k) => itemDef(k).name).slice(0, 2).join('/') : false, action: () => queueAt(p, c.x, c.z, new UseObjectAction(p, 'Offer food', 2, 'pickup', () => this.feed(p, c, food!)), 1.6, false) });
+      out.push({ label: 'Offer food', disabled: !food ? 'needs ' + c.sp.tame.food.map((k) => itemDef(k).name).slice(0, 2).join('/') : false, action: () => queueAt(p, c.x, c.z, new UseObjectAction(p, 'Offer food', 2 * profMul('tame'), 'pickup', () => this.feed(p, c, food!)), 1.6, false) });
     }
     if (c.tamedBy === p.id) {
       out.push({ label: 'Pet', action: () => queueAt(p, c.x, c.z, new UseObjectAction(p, 'Pet', 2, 'pickup', () => { p.body.unhappy = Math.max(0, p.body.unhappy - 12); p.body.stress = Math.max(0, p.body.stress - 10); bus.emit('think', p, ['Good... boy?', 'It purrs like a fridge.', 'It leans into my hand.'][Math.floor(Math.random() * 3)]); }), 1.4, false) });
@@ -791,6 +792,7 @@ export class CreatureSystem implements GameSystem {
   feed(p: Player, c: Creature, food: any) {
     p.removeItem(food);
     c.feeds++;
+    if (p === G.local) profXp('handler', 8, 'fed');
     c.setState('idle');
     c.awareness.clear();
     bus.emit('inventoryChanged', p);

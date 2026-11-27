@@ -16,7 +16,7 @@ const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
 let failed = 0, passed = 0;
 /** steps in a full run (main chain + side chain); update when a step is added */
-const EXPECT = 40;
+const EXPECT = 41;
 
 async function session() {
   const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
@@ -339,6 +339,15 @@ if (!mainOnly) {
     await T.until(() => T.has('start:first_light'), 30000, 'side chain');
   });
   const S = (name, fn) => step(page, 'side: ' + name, fn);
+  // round 25: the lattice's trades level by doing the work (src/game/professions.ts): skill XP feeds the trade
+  await S('professions: a club blow trains Combat, fuses train Engineer', async () => {
+    const T = window.T, m = await import('/src/game/professions.ts');
+    const c0 = m.profTotal('combat'), e0 = m.profTotal('engineer');
+    T.p.body.addXp('blunt', 12); T.p.body.addXp('electrical', 9);
+    const c1 = m.profTotal('combat'), e1 = m.profTotal('engineer');
+    if (!(c1 > c0) || !(e1 > e0)) throw new Error(`no trade xp: combat ${c0}->${c1}, engineer ${e0}->${e1}`);
+    return { combat: [c0, c1, m.profLevel('combat')], engineer: [e0, e1] };
+  });
   await S('lobby: fit fuse 1', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 1); });
   await S('lobby: fit fuse 2', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 2); });
   await S('lobby: fit fuse 3', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 3); });

@@ -21,6 +21,7 @@ import { Marks } from '../combat/glyphs';
 import { Words } from '../combat/words';
 import { Combo } from '../combat/combos';
 import { Grapples, GrappleAction } from '../combat/grapple';
+import { masteryRank, masteryOf, moveOwned, profXp } from './professions';
 import { Impacts, pickPart, partEffect, type HitPart } from '../combat/impact';
 import { Executions } from '../combat/executions';
 import { motionOf } from '../entities/motion';
@@ -49,7 +50,7 @@ interface Move {
 }
 
 /** round 24: where each weapon's own swing meets the target (fraction of the move) and how long it runs against the class's light */
-const ANIM_HIT: Record<string, number> = { cb_cut: 0.36, cb_club: 0.5, cb_bash: 0.52 };
+const ANIM_HIT: Record<string, number> = { cb_cut: 0.36, cb_club: 0.5, cb_bash: 0.52, cb_overhead: 0.56, cb_shove_kick: 0.5, cb_counter: 0.35, cb_finisher: 0.52 };
 const ANIM_DUR: Record<string, number> = { cb_cut: 1.0, cb_club: 1.12, cb_bash: 1.2 };
 
 const HOSTILE = new Set(['hostile', 'stalker', 'ambush', 'territorial']);
@@ -419,7 +420,7 @@ export class CombatSystem implements GameSystem {
         if (this.exec.start(p, c, w)) return;
       }
       if (isDown(c)) {
-        if (this.combo.finisherReady(c.id) || c.hp <= w.w.dmg[1] * 2.2 * MOVES.slash.dmg) { this.combo.note('finisher', c.id); this.combo.ground = null; if (this.exec.start(p, c, w, true)) return; }
+        if (this.combo.finisherReady(c.id) || c.hp <= w.w.dmg[1] * 2.2 * MOVES.slash.dmg * (moveOwned('finisher') ? 1.6 : 1)) { this.combo.note('finisher', c.id); this.combo.ground = null; if (this.exec.start(p, c, w, true)) return; }
         this.startMove(p, 'slash', w, c.id);
         return;
       }
@@ -470,6 +471,8 @@ export class CombatSystem implements GameSystem {
   private animFor(kind: MoveKind, w: Wielded, perfect: boolean): string {
     switch (kind) {
       case 'light': {
+        // a counter window open and the Counter learnt: the answer is a rising backhand
+        if (moveOwned('counter') && this.combo.counter && G.time < this.combo.counter.until && w.cls !== 'unarmed' && w.cls !== 'cyber') return 'cb_counter';
         if (w.cls === 'unarmed' || w.cls === 'cyber') return this.combo.chain % 2 ? 'cb_jab' : 'cb_jab2';
         // round 24: each kind of thing in the hand swings like itself (src/combat/anims.ts)
         if (w.cls === 'blade') return 'cb_cut';
@@ -478,12 +481,14 @@ export class CombatSystem implements GameSystem {
         return w.feel.lightAnim === 'swing' && w.w.twoHanded ? 'swing2h' : w.feel.lightAnim;
       }
       case 'jab': return this.combo.barrage && this.combo.barrage.jabs % 2 ? 'cb_jab2' : 'cb_jab';
-      case 'heavy': case 'flurryEnd': return 'cb_heavy';
+      // round 25: the lattice's unlockable moves (src/game/professions.ts, the Combat branch)
+      case 'heavy': return moveOwned('overhead') && (w.cls === 'blunt' || w.cls === 'heavy' || w.cls === 'axe' || w.cls === 'improvised') ? 'cb_overhead' : 'cb_heavy';
+      case 'flurryEnd': return 'cb_heavy';
       case 'lunge': return 'cb_lunge';
-      case 'shove': return 'shove';
+      case 'shove': return moveOwned('kick') ? 'cb_shove_kick' : 'shove';
       case 'tackle': return 'cb_tackle';
       case 'stomp': return 'cb_stomp';
-      case 'slash': return 'cb_slash';
+      case 'slash': return moveOwned('finisher') ? 'cb_finisher' : 'cb_slash';
       default: void perfect; return '';
     }
   }
@@ -503,10 +508,10 @@ export class CombatSystem implements GameSystem {
       case 'heavy': dur = w.feel.heavyDur / Math.sqrt(speed); break;
       case 'flurryEnd': dur = 0.42; break;
       case 'lunge': dur = 0.52; break;
-      case 'shove': dur = 0.42; break;
+      case 'shove': dur = moveOwned('kick') ? 0.56 : 0.42; break;
       case 'tackle': dur = 0.55; break;
       case 'stomp': dur = 0.55 / Math.sqrt(speed); break;
-      case 'slash': dur = 0.5 / Math.sqrt(speed); break;
+      case 'slash': dur = (moveOwned('finisher') ? 0.78 : 0.5) / Math.sqrt(speed); break;
       default: dur = 0.3;
     }
     const stam = (kind === 'light' ? w.feel.stam * spec.stam : kind === 'heavy' || kind === 'flurryEnd' || kind === 'slash' || kind === 'jab' ? w.feel.stam * spec.stam * (kind === 'heavy' ? 0.6 + power : 1) : spec.stam) * w.stamMul * (p.body.has('athletic') ? 0.8 : 1);
@@ -706,24 +711,32 @@ export class CombatSystem implements GameSystem {
     const broken = isDown(c) || isStunned(c);
     if (behind) dmg *= 1.5;
     if (broken) dmg *= 1.3;
-    if (m.counter) dmg *= 1.8;
+    if (m.counter) dmg *= moveOwned('counter') ? 2.3 : 1.8;
+    // round 25: weapon mastery (the lattice's Combat branch) and the unlockable moves
+    const mr = masteryRank(w.cls), mk = masteryOf(w.cls);
+    if (!foot) dmg *= 1 + mr * (mk === 'improvised' ? 0.1 : 0.08);
+    if (m.anim === 'cb_overhead') dmg *= 1.25;
+    if (m.anim === 'cb_finisher') dmg *= 1.6;
     // round 24: the blow lands on a part of it (src/combat/impact.ts)
     const part = pickPart(c, k, w.cls, behind);
     const size0 = sizeClass(c);
-    const crit = m.counter || this.rng.chance(w.w.crit + skill * 0.01 + (unaware ? 0.25 : 0) + (behind ? 0.35 : 0) + (m.perfect ? 0.3 : 0) + (k === 'lunge' && (w.cls === 'blade' || w.cls === 'spear') ? 0.3 : 0) + (part === 'head' ? 0.15 : 0));
+    const crit = m.counter || this.rng.chance(w.w.crit + skill * 0.01 + (unaware ? 0.25 : 0) + (behind ? 0.35 : 0) + (m.perfect ? 0.3 : 0) + (k === 'lunge' && (w.cls === 'blade' || w.cls === 'spear') ? 0.3 : 0) + (part === 'head' ? 0.15 : 0) + mr * 0.03);
     const pe = partEffect(part, w.cls, size0, crit);
+    if (pe.st !== undefined && mk === 'blunt') pe.st *= 1 + mr * 0.25;
     dmg *= pe.dmg;
     if (crit) dmg *= 2;
     if (w.it && (w.it.cond ?? 1) < 0.3) dmg *= 0.75;
     const size = sizeClass(c);
     const sizeK = size === 3 ? 0.35 : size === 2 ? 0.8 : 1.2;
-    const knock = (foot ? 0.6 : w.w.knock * w.knockMul) * w.feel.knock * spec.knock * sizeK * kickMul * pe.knock;
-    const po = pe.po * spec.poise * (foot ? 1 : w.feel.poise) * w.poiseMul * kickMul * (m.perfect ? 1.6 : 1) * (m.counter ? 2 : 1) * (k === 'heavy' ? 0.6 + m.power : 1) * (crit ? 1.3 : 1);
+    const kick2 = m.anim === 'cb_shove_kick';
+    const knock = (foot ? 0.6 : w.w.knock * w.knockMul) * w.feel.knock * spec.knock * sizeK * kickMul * pe.knock * (kick2 ? 1.55 : 1);
+    const po = pe.po * spec.poise * (foot ? 1 : w.feel.poise) * w.poiseMul * kickMul * (m.perfect ? 1.6 : 1) * (m.counter ? 2 : 1) * (k === 'heavy' ? 0.6 + m.power : 1) * (crit ? 1.3 : 1) * (mk === 'improvised' ? 1 + mr * 0.12 : 1);
     let dn: number | undefined, stn: number | undefined;
     if (k === 'tackle' && size <= 2) dn = 2.2;
     else if (k === 'flurryEnd' && size <= 2) dn = 2.0;
     else if (k === 'heavy' && m.perfect) { if (w.cls === 'blade' || w.cls === 'spear') stn = 2.4; else dn = 2.0; }
-    else if (k === 'shove' && (size <= 1 || isStunned(c))) dn = 1.9;
+    else if (k === 'shove' && (size <= (kick2 ? 2 : 1) || isStunned(c))) dn = 1.9;
+    else if (m.anim === 'cb_overhead' && size <= 2 && (m.power >= 0.8 || mr >= 3)) dn = 1.8;
     else if (k === 'lunge' && w.cls === 'spear') stn = 1.2;
     // what the part does: a dazed head, a leg out from under it
     if (dn === undefined && pe.dn && k !== 'jab') dn = pe.dn;
@@ -732,7 +745,7 @@ export class CombatSystem implements GameSystem {
     const kind = k === 'shove' || k === 'tackle' ? 'shove' : k === 'stomp' ? 'blunt' : w.hitKind;
     this.dealCreature(p, c, { dmg, kind, knock, crit, po, dn, st: stn, ia, part });
     // a cut through a limb: the gore system takes it off (blades and axes, a real blow, and only sometimes)
-    if (pe.sever && crit && (k === 'heavy' || k === 'lunge' || k === 'slash' || (k === 'light' && w.cls === 'axe')) && this.rng.chance(w.feel.sever * 0.3)) cbOp({ t: 'sev', id: c.id, role: pe.sever, k: kind, fx: p.x, fz: p.z, by: p.id });
+    if (pe.sever && crit && (k === 'heavy' || k === 'lunge' || k === 'slash' || (k === 'light' && w.cls === 'axe')) && this.rng.chance(w.feel.sever * 0.3 * (mk === 'blade' ? 1 + mr * 0.35 : 1) * (m.anim === 'cb_finisher' ? 2 : 1))) cbOp({ t: 'sev', id: c.id, role: pe.sever, k: kind, fx: p.x, fz: p.z, by: p.id });
     // driven hard enough it keeps going, into whatever stands behind it
     this.impacts.launch(c, c.x - p.x, c.z - p.z, knock * (k === 'tackle' || k === 'shove' ? 1.3 : 1));
     // the ground chain
@@ -1139,7 +1152,9 @@ export class CombatSystem implements GameSystem {
     this.rangedCd = p.attackCooldown = 0.6;
     p.playAnim('throw', 0.6);
     p.removeItem(it);
-    const dist = clamp(Math.hypot(p.aimX - p.x, p.aimZ - p.z), 1.5, 9 + p.body.skill('strength'));
+    if (p === G.local) profXp('combat', 2, 'throw');
+    const tr = masteryRank('thrown');
+    const dist = clamp(Math.hypot(p.aimX - p.x, p.aimZ - p.z), 1.5, 9 + p.body.skill('strength') + tr);
     const ang = Math.atan2(p.aimZ - p.z, p.aimX - p.x);
     const t = 0.65;
     const vx = Math.cos(ang) * dist / t, vz = Math.sin(ang) * dist / t;
@@ -1152,7 +1167,7 @@ export class CombatSystem implements GameSystem {
       // thrown hits
       for (const c of G.creatures?.creatures.values() || []) {
         const cc: any = c;
-        if (!cc.dead && cc.zoneKey === p.zoneKey && Math.hypot(cc.x - lx, cc.z - lz) < 1.2 && d.weapon) G.creatures.damage(p.id, cc.id, this.rng.float(d.weapon.dmg[0], d.weapon.dmg[1]), p.x, p.z, 0.3, d.weapon.fire ? 'fire' : 'thrown');
+        if (!cc.dead && cc.zoneKey === p.zoneKey && Math.hypot(cc.x - lx, cc.z - lz) < 1.2 && d.weapon) G.creatures.damage(p.id, cc.id, this.rng.float(d.weapon.dmg[0], d.weapon.dmg[1]) * (1 + tr * 0.15), p.x, p.z, 0.3, d.weapon.fire ? 'fire' : 'thrown');
       }
     }, t * 1000);
     bus.emit('inventoryChanged', p);

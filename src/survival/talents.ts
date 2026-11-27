@@ -191,11 +191,16 @@ export function talentsOf(body: HasTraits | null | undefined): Marble[] {
 }
 /** traits for a set of marble keys (what goes on the unit at launch) */
 export const talentTraits = (keys: string[]) => keys.filter((k) => MARBLE.has(k)).map((k) => TALENT_PREFIX + k);
-/** the product of every carried marble's multiplier for this stat (1 = untouched) */
+/** other sources of the same stats, registered at load (the lattice's professions, src/game/professions.ts): each
+ *  returns a multiplier (or, for an additive stat, a bonus) for a body; no imports, so this file stays pure */
+const SOURCES: ((body: HasTraits | null | undefined, stat: string) => number)[] = [];
+export function talentSource(fn: (body: HasTraits | null | undefined, stat: string) => number) { SOURCES.push(fn); }
+/** the product of every carried marble's multiplier for this stat (1 = untouched), and every registered source's */
 export function talentMul(body: HasTraits | null | undefined, stat: TalentStat): number {
-  const t = body?.traits;
-  if (!t || !t.size) return 1;
   let m = 1;
+  if (!ADDITIVE.has(stat)) for (const s of SOURCES) m *= s(body, stat);
+  const t = body?.traits;
+  if (!t || !t.size) return m;
   for (const k of t) {
     if (k.charCodeAt(0) !== 116 || !k.startsWith(TALENT_PREFIX)) continue;
     const v = MARBLE.get(k.slice(TALENT_PREFIX.length))?.fx[stat];
@@ -205,9 +210,10 @@ export function talentMul(body: HasTraits | null | undefined, stat: TalentStat):
 }
 /** the sum of every carried marble's bonus for an additive stat (carry) */
 export function talentAdd(body: HasTraits | null | undefined, stat: TalentStat): number {
-  const t = body?.traits;
-  if (!t || !t.size) return 0;
   let a = 0;
+  if (ADDITIVE.has(stat)) for (const s of SOURCES) a += s(body, stat);
+  const t = body?.traits;
+  if (!t || !t.size) return a;
   for (const k of t) {
     if (!k.startsWith(TALENT_PREFIX)) continue;
     const v = MARBLE.get(k.slice(TALENT_PREFIX.length))?.fx[stat];

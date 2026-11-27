@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import { skipBehindLoader } from '../../loading';
 import { U } from '../../../gfx/materials';
-import { makePost, Bloom } from '../scene/post';
+import { makePost, Bloom, type PostUniforms } from '../scene/post';
 import { gfxSettings } from '../common';
 
 /** a prop the pointer can hover and press */
@@ -62,7 +62,14 @@ export interface StageRoom {
   feedFrame?(): void;
   enter?(): void;
   leave?(): void;
+  /** before the room's full render: draw any screens that show another scene (the lattice's action feed, PostView) */
+  preRender?(r: THREE.WebGLRenderer, t: number, low: boolean): void;
+  /** a scene that takes over the whole screen while the room keeps running (the lattice's 3D mode); null: the room */
+  view?(): StageView | null;
 }
+
+/** what the stage draws instead of the room (StageRoom.view): its own scene, camera and grade; presses go to press() */
+export interface StageView { scene: THREE.Scene; cam: THREE.PerspectiveCamera; grade?: Grade; press?(): void }
 
 interface Feed { room: StageRoom; rt: THREE.WebGLRenderTarget; every: number; acc: number }
 
@@ -196,7 +203,7 @@ export class MenuStage {
   // ---------------------------------------------------------------- input
   private hotAt(x: number, y: number): { h: Hot; p: THREE.Vector3 } | null {
     const a = this.active;
-    if (!a || !a.hots.length || !this.rayAt(x, y)) return null;
+    if (!a || !a.hots.length || a.view?.() || !this.rayAt(x, y)) return null;
     let best: { h: Hot; p: THREE.Vector3; d: number } | null = null;
     for (const h of a.hots) {
       if (h.off) continue;
@@ -228,6 +235,8 @@ export class MenuStage {
       this.down = null;
       if (!d || d.id !== e.pointerId || e.type !== 'pointerup' || this.paused) return;
       if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 14 || performance.now() - d.t > 900) return;
+      const v = this.active?.view?.();
+      if (v) { v.press?.(); return; }
       const hit = this.hotAt(e.clientX, e.clientY);
       if (hit) hit.h.press?.(hit.p); else this.onMiss?.();
     };
@@ -341,52 +350,19 @@ export class MenuStage {
     const r = this.renderer!;
     const portrait = this.lowW < this.lowH * 0.95;
     a.frame?.(this.lowW / Math.max(1, this.lowH), portrait);
-    const u = this.post.u, g = a.grade ?? {};
-    u.uTime.value = this.t;
-    u.uExposure.value = g.exposure ?? 1.15;
-    // the intake drag cinematic's grade (introKit/stage.ts LOOKS.wing): cold fluorescent shadows, amber spill in
-    // the highlights, a firm S-curve, full colour; each room's own grade is pulled most of the way toward it
-    const W = { lift: [0.74, 0.94, 1.16], gain: [1.1, 1.0, 0.86], vig: 0.65, contrast: 1.2 };
-    const lf = g.lift ?? W.lift, gn = g.gain ?? W.gain, k = 0.7;
-    u.uLift.value.set(lf[0] + (W.lift[0] - lf[0]) * k, lf[1] + (W.lift[1] - lf[1]) * k, lf[2] + (W.lift[2] - lf[2]) * k);
-    u.uGain.value.set(gn[0] + (W.gain[0] - gn[0]) * k, gn[1] + (W.gain[1] - gn[1]) * k, gn[2] + (W.gain[2] - gn[2]) * k);
-    u.uVig.value = Math.min(g.vig ?? W.vig, W.vig);
-    u.uSat.value = Math.max(1, g.sat ?? 1);
-    u.uContrast.value = Math.max(W.contrast, g.contrast ?? W.contrast);
-    u.uBloom.value = 0.95;
-    // the air in the room (dust far off), crisp pixels, saturated emitters
-    const hc = g.hazeColor ?? 0x6a7a98;
-    u.uHaze.value.set(((hc >> 16) & 255) / 255, ((hc >> 8) & 255) / 255, (hc & 255) / 255, g.haze ?? 0.35);
-    u.uSharp.value = 0.08; u.uKeepSat.value = 0.5; u.uHalation.value = 0.4;
-    u.uOutline.value = 0.28; u.uAA.value = 1; u.uLevels.value = 255;
-    u.uSide.value.set(...(g.side ?? [1, 0, 0, 0.4]));
-    u.uNear.value = a.cam.near; u.uFar.value = a.cam.far;
-    // shading: contact occlusion from depth, the lamps' glow in the air (the rooms' own cones and dust carry the shafts), the lens
-    u.uAO.value = this.low ? 0 : g.ao ?? 0.8; u.uAORad.value = g.aoRad ?? 0.3;
-    u.uFocal.value = this.lowH / (2 * Math.tan(THREE.MathUtils.degToRad(a.cam.fov) / 2));
-    u.uScatter.value = g.scatter ?? 0.35;
-    u.uCA.value = 0.9;
-    u.uBounce.value = g.bounce ?? 0.22;
-    const sc = g.shaftColor ?? 0xfff0d8;
-    u.uShaftCol.value.set(((sc >> 16) & 255) / 255, ((sc >> 8) & 255) / 255, (sc & 255) / 255);
-    for (let i = 0; i < 3; i++) {
-      const s = u.uShaft.value[i], w = g.shafts?.[i];
-      s.set(0, 0, 0, 0);
-      if (!w || this.low) continue;
-      const v = this.shaftV.copy(w).project(a.cam);
-      if (v.z > 1 || v.z < -1) continue;
-      const x = v.x * 0.5 + 0.5, y = v.y * 0.5 + 0.5;
-      // fade as the lamp leaves the frame (one just off the top still throws its rays down)
-      const off = Math.max(0, Math.max(-x, x - 1, -y, y - 1.15));
-      s.set(x, y, (g.shaftK ?? 0.6) * Math.max(0, 1 - off * 4), 0.8);
-    }
-    u.uFlash.value = 0; u.uRed.value = 0; u.uFloor.value = 0; u.uLensOn.value = 0;
+    // screens in the room that show another scene are drawn first (their own targets, their own post)
+    if (a.preRender) this.withWorldUniforms(() => a.preRender!(r, this.t, this.low));
+    const v = a.view?.() ?? null;
+    const scene = v ? v.scene : a.scene, cam = v ? v.cam : a.cam;
+    if (v) { cam.aspect = this.lowW / Math.max(1, this.lowH); cam.updateProjectionMatrix(); }
+    const u = this.post.u;
+    applyGrade(u, (v ? v.grade : a.grade) ?? {}, cam, this.lowW, this.lowH, this.t, this.low, this.shaftV);
     this.withWorldUniforms(() => {
       r.info.reset();
       r.setRenderTarget(this.rt);
       r.setClearColor(0x000000, 1);
       r.clear(true, true, true);
-      r.render(a.scene, a.cam);
+      r.render(scene, cam);
       this.bloom.run(r, this.rt!.texture, this.rt!.width, this.rt!.height, u.uExposure.value);
       this.fill.run(r, this.rt!.texture, this.rt!.width, this.rt!.height, 1);
       u.tFill.value = this.fill.tex[2];
@@ -406,4 +382,90 @@ export class MenuStage {
     if (this.renderer) { this.renderer.dispose(); this.renderer.forceContextLoss(); this.renderer = null; }
     this.canvas.remove();
   }
+}
+
+/** the menu rooms' grade on the post pass (the intake drag cinematic's look, each room's own grade pulled toward it) */
+export function applyGrade(u: PostUniforms, g: Grade, cam: THREE.PerspectiveCamera, w: number, h: number, t: number, low: boolean, tmp = new THREE.Vector3()) {
+  u.uTime.value = t;
+  u.uExposure.value = g.exposure ?? 1.15;
+  // the intake drag cinematic's grade (introKit/stage.ts LOOKS.wing): cold fluorescent shadows, amber spill in
+  // the highlights, a firm S-curve, full colour; each room's own grade is pulled most of the way toward it
+  const W = { lift: [0.74, 0.94, 1.16], gain: [1.1, 1.0, 0.86], vig: 0.65, contrast: 1.2 };
+  const lf = g.lift ?? W.lift, gn = g.gain ?? W.gain, k = 0.7;
+  u.uLift.value.set(lf[0] + (W.lift[0] - lf[0]) * k, lf[1] + (W.lift[1] - lf[1]) * k, lf[2] + (W.lift[2] - lf[2]) * k);
+  u.uGain.value.set(gn[0] + (W.gain[0] - gn[0]) * k, gn[1] + (W.gain[1] - gn[1]) * k, gn[2] + (W.gain[2] - gn[2]) * k);
+  u.uVig.value = Math.min(g.vig ?? W.vig, W.vig);
+  u.uSat.value = Math.max(1, g.sat ?? 1);
+  u.uContrast.value = Math.max(W.contrast, g.contrast ?? W.contrast);
+  u.uBloom.value = 0.95;
+  // the air in the room (dust far off), crisp pixels, saturated emitters
+  const hc = g.hazeColor ?? 0x6a7a98;
+  u.uHaze.value.set(((hc >> 16) & 255) / 255, ((hc >> 8) & 255) / 255, (hc & 255) / 255, g.haze ?? 0.35);
+  u.uSharp.value = 0.08; u.uKeepSat.value = 0.5; u.uHalation.value = 0.4;
+  u.uOutline.value = 0.28; u.uAA.value = 1; u.uLevels.value = 255;
+  u.uSide.value.set(...(g.side ?? [1, 0, 0, 0.4]));
+  u.uNear.value = cam.near; u.uFar.value = cam.far;
+  // shading: contact occlusion from depth, the lamps' glow in the air (the rooms' own cones and dust carry the shafts), the lens
+  u.uAO.value = low ? 0 : g.ao ?? 0.8; u.uAORad.value = g.aoRad ?? 0.3;
+  u.uFocal.value = h / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
+  u.uScatter.value = g.scatter ?? 0.35;
+  u.uCA.value = 0.9;
+  u.uBounce.value = g.bounce ?? 0.22;
+  const sc = g.shaftColor ?? 0xfff0d8;
+  u.uShaftCol.value.set(((sc >> 16) & 255) / 255, ((sc >> 8) & 255) / 255, (sc & 255) / 255);
+  for (let i = 0; i < 3; i++) {
+    const s = u.uShaft.value[i], wp = g.shafts?.[i];
+    s.set(0, 0, 0, 0);
+    if (!wp || low) continue;
+    const v = tmp.copy(wp).project(cam);
+    if (v.z > 1 || v.z < -1) continue;
+    const x = v.x * 0.5 + 0.5, y = v.y * 0.5 + 0.5;
+    // fade as the lamp leaves the frame (one just off the top still throws its rays down)
+    const off = Math.max(0, Math.max(-x, x - 1, -y, y - 1.15));
+    s.set(x, y, (g.shaftK ?? 0.6) * Math.max(0, 1 - off * 4), 0.8);
+  }
+  u.uFlash.value = 0; u.uRed.value = 0; u.uFloor.value = 0; u.uLensOn.value = 0;
+  void w;
+}
+
+/**
+ * A scene drawn through the menu's own post pass into a texture (a screen in a room that shows another scene: the
+ * research lattice's action feed). The same pipeline as the stage itself (bloom, bounce fill, outline, AO, the grade),
+ * written as linear light so the room's own pass grades the glass like everything else in it. Call render() from a
+ * StageRoom.preRender; dispose() frees every target.
+ */
+export class PostView {
+  readonly out: THREE.WebGLRenderTarget;
+  private rt: THREE.WebGLRenderTarget;
+  private post = makePost();
+  private bloom = Object.assign(new Bloom(), { thr: 1.7, knee: 0.5 });
+  private fill = Object.assign(new Bloom(), { thr: 0.06, knee: 0.05 });
+  private tmp = new THREE.Vector3();
+  constructor(readonly w: number, readonly h: number) {
+    this.rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, depthTexture: new THREE.DepthTexture(w, h) });
+    this.out = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
+    const u = this.post.u;
+    u.tColor.value = this.rt.texture; u.tDepth.value = this.rt.depthTexture; u.uRes.value.set(w, h);
+    u.uLinOut.value = 1;
+  }
+  get texture() { return this.out.texture; }
+  render(r: THREE.WebGLRenderer, scene: THREE.Scene, cam: THREE.PerspectiveCamera, g: Grade, t: number, low: boolean) {
+    const u = this.post.u;
+    cam.aspect = this.w / this.h; cam.updateProjectionMatrix();
+    applyGrade(u, g, cam, this.w, this.h, t, low, this.tmp);
+    u.uLevels.value = 1023;
+    const prev = r.getRenderTarget();
+    r.setRenderTarget(this.rt);
+    r.setClearColor(0x000000, 1);
+    r.clear(true, true, true);
+    r.render(scene, cam);
+    this.bloom.run(r, this.rt.texture, this.w, this.h, u.uExposure.value);
+    this.fill.run(r, this.rt.texture, this.w, this.h, 1);
+    u.tFill.value = this.fill.tex[2];
+    u.tB1.value = this.bloom.tex[0]; u.tB2.value = this.bloom.tex[1]; u.tB3.value = this.bloom.tex[2];
+    r.setRenderTarget(this.out);
+    r.render(this.post.scene, this.post.cam);
+    r.setRenderTarget(prev);
+  }
+  dispose() { this.rt.depthTexture?.dispose(); this.rt.dispose(); this.out.dispose(); this.bloom.dispose(); this.fill.dispose(); this.post.mat.dispose(); }
 }

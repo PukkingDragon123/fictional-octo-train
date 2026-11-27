@@ -1017,6 +1017,10 @@ export class ResearchLab implements StageRoom {
   /** dev / screenshots: skip the camera flight (software GL runs a few frames a second) */
   settle() { this.talent.settle(); const g = this.lattice.camGoal() ?? this.talent.camGoal() ?? this.fab.camGoal() ?? POSES[this.pose] ?? POSES.room; this.camP.copy(g.pos); this.camL.copy(g.look); this.camF = g.fov; this.lattice.settle(); }
   setBuild(on: boolean) { this.buildT = on ? 1 : 0; }
+  /** round 25: the lattice's action feed draws its own scene into the bay monitor before the room renders */
+  preRender(r: THREE.WebGLRenderer, t: number, low: boolean) { this.lattice.preRender(r, t, low); }
+  /** round 25: the lattice's 3D mode puts the feed's scene on the whole screen */
+  view() { return this.lattice.fullView(); }
 
   frame(aspect: number, portrait: boolean) {
     const c = this.cam;

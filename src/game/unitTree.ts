@@ -34,6 +34,7 @@ import { file, saveFile } from './meridian';
 import './economy/registry';
 import './mapUpgrades'; // the survey map's upgrades (UI worker, round 15)
 import './reqQuests'; // round 17: requirement quests gate the important nodes (nodeQuest(key) for progress)
+import './professions'; // round 25: the trades: eight branches of the lattice, levelled by doing the work
 
 /** a branch of the tree: one per category of src/game/treeData.ts (design, recipe, build, device, chip, limb, and any registered) */
 export type Branch = string;

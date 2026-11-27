@@ -13,7 +13,7 @@ const _v = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3
 interface Worker { rig: HumanRig; action: ActionAnim; dur: number; base: THREE.Vector3; yaw: number; look: number; t: number; sway: number }
 
 /** what a set of worn items looks like, by the game's own dressing rules */
-function outfitOf(keys: string[]): Outfit {
+export function outfitOf(keys: string[]): Outfit {
   const fake: any = { worn: new Map(), handR: null, handL: null, lightItem: null, outfitDirty: false };
   for (const k of keys) { if (!hasItemDef(k)) continue; try { Player.prototype.wear.call(fake, { uid: 0, key: k, cond: 1, age: 0 } as any); } catch { /* not wearable */ } }
   try { return Player.prototype.computeOutfit.call(fake); } catch { return {}; }

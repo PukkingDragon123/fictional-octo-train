@@ -14,6 +14,7 @@ import { bus } from '../core/events';
 import { wielded } from './moves';
 import { angleDiff } from '../core/math';
 import { flinch } from './creatureState';
+import { masteryRank, moveOwned } from '../game/professions';
 import type { Creature } from '../creatures/creature';
 
 export interface GrappleOpts {
@@ -126,6 +127,8 @@ export class Grapples {
     const w = wielded(p);
     if (w.armed && !w.ranged) m += w.cls === 'blade' || w.cls === 'spear' ? 0.3 : w.cls === 'axe' ? 0.25 : 0.15;
     else if (w.it && !w.ranged) m += 0.08;
+    // round 25: mastery of what is in the hand (bare hands count as improvised), and the Counter learnt
+    if (!w.ranged) m += masteryRank(w.armed ? w.cls : 'improvised') * 0.07 + (moveOwned('counter') ? 0.1 : 0);
     if (c) {
       const toIt = Math.atan2(c.z - p.z, c.x - p.x);
       if (Math.abs(angleDiff(p.facing, toIt)) > 2.1) m -= 0.25;
@@ -169,14 +172,16 @@ export class Grapples {
       flinch(k, dx, dz, 0.6);
       if (c.armed) {
         // the weapon hand gets a blow in: short, ugly, close (on the hold's own clock; never from a pin on the back)
-        if (c.act instanceof GrappleAction && c.reason !== 'pin') c.act.flash(c.armed === 'blade' ? 'cb_jab' : 'cb_heavy', c.armed === 'blade' ? 0.24 : 0.42);
-        G.combat?.dealCreature?.(p, k, { dmg: 3 + Math.random() * 4, kind: c.armed === 'blade' ? 'blade' : 'blunt', knock: 0.2, po: 10 });
+        // (with the Counter learnt the first good heave is a full counter blow: src/game/professions.ts)
+        const ctr = moveOwned('counter') && c.wins === 1;
+        if (c.act instanceof GrappleAction && c.reason !== 'pin') c.act.flash(ctr ? 'cb_counter' : c.armed === 'blade' ? 'cb_jab' : 'cb_heavy', ctr ? 0.42 : c.armed === 'blade' ? 0.24 : 0.42);
+        G.combat?.dealCreature?.(p, k, { dmg: (3 + Math.random() * 4) * (ctr ? 2.2 : 1) * (1 + masteryRank(c.armed === 'blade' ? 'blade' : 'blunt') * 0.08), kind: c.armed === 'blade' ? 'blade' : 'blunt', knock: ctr ? 0.6 : 0.2, po: ctr ? 25 : 10 });
         G.audio?.hit?.(c.armed === 'blade' ? 'blade' : 'blunt', k.x, k.z, false);
         G.audio?.at?.(c.armed === 'blade' ? 'flesh_cut' : 'bone_crunch', k.x, k.z, 0.6);
         hitstop(45);
       } else {
         // a knee, a forearm in its face
-        if (c.act instanceof GrappleAction && c.reason === 'grab' && c.heaves === 1) c.act.flash('cb_kick', 0.4);
+        if (c.act instanceof GrappleAction && c.reason === 'grab' && c.heaves === 1) c.act.flash(moveOwned('kick') ? 'cb_shove_kick' : 'cb_kick', moveOwned('kick') ? 0.5 : 0.4);
         G.audio?.at?.('body_thud', k.x, k.z, 0.5);
       }
     } else {

@@ -3,3 +3,16 @@
 .lt-layer { position: fixed; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; z-index: -1; }
 .lt-layer .lt-key { display: block; width: 1px; height: 1px; padding: 0; margin: 0; border: 0; border-radius: 0; background: none; outline: none; }
 .lt-layer .lt-live { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; }
+
+/* round 25: the lattice's 3D mode (research/lattice.ts toggle3d): the action feed fills the stage behind a machine-kit
+   housing (mxFrame over the layer, a window onto the feed), the CRT skin's scanlines, roll and vignette on the glass,
+   one floating key under it. The layer takes the drag (turn round the scene) and the wheel (move in). */
+.lt3d { position: fixed; inset: 0; z-index: 900; cursor: grab; touch-action: none; animation: lt3d-on 0.42s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.lt3d:active { cursor: grabbing; }
+@keyframes lt3d-on { 0% { clip-path: inset(49.6% 0 49.6% 0); filter: brightness(4); } 45% { clip-path: inset(0 0 0 0); filter: brightness(1.8); } 100% { clip-path: inset(0 0 0 0); filter: none; } }
+.lt3d .crt.lt3d-tube { position: absolute; left: 18px; top: 18px; right: 18px; bottom: 84px; background: none; box-shadow: none; pointer-events: none; z-index: 1; }
+.lt3d .crt.lt3d-tube .crt-scan { opacity: 0.55; }
+.lt3d-keys { position: absolute; left: 0; right: 0; bottom: 8px; height: 76px; display: flex; justify-content: center; align-items: flex-end; z-index: 6; pointer-events: none; }
+.lt3d-keys .fi { pointer-events: auto; }
+/* the deco keys stay out of the 3D mode's picture */
+body:has(.lt3d) .dk-ui { visibility: hidden; }

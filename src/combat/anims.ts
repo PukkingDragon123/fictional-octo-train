@@ -448,3 +448,88 @@ registerPose('cb_throwoff', (t, dur, _inp, time) => {
   P.gripL = 0; P.gripR = 0.4;
   return { pose: P, mask: ALL };
 }, { noIK: true, dur: 0.6 });
+
+// ------------------------------------------------------------------ round 25: the lattice's unlockable moves
+// (src/game/professions.ts, the Combat branch's Moves lane; picked in src/game/combat.ts animFor, previewed on the
+// lattice's monitor). The hit lands at the end of each sharp segment (combat.ts ANIM_HIT).
+
+// HEAVY OVERHEAD: both hands, the weapon hoisted straight up behind the head, the whole body dropping under it
+// as it comes down on the crown; the knees give with the impact and the shoulders shudder
+const OVERHEAD: KF[] = [
+  [0, { uarmR: [-1.0, 0.25, -0.3], farmR: [-1.5, 0, 0], handR: [-0.3, 0, 0], uarmL: [-1.0, -0.25, 0.3], farmL: [-1.5, 0, 0], handL: [-0.3, 0, 0], chest: [0.02, 0, 0], spine: [0.06, 0, 0], rootY: -0.04, rootZ: 0 }],
+  [0.38, { uarmR: [-3.05, 0.15, -0.12], farmR: [-1.55, 0, 0], handR: [-1.0, 0, 0], uarmL: [-3.0, -0.15, 0.12], farmL: [-1.5, 0, 0], handL: [-1.0, 0, 0], chest: [-0.24, 0, 0], spine: [-0.16, 0, 0], head: [-0.12, 0, 0], rootY: 0.02, rootZ: -0.07 }],
+  [0.56, { uarmR: [-1.1, 0.05, 0.05], farmR: [-0.1, 0, 0], handR: [1.1, 0, 0], uarmL: [-1.1, -0.05, -0.05], farmL: [-0.1, 0, 0], handL: [1.1, 0, 0], chest: [0.48, 0, 0], spine: [0.36, 0, 0], head: [0.25, 0, 0], rootY: -0.2, rootZ: 0.12 }],
+  [0.74, { uarmR: [-0.55, 0.05, 0.12], farmR: [-0.2, 0, 0], handR: [0.85, 0, 0], uarmL: [-0.55, -0.05, -0.12], farmL: [-0.2, 0, 0], handL: [0.85, 0, 0], chest: [0.58, 0, 0], spine: [0.42, 0, 0], head: [0.3, 0, 0], rootY: -0.24, rootZ: 0.14 }],
+  [1, { uarmR: [-1.0, 0.25, -0.3], farmR: [-1.5, 0, 0], handR: [-0.3, 0, 0], uarmL: [-1.0, -0.25, 0.3], farmL: [-1.5, 0, 0], handL: [-0.3, 0, 0], chest: [0.02, 0, 0], spine: [0.06, 0, 0], head: [0.04, 0, 0], rootY: -0.04, rootZ: 0 }],
+];
+registerPose('cb_overhead', (t, dur) => {
+  const P: Pose = {};
+  const u = dur > 0 ? clamp(t / dur, 0, 1) : 1;
+  track(OVERHEAD, u, P, 1);
+  const s = u < 0.56 ? ease(u / 0.56) : 1 - ease((u - 0.74) / 0.26);
+  // a long step in under the blow, the back knee nearly to the floor at contact
+  S(P, 'thighL', -0.7 * s - 0.15, 0, 0.14); S(P, 'shinL', 0.75 * s + 0.2); S(P, 'thighR', 0.42 * s + 0.1, 0, -0.12); S(P, 'shinR', 0.3 + 0.55 * s); S(P, 'footR', -0.35 - 0.35 * s, -0.2);
+  if (u > 0.56 && u < 0.72) { const j = Math.sin((u - 0.56) * 160) * (0.72 - u) * 0.7; P.uarmR![0] += j; P.uarmL![0] += j; if (P.chest) P.chest[0] += j * 0.35; }
+  P.gripR = 1; P.gripL = 1;
+  return { pose: P, mask: ALL };
+}, { aim: true, dur: 0.62 });
+
+// SHOVE-KICK: the shove's two hands go out to make room, then the lead knee chambers and the heel drives
+// straight through the middle; the body leans back over the standing leg and the arms counter-balance
+registerPose('cb_shove_kick', (t, dur) => {
+  const P: Pose = {};
+  const u = dur > 0 ? clamp(t / dur, 0, 1) : 1;
+  const push = u < 0.18 ? ease(u / 0.18) : u < 0.34 ? 1 - ease((u - 0.18) / 0.16) : 0;
+  const ch = u < 0.24 ? 0 : u < 0.42 ? ease((u - 0.24) / 0.18) : u < 0.7 ? 1 : 1 - ease((u - 0.7) / 0.3);
+  const ex = u < 0.42 ? 0 : u < 0.5 ? ((u - 0.42) / 0.08) ** 2 : u < 0.66 ? 1 - ease((u - 0.5) / 0.16) * 0.6 : 0.4 * (1 - ease((u - 0.66) / 0.2));
+  S(P, 'uarmR', -1.1 - push * 0.45 + ch * 0.6, 0.1, -0.25 - ch * 0.35); S(P, 'farmR', -0.4 - ch * 1.1); S(P, 'handR', 0.5 * push);
+  S(P, 'uarmL', -1.1 - push * 0.45 + ch * 0.4, -0.1, 0.25 + ch * 0.55); S(P, 'farmL', -0.4 - ch * 0.9); S(P, 'handL', 0.5 * push);
+  S(P, 'thighR', -1.55 * ch + 0.1 * ex, 0, -0.04); S(P, 'shinR', 2.0 * ch - 2.05 * ex); S(P, 'footR', 0.25 * ch - 0.9 * ex);
+  S(P, 'thighL', 0.08 * ch, 0, 0.03); S(P, 'shinL', 0.22 * ch); S(P, 'footL', -0.1 * ch);
+  S(P, 'spine', 0.2 * push - 0.3 * ch - 0.12 * ex, 0, 0); S(P, 'chest', 0.1 * push - 0.1 * ch, 0, 0); S(P, 'head', 0.3 * ch, 0, 0);
+  P.rootZ = 0.08 * push - 0.08 * ch + 0.05 * ex; P.rootY = -0.04 * ch; P.gripL = 0.6; P.gripR = 0.9;
+  return { pose: P, mask: ALL };
+}, { noIK: true, dur: 0.62 });
+
+// COUNTER: a short slip to the outside (the head off the line), then the weapon comes back across from the
+// low side in a rising backhand with the hips snapping round behind it
+const COUNTER: KF[] = [
+  [0, { uarmR: [-0.9, 0.2, -0.4], farmR: [-1.6, 0, 0], handR: [-0.2, 0, 0], uarmL: [-0.8, -0.2, 0.5], farmL: [-1.5, 0, 0], chest: [0.05, 0, 0], spine: [0.1, 0, 0], head: [0.05, 0, 0], rootY: -0.06, rootZ: 0, bodyRoll: 0 }],
+  [0.2, { uarmR: [-0.5, 0.4, 0.35], farmR: [-1.4, 0, 0], handR: [0.2, 0, 0], uarmL: [-1.25, -0.3, 0.6], farmL: [-1.7, 0, 0], chest: [0.14, 0.5, 0], spine: [0.2, 0.2, 0], head: [0.1, -0.35, 0.2], rootY: -0.14, rootZ: -0.06, bodyRoll: 0.16 }],
+  [0.35, { uarmR: [-1.75, -0.1, -0.7], farmR: [-0.25, 0, 0], handR: [0.9, 0, 0], uarmL: [-0.5, 0, 0.75], farmL: [-1.3, 0, 0], chest: [0.08, -0.75, 0], spine: [0.12, -0.3, 0], head: [0.06, 0.32, 0], rootY: -0.1, rootZ: 0.08, bodyRoll: -0.05 }],
+  [0.58, { uarmR: [-2.25, -0.2, -1.05], farmR: [-0.45, 0, 0], handR: [0.6, 0, 0], uarmL: [-0.4, 0, 0.8], farmL: [-1.4, 0, 0], chest: [0.02, -1.0, 0], spine: [0.08, -0.38, 0], head: [0.02, 0.45, 0], rootY: -0.08, rootZ: 0.06, bodyRoll: -0.06 }],
+  [1, { uarmR: [-0.9, 0.2, -0.4], farmR: [-1.6, 0, 0], handR: [-0.2, 0, 0], uarmL: [-0.8, -0.2, 0.5], farmL: [-1.5, 0, 0], chest: [0.05, 0, 0], spine: [0.1, 0, 0], head: [0.05, 0, 0], rootY: -0.06, rootZ: 0, bodyRoll: 0 }],
+];
+registerPose('cb_counter', (t, dur) => {
+  const P: Pose = {};
+  const u = dur > 0 ? clamp(t / dur, 0, 1) : 1;
+  track(COUNTER, u, P, 1);
+  const slip = u < 0.2 ? ease(u / 0.2) : 1 - ease((u - 0.2) / 0.3);
+  const s = u < 0.35 ? ease(u / 0.35) : 1 - ease((u - 0.58) / 0.42);
+  S(P, 'thighL', -0.3 * s - 0.25 * slip - 0.1, 0, 0.2 * slip + 0.1); S(P, 'shinL', 0.45 * s + 0.4 * slip + 0.15);
+  S(P, 'thighR', 0.3 * s + 0.1, 0, -0.08 - 0.1 * slip); S(P, 'shinR', 0.3 + 0.25 * s); S(P, 'footR', -0.3 * s, -0.3);
+  hipTwist(P, 0.55);
+  P.gripR = 1; P.gripL = 0.7;
+  return { pose: P, mask: ALL };
+}, { aim: true, dur: 0.42 });
+
+// FINISHER: over a thing on the floor: a step across it, the weapon raised two-handed high over the right
+// shoulder, and brought straight down into it from full height, the body following it down to one knee
+registerPose('cb_finisher', (t, dur) => {
+  const P: Pose = {};
+  const u = dur > 0 ? clamp(t / dur, 0, 1) : 1;
+  const raise = u < 0.4 ? ease(u / 0.4) : 0;
+  const dn = u < 0.4 ? 0 : u < 0.52 ? ((u - 0.4) / 0.12) ** 3 : 1;
+  const rec = u > 0.75 ? ease((u - 0.75) / 0.25) : 0;
+  const k = 1 - rec;
+  S(P, 'uarmR', (lerp(-0.9, -3.0, raise) * (1 - dn) + dn * -0.55) * k - 0.9 * rec, 0.15, -0.2); S(P, 'farmR', (-1.4 * (1 - dn) - 0.15 * dn) * k - 1.4 * rec); S(P, 'handR', lerp(-0.2, -0.9, raise) * (1 - dn) + dn * 1.2 * k);
+  S(P, 'uarmL', (lerp(-0.9, -2.85, raise) * (1 - dn) + dn * -0.6) * k - 0.8 * rec, -0.15, 0.2); S(P, 'farmL', (-1.4 * (1 - dn) - 0.2 * dn) * k - 1.4 * rec); S(P, 'handL', lerp(-0.2, -0.9, raise) * (1 - dn) + dn * 1.1 * k);
+  S(P, 'spine', (-0.2 * raise + 0.75 * dn) * k + 0.1 * rec, 0, 0); S(P, 'chest', (-0.15 * raise + 0.35 * dn) * k, 0, 0); S(P, 'head', (0.1 + 0.45 * dn) * k, 0, 0);
+  // down onto the right knee as it lands
+  S(P, 'thighL', (-0.4 * raise - 1.1 * dn) * k - 0.1, 0, 0.1); S(P, 'shinL', (0.4 * raise + 1.3 * dn) * k + 0.1);
+  S(P, 'thighR', (0.25 * raise + 0.1 * dn) * k, 0, -0.08); S(P, 'shinR', (0.3 + 1.45 * dn) * k + 0.1); S(P, 'footR', 0.6 * dn * k);
+  P.rootY = (0.03 * raise - 0.42 * dn) * k; P.rootZ = 0.12 * dn * k;
+  if (u > 0.52 && u < 0.66) { const j = Math.sin((u - 0.52) * 170) * (0.66 - u) * 0.8; P.uarmR![0] += j; P.uarmL![0] += j; }
+  P.gripR = 1; P.gripL = 1;
+  return { pose: P, mask: ALL };
+}, { noIK: true, dur: 0.9 });
