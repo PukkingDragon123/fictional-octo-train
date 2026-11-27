@@ -132,7 +132,7 @@ export function drawPlant(mb: ModelBuilder, look: PlantLook, x: number, y: numbe
   const g = st <= 0 ? 0.15 : Math.min(1, 0.25 + st * 0.19);
   mb.push().translate(x, y, z).rotateY(rnd(i, 1) * 6.28);
   // round 25: the grow-room crops are drawn a little larger so their stages read from the isometric camera
-  if (BIG.has(look)) mb.scale(1.4, 1.4, 1.4);
+  if (BIG.has(look)) mb.scale(1.7, 1.7, 1.7);
   switch (look) {
     case 'moss': {
       // low cushions that spread, then send up glowing pale sporophytes

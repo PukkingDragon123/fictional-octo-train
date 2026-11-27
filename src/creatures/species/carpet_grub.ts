@@ -136,7 +136,8 @@ function animateGrub(rig: Rig, c: Creature, t: number, dt: number) {
   const n = netOf(c), ud = K.kit.m as Record<string, number>;
   const sm = (k: string, to: number, r: number) => (ud[k] = (ud[k] ?? to) + (to - (ud[k] ?? to)) * Math.min(1, dt * r));
   poseGrub(K, { t, dt, speed: c.dead ? 0 : c.speed, eat: sm('ea', n.pn === 'eat' || n.md === 'eat' ? 1 : 0, 4), sleep: sm('sl', n.pn === 'sleep' || n.md === 'sleep' ? 1 : 0, 0.6), dead: c.dead ? 1 : 0, seed: hashId(c.id, 9), flinch: flinchOf(c) });
-  if (n.yg) { K.root.scale.setScalar(0.6); ud.wasY = 1; } else if (ud.wasY) { K.root.scale.setScalar(1); ud.wasY = 0; }
+  // drawn a little larger than life so it reads from the isometric camera over the straw
+  K.root.scale.setScalar(n.yg ? 0.8 : 1.35);
   const F = K.kit.F.fx.value; F.y += dt; F.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
   const p = localIn(c);
   if (p && !c.dead && c.visibleToLocal && dist(p, c) < 3.5) thinkOnce(p, 'carpet_grub', ['A grub as long as my arm. Its back is the carpet it ate: the same loops, the same stain.', 'It is spinning something pale round itself. It is going to sleep in it.'][Math.floor(t * 0.2) % 2], 100);
@@ -167,7 +168,7 @@ function thinkGrub(c: Creature, dt: number): boolean {
 const GRUB = def({
   key: 'carpet_grub', name: 'Carpet Grub', code: 'LV-12 // FAUNA, LARVA (PILE-FEEDING)', temperament: 'peaceful', threat: 0,
   rule: { name: 'IT EATS THE FLOOR', text: 'Harmless and blind. A fat larva that eats carpet and paper and sleeps curled in its own silk. It cannot run; it curls up. Offer it paper and it follows the rustle.', tell: 'A grub as long as a forearm whose back is patterned like the carpet.' },
-  hp: 10, walk: 0.1, run: 0.16, turn: 2, radius: 0.14, height: 0.12, sight: 2, fov: 3, hearing: 0.8,
+  hp: 10, walk: 0.12, run: 0.18, turn: 2, radius: 0.18, height: 0.16, sight: 2, fov: 3, hearing: 0.8,
   zones: ['lobby', 'office', 'hotel', 'house'], weight: 0.7, group: [1, 3], maxPerZone: 6, diet: 'none',
   meat: [['worm_meat', 1]],
   sounds: { hurt: 'cower_squeak', death: 'cower_die' },

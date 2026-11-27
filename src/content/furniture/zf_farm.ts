@@ -20,7 +20,8 @@ defObj({
   key: 'bld_hydro_tray', name: 'Hydroponic Tray', w: 2, d: 1, height: 1.75, block: 'low', sound: 'metal', flammable: 0, hp: 320,
   tags: [...T, 'farm', 'bplanter', 'hydro', 'growlight', 'station'],
   desc: 'A white nutrient tray on a steel table, a foam raft of net pots floating in it, two fluorescent tubes on a hood above. Crops grow under it twice as fast as in soil and drink half as much.',
-  light: { color: 0xeef8ff, intensity: 1.2, radius: 4.5, y: 1.55, kind: 'fluoro', flicker: 0.02, power: false },
+  // a modest pool over the tray itself: a grow room is lit by its tubes, not flooded (several trays stay in contrast)
+  light: { color: 0xf2f6ff, intensity: 0.7, radius: 3.2, y: 1.5, kind: 'fluoro', flicker: 0.02, power: false },
   variant: plantVariant,
   model: (mb, s) => {
     // the table: four pipe legs, a cross brace, a steel top with a rolled lip
@@ -49,7 +50,7 @@ defObj({
     mb.box(0, 0, 0, 1.76, 0.04, 0.34, 'metal_painted_green');
     for (const sz of [-1, 1]) mb.box(0, -0.035, sz * 0.165, 1.76, 0.05, 0.012, 'metal_painted_green');
     for (const z of [-0.08, 0.08]) {
-      mb.cylinderX(0, -0.03, z, 0.016, 1.62, 10, 'plastic_white', { emissive: 1.3, color: 0xf4fbff });
+      mb.cylinderX(0, -0.03, z, 0.016, 1.62, 10, 'plastic_white', { emissive: 1.0, color: 0xf4fbff });
       for (const sx of [-1, 1]) mb.box(sx * 0.82, -0.045, z, 0.04, 0.04, 0.04, 'plastic_black');
     }
     mb.pop();

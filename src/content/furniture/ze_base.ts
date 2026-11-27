@@ -139,7 +139,7 @@ defObj({
 // ---------------------------------------------------------------- livestock pen (3 x 2): state.feed, state.store
 const PEN_W = 3, PEN_D = 2;
 defObj({
-  key: 'bld_pen', name: 'Livestock Pen', w: PEN_W, d: PEN_D, height: 1.0, block: 'none', sound: 'wood', flammable: 0.6, hp: 400,
+  key: 'bld_pen', name: 'Livestock Pen', w: PEN_W, d: PEN_D, height: 0.62, block: 'none', sound: 'wood', flammable: 0.6, hp: 400,
   tags: [...T, 'farm', 'pen', 'station'], desc: 'A plank fence round a bed of straw, a trough, a water pan and a gate on a rope latch. Lead a tamed animal in, fill the trough, collect what it leaves.',
   variant: (s) => `${(s.feed ?? 0) > 0 ? 1 : 0}:${Math.min(3, Object.values((s.store || {}) as Record<string, number>).reduce((a, b) => a + b, 0))}:${(s.water ?? 0) > 0 ? 1 : 0}:${s.incub ? (s.hatch ? 2 : 1) : 0}`,
   model: (mb, s) => {
@@ -151,8 +151,9 @@ defObj({
     const posts: [number, number][] = [];
     for (let i = 0; i <= PEN_W; i++) { posts.push([-hw + (i / PEN_W) * hw * 2, -hd]); posts.push([-hw + (i / PEN_W) * hw * 2, hd]); }
     for (let j = 1; j < PEN_D; j++) { posts.push([-hw, -hd + (j / PEN_D) * hd * 2]); posts.push([hw, -hd + (j / PEN_D) * hd * 2]); }
-    for (const [x, z] of posts) post(mb, x, z, 0.98, 0.04);
-    for (const y of [0.42, 0.82]) {
+    // round 25: a low hurdle fence (knee high) so the animals in the straw read from the camera
+    for (const [x, z] of posts) post(mb, x, z, 0.6, 0.04);
+    for (const y of [0.22, 0.5]) {
       plank(mb, -hw, y, -hd, hw, y, -hd, 0.11, 0.025, PL, 0xffffff, true);
       plank(mb, -hw, y, -hd, -hw, y, hd, 0.11, 0.025, PL, 0xe8e0d0, true);
       plank(mb, hw, y, -hd, hw, y, hd, 0.11, 0.025, PL, 0xe8e0d0, true);
@@ -161,9 +162,9 @@ defObj({
       plank(mb, 0.5, y, hd, hw, y, hd, 0.11, 0.025, PL, 0xffffff, true);
     }
     // the gate: a framed plank leaf with a Z brace, a rope latch
-    for (const y of [0.3, 0.75]) plank(mb, -0.48, y, hd + 0.02, 0.46, y, hd + 0.02, 0.1, 0.025, LW);
-    plank(mb, -0.44, 0.28, hd + 0.04, 0.42, 0.74, hd + 0.04, 0.09, 0.022, DW);
-    rod(mb, 0.48, 0.6, hd + 0.02, 0.52, 0.66, hd + 0.02, 0.012, 5, 'zw_rope');
+    for (const y of [0.2, 0.48]) plank(mb, -0.48, y, hd + 0.02, 0.46, y, hd + 0.02, 0.1, 0.025, LW);
+    plank(mb, -0.44, 0.18, hd + 0.04, 0.42, 0.47, hd + 0.04, 0.09, 0.022, DW);
+    rod(mb, 0.48, 0.38, hd + 0.02, 0.52, 0.44, hd + 0.02, 0.012, 5, 'zw_rope');
     // the trough (back left): feed in it when filled
     mb.push().translate(-0.85, 0, -0.62);
     mb.box(0, 0.08, 0, 0.9, 0.22, 0.3, { all: DW, top: s.feed > 0 ? 'q_hay' : DW }, { color: 0xffffff });

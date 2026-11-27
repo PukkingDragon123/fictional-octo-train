@@ -158,7 +158,8 @@ function animateHen(rig: Rig, c: Creature, t: number, dt: number) {
   const eat = n.pn === 'eat' || n.md === 'peck' ? 1 : 0, sleep = n.pn === 'sleep' || n.md === 'sleep' ? 1 : 0;
   poseHen(K, { t, dt, speed: c.dead ? 0 : c.speed, peck: sm('pk', eat, 5), sleep: sm('sl', sleep, 1.5), dead: c.dead ? 1 : 0, seed: hashId(c.id, 5), flinch: flinchOf(c) });
   // a chick hatched in the pen is small for its first day
-  if (n.yg) { K.root.scale.setScalar(0.6); ud.wasY = 1; } else if (ud.wasY) { K.root.scale.setScalar(1); ud.wasY = 0; }
+  // a little larger than life so she reads from the isometric camera; a chick hatched in the pen is small for its first day
+  K.root.scale.setScalar(n.yg ? 0.75 : 1.25);
   const F = K.kit.F.fx.value; F.y += dt; F.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
   const p = localIn(c);
   if (p && !c.dead && c.visibleToLocal && dist(p, c) < 4) thinkOnce(p, 'pale_hen', ['A hen with no feathers. Her skin is all goosebumps, the colour of a candle.', 'She muttered at me and went on pecking. There is down under her wings, white as cotton.'][Math.floor(t * 0.2) % 2], 100);
@@ -206,7 +207,7 @@ function thinkHen(c: Creature, dt: number): boolean {
 const HEN = def({
   key: 'pale_hen', name: 'Pallid Hen', code: 'LV-07 // FAUNA, GALLIFORM (PLUCKED)', temperament: 'skittish', threat: 0,
   rule: { name: 'SHE ONLY LAYS', text: 'Harmless. A featherless hen the colour of wax. She pecks, mutters and lays, and runs from anything that runs at her. Offer her cress or feed by hand and she follows you home.', tell: 'A plucked hen in goosebumps, too long in the neck, pecking at the carpet.' },
-  hp: 8, walk: 0.32, run: 1.4, turn: 6, radius: 0.16, height: 0.42, sight: 7, fov: 2.6, hearing: 1,
+  hp: 8, walk: 0.34, run: 1.4, turn: 6, radius: 0.2, height: 0.52, sight: 7, fov: 2.6, hearing: 1,
   zones: ['house', 'suburbs', 'fields', 'office'], weight: 0.8, group: [2, 4], maxPerZone: 6, diet: 'none',
   meat: [['bird_meat_raw', 1]],
   sounds: { hurt: 'cower_squeak', death: 'cower_die', idle: 'birds_dream' },
