@@ -14,6 +14,7 @@ import type { StageRoom, Hot, Grade } from '../monitor/stage';
 import type { FMats } from '../scene/pixtex';
 import { FacetBuilder, at, cbox, prism, lathe } from '../scene/facet';
 import { buildRoom, HALF, WT, type Diorama } from './dioramas';
+export type { Diorama };
 import { puddle } from '../rooms/dress';
 import { shaftMesh } from '../scene/fx';
 import { ROOMS, facility, onFacility, type RoomId } from '../../../game/facility';
@@ -22,11 +23,11 @@ import { sfx, sample } from '../sfx';
 
 const PITCH = 5.1;
 /** what a room's diorama is built from (a change rebuilds it) */
-const sigOf = (id: RoomId) => { const r = facility().rooms[id]; return r.condition + '|' + r.locked + '|' + JSON.stringify(r.furniture); };
+const sigOf = (id: RoomId) => { const r = facility().rooms[id]; return r.condition + '|' + r.locked + '|' + JSON.stringify(r.furniture) + JSON.stringify(r.finish ?? 0) + JSON.stringify(r.work ?? 0); };
 const COLS = 6, ROWS = 2;
 /** the car park's sodium lamps (x, z) */
 const LAMPS: [number, number][] = [[-8.5, 13.6], [3.5, 13.6], [15.5, 13.6]];
-interface Pose { pos: THREE.Vector3; look: THREE.Vector3; fov: number }
+export interface Pose { pos: THREE.Vector3; look: THREE.Vector3; fov: number }
 interface Slot { sig: string; dim: number; id: RoomId; at: THREE.Vector3; d: Diorama; light: THREE.PointLight; holder: THREE.Group; lift: number; heat: number; key: string; flick: number; cond: number; locked: boolean; pad: THREE.Mesh }
 
 export class FacilityMap implements StageRoom {
@@ -57,6 +58,20 @@ export class FacilityMap implements StageRoom {
   private aspect = 16 / 9; private portrait = false;
   private yaw = 0.26; private pitch = 0.9; private dist = 44;
   private dirty = new Set<RoomId>();
+  // ---- part B (front/build): the room close-up's work
+  /** rooms whose rebuild waits (a cinematic is playing over the old state) */
+  private held = new Set<RoomId>();
+  /** rooms built with their debris as separate pieces (being cleared) */
+  private loose = new Set<RoomId>();
+  /** a shot that overrides the close-up's pose (a cinematic, build mode's framing), and a punch of shake */
+  shotPose: Pose | null = null;
+  shake = 0;
+  /** the focused room's light: a multiplier (a flicker) and a colour lerp toward the new one */
+  lightMul = 1;
+  /** a lamp that rides with the camera (build mode's catalogue): always in the scene, so it never recompiles a shader */
+  readonly camLight = new THREE.PointLight(0xfff0dc, 0, 6, 1.4);
+  /** things that ride in front of the camera (build mode's catalogue) */
+  readonly camRig = new THREE.Group();
 
   constructor(private mats: FMats) {
     const S = this.scene;
@@ -81,6 +96,9 @@ export class FacilityMap implements StageRoom {
     // a security lamp over the door
     const sec = new THREE.PointLight(0xd8e8ff, 14, 9, 1.6); sec.position.set(-5.2, 2.0, (ROWS * PITCH + 1.2) / 2 + 1.2); S.add(sec);
     S.add(this.moon, this.moon.target, this.hemi, this.work, this.work.target);
+    this.camLight.position.set(0.6, 0.9, -0.4); this.camLight.castShadow = false;
+    this.cam.add(this.camLight, this.camRig);
+    S.add(this.cam);
     // rain: thin pale streaks falling through the whole volume
     const N = 700;
     this.rainPos = new Float32Array(N * 6);
@@ -188,9 +206,9 @@ export class FacilityMap implements StageRoom {
   private place(id: RoomId) {
     const old = this.slots.get(id);
     const st = facility().rooms[id];
-    const d = buildRoom(id, st.condition, st.locked, this.mats, ROOMS.findIndex((r) => r.id === id) + 1, st.furniture);
+    const d = buildRoom(id, st.condition, st.locked, this.mats, ROOMS.findIndex((r) => r.id === id) + 1, st.furniture, { finish: st.finish, work: st.work, loose: this.loose.has(id) });
     const holder = old?.holder ?? new THREE.Group();
-    if (old) { holder.remove(old.d.group); old.d.group.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) m.geometry.dispose(); }); }
+    if (old) { holder.remove(old.d.group); old.d.group.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && !m.userData.shared) m.geometry.dispose(); }); }
     holder.position.copy(this.slotAt(id));
     holder.add(d.group);
     if (!old) this.scene.add(holder);
@@ -209,7 +227,7 @@ export class FacilityMap implements StageRoom {
     const slot: Slot = { sig: sigOf(id), dim: old?.dim ?? 0, id, at: holder.position.clone(), d, light, holder, lift: old?.lift ?? 0, heat: old?.heat ?? 0, key, flick: 0, cond: st.condition, locked: st.locked, pad };
     this.slots.set(id, slot);
     this.hots = this.hots.filter((h) => h.key !== key);
-    this.hots.push({ key, objs: [d.group], label: '', press: () => { this.select(id); this.onRoom?.(id); }, hover: (on) => { if (on) { this.hot = id; this.sel = id; sfx('tick', 0.45); } else if (this.hot === id) this.hot = null; } });
+    this.hots.push({ key, objs: [d.group], label: '', off: this.hotsOff, press: () => { this.select(id); this.onRoom?.(id); }, hover: (on) => { if (on) { this.hot = id; this.sel = id; sfx('tick', 0.45); } else if (this.hot === id) this.hot = null; } });
   }
 
   // ------------------------------------------------------------------ keyboard
@@ -225,6 +243,37 @@ export class FacilityMap implements StageRoom {
     return next.id;
   }
   pressSel() { if (this.sel) this.onRoom?.(this.sel); }
+  /** part B: the rooms take no hover or press (down in a room, the works own the pointer) */
+  private hotsOff = false;
+  setHotsOff(on: boolean) { this.hotsOff = on; for (const h of this.hots) h.off = on; }
+  /** part B: a room's diorama (its debris pieces, its skip, its occupancy) */
+  diorama(id: RoomId): Diorama | null { return this.slots.get(id)?.d ?? null; }
+  /** part B: hold a room's rebuilds (a cinematic plays over the old state); releasing rebuilds it at once if it changed */
+  hold(id: RoomId, on: boolean) {
+    if (on) { this.held.add(id); return; }
+    this.held.delete(id);
+    const s = this.slots.get(id);
+    if (s && s.sig !== sigOf(id)) this.place(id);
+  }
+  /** part B: build a room's debris as loose pieces (or merged again); rebuilds it now */
+  loosen(id: RoomId, on: boolean) {
+    if (on === this.loose.has(id)) return;
+    if (on) this.loose.add(id); else this.loose.delete(id);
+    this.place(id);
+  }
+  /** part B: rebuild a room now (a finish or a piece placed while its rebuilds are held) */
+  rebuild(id: RoomId) { this.place(id); }
+  /** part B: the close-up's own pose for a room, nudged (build mode frames the floor higher, a cinematic pushes in) */
+  closePose(id: RoomId, o: { dist?: number; pitch?: number; yaw?: number; look?: THREE.Vector3; fov?: number } = {}): Pose {
+    const p = this.roomPose(id);
+    const s = this.slots.get(id)!;
+    const look = o.look ? s.at.clone().add(o.look) : p.look;
+    const yaw = this.yaw - 0.05 + (o.yaw ?? 0), pitch = o.pitch ?? 0.92, d = o.dist ?? (this.portrait ? 12 : 8.6);
+    const pos = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(d).add(look);
+    return { pos, look, fov: o.fov ?? p.fov };
+  }
+  /** the camera as it is now (for a shot that starts where it is) */
+  get camPose(): Pose { return { pos: this.cur.pos.clone(), look: this.cur.look.clone(), fov: this.cur.fov }; }
   /** part B: a room's diorama holder (room-local frame: floor centre at the origin, open sides toward +X and +Z) */
   roomFrame(id: RoomId): THREE.Object3D | null { return this.slots.get(id)?.holder ?? null; }
   /** part B: a pointer ray onto a room's floor, in that room's local metres (null: off the floor) */
@@ -281,6 +330,8 @@ export class FacilityMap implements StageRoom {
   }
   pointer(nx: number, ny: number) { this.ptr.set(nx, ny); }
 
+  /** the camera's pose this frame, with the shake on it */
+  private shook = new THREE.Vector3();
   frame(aspect: number, portrait: boolean) {
     this.aspect = aspect; this.portrait = portrait;
     // fit the model's width: closer on a wide screen, further on a narrow one
@@ -288,12 +339,11 @@ export class FacilityMap implements StageRoom {
     const c = this.cam;
     c.aspect = aspect; c.fov = this.cur.fov; c.near = 0.5; c.far = 220;
     c.updateProjectionMatrix();
-    c.position.copy(this.cur.pos); c.lookAt(this.cur.look);
+    c.position.copy(this.cur.pos).add(this.shook); c.lookAt(this.cur.look);
   }
 
   update(dt: number, t: number, full: boolean) {
-    for (const id of this.dirty) this.place(id);
-    this.dirty.clear();
+    for (const id of this.dirty) if (!this.held.has(id)) { this.place(id); this.dirty.delete(id); }
     this.ptrS.x = damp(this.ptrS.x, this.ptr.x, 1.5, dt); this.ptrS.y = damp(this.ptrS.y, this.ptr.y, 1.5, dt);
     const fl = this.flight;
     if (fl) {
@@ -305,11 +355,15 @@ export class FacilityMap implements StageRoom {
       if (fl.t >= fl.dur) { this.flight = null; fl.res(); }
     } else {
       // idle: the model turns a few degrees and breathes with the pointer
-      const target = this.focused ? this.roomPose(this.focused) : this.homePose();
+      const target = this.focused ? this.shotPose ?? this.roomPose(this.focused) : this.homePose();
       if (!this.focused) { const sway = Math.sin(t * 0.06) * 0.05; target.pos.sub(target.look).applyAxisAngle(new THREE.Vector3(0, 1, 0), sway).add(target.look); }
-      const k = 1 - Math.exp(-dt * 2.2);
+      const k = 1 - Math.exp(-dt * (this.shotPose ? 3.2 : 2.2));
       this.cur.pos.lerp(target.pos, k); this.cur.look.lerp(target.look, k); this.cur.fov += (target.fov - this.cur.fov) * k;
     }
+    // a punch of shake (a hammer stroke, a drop): decays fast
+    this.shake = Math.max(0, this.shake - dt * 3);
+    const sk = this.shake * this.shake * 0.12;
+    this.shook.set((Math.random() - 0.5) * sk, (Math.random() - 0.5) * sk, (Math.random() - 0.5) * sk);
     // rooms: lift and warm the hot one, flicker the dead ones
     const hot = this.focused ? null : (this.hot ?? this.sel);
     for (const s of this.slots.values()) {
@@ -322,7 +376,7 @@ export class FacilityMap implements StageRoom {
       if (s.cond === 0 || s.locked) { s.flick -= dt; if (s.flick <= 0) s.flick = Math.random() < 0.85 ? 0.3 + Math.random() * 2.5 : -0.06 - Math.random() * 0.1; k = s.flick < 0 ? 0.25 : 1; if (s.flick < -0.2) s.flick = 0; }
       // down in a room, the rest of the model falls back into the dark
       s.dim = damp(s.dim, this.focused && this.focused !== s.id ? 1 : 0, 3, dt);
-      const fk = this.focused === s.id ? 1.15 : 1 - s.dim * 0.75;
+      const fk = this.focused === s.id ? 1.15 * this.lightMul : 1 - s.dim * 0.75;
       s.light.intensity = (base * k * (1 + s.heat * 0.9) + s.heat * 4) * fk;
       s.light.color.setHex(s.d.color).lerp(new THREE.Color(0xffc890), s.heat * 0.55);
       (s.pad.material as THREE.MeshBasicMaterial).opacity = s.heat * 0.16;

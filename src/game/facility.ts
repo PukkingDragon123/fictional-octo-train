@@ -12,6 +12,7 @@
 //   setCondition(id, c)  unlockRoom(id)  lockRoom(id)
 //   placeFurniture(id, f) -> uid     moveFurniture(id, uid, at)  removeFurniture(id, uid)
 //   registerFurniture(def)           part B: a furniture kind and the stats it gives (FURNITURE)
+//   setFinish(id, part, key)  setWork(id, w)  screenOpen(id)  FIRST_ROOM      part B: finishes, the clearing, screens
 //   roomBonuses(id) / facilityBonuses()   summed stat bonuses (condition + furniture)
 //   onFacility(fn) -> off            any change
 //   serializeFacility() / loadFacility(data, merge)   the save system's side
@@ -21,7 +22,7 @@ export type RoomId = 'unit' | 'control' | 'monitors' | 'lattice' | 'archive' | '
 /** 0 derelict (debris, tarps, dead lights) · 1 cleared · 2 repaired · 3 restored */
 export type Condition = 0 | 1 | 2 | 3;
 /** the stats a room or a piece of furniture raises (part B may add more) */
-export type FacilityStat = 'morale' | 'rest' | 'health' | 'sanity' | 'research' | 'craft' | 'storage' | 'income';
+export type FacilityStat = 'morale' | 'rest' | 'health' | 'sanity' | 'research' | 'craft' | 'storage' | 'income' | 'melee' | 'scan' | 'yield';
 export type Bonuses = Partial<Record<FacilityStat, number>>;
 
 export interface Furniture {
@@ -30,8 +31,12 @@ export interface Furniture {
   /** room-local metres from the room's centre (x across, z deep), and its turn (radians) */
   x: number; z: number; rot: number;
 }
-export interface FacilityRoom { id: RoomId; condition: Condition; locked: boolean; furniture: Furniture[] }
-export interface FacilityState { v: 1; signed: boolean; signedAt?: number; rooms: Record<RoomId, FacilityRoom> }
+/** part B: a room's finishes (src/game/facilityCatalog.ts FINISHES keys; absent: the room's own) */
+export interface RoomFinish { wall?: string; floor?: string; light?: string }
+/** part B: the clearing in progress (the skip is in, these debris pieces are in it) */
+export interface RoomWork { skip: boolean; binned: number[] }
+export interface FacilityRoom { id: RoomId; condition: Condition; locked: boolean; furniture: Furniture[]; finish?: RoomFinish; work?: RoomWork }
+export interface FacilityState { v: 1; b?: 1; signed: boolean; signedAt?: number; rooms: Record<RoomId, FacilityRoom> }
 
 /** where a room leads when the map opens it (title.ts): a menu room and an optional act inside it */
 export type RoomScreen = { view: 'subject' | 'research' | 'archive' | 'monitor'; act?: string } | null;
@@ -62,6 +67,10 @@ export const ROOMS: RoomDef[] = [
   { id: 'canteen', name: 'Canteen', cell: [5, 1], screen: null, perLevel: { morale: 1, health: 1 }, station: 'commissary' },
 ];
 export const roomDef = (id: RoomId) => ROOMS.find((r) => r.id === id)!;
+/** part B: the room a new operator restores first (cheap, open from the first day: it teaches the loop) */
+export const FIRST_ROOM: RoomId = 'bunks';
+/** part B: a room's own screen can be entered: the first-day rooms whenever they are open, the rest once restored */
+export function screenOpen(id: RoomId): boolean { const d = roomDef(id), r = room(id); return !!d.screen && !r.locked && (!!d.open || r.condition >= 3); }
 
 /** a furniture kind (part B fills the catalogue) */
 export interface FurnitureDef { kind: string; name: string; stats: Bonuses; rooms?: RoomId[] }
@@ -72,17 +81,18 @@ export function registerFurniture(d: FurnitureDef) { FURNITURE.set(d.kind, d); }
 const KEY = 'noclip.facility';
 let cache: FacilityState | null = null;
 
+// part B: the wing starts derelict, every room of it; the first-day rooms and the first room to restore are open
 function fresh(): FacilityState {
   const rooms = {} as Record<RoomId, FacilityRoom>;
-  for (const d of ROOMS) rooms[d.id] = { id: d.id, condition: d.open ? 1 : 0, locked: !d.open, furniture: [] };
-  return { v: 1, signed: false, rooms };
+  for (const d of ROOMS) rooms[d.id] = { id: d.id, condition: 0, locked: !d.open && d.id !== FIRST_ROOM, furniture: [] };
+  return { v: 1, b: 1, signed: false, rooms };
 }
-/** an operator from before the facility: every lab station already built opens its room, repaired */
+/** an operator from before the facility: every lab station already built opens its room, restored */
 function seedFromLab(s: FacilityState) {
   let prof: { unlocked?: string[] } = {};
   try { prof = JSON.parse(localStorage.getItem('noclip.profile') || '{}'); } catch { /* none */ }
   const un = new Set(prof.unlocked ?? []);
-  for (const d of ROOMS) if (d.station && un.has('lab:' + d.station)) { const r = s.rooms[d.id]; r.locked = false; r.condition = Math.max(r.condition, 2) as Condition; }
+  for (const d of ROOMS) if (d.station && un.has('lab:' + d.station)) { const r = s.rooms[d.id]; r.locked = false; r.condition = 3; }
 }
 export function facility(): FacilityState {
   if (cache) return cache;
@@ -90,11 +100,19 @@ export function facility(): FacilityState {
   try { const raw = localStorage.getItem(KEY); if (raw) s = JSON.parse(raw); } catch { /* storage blocked: memory only */ }
   const base = fresh();
   if (s && s.v === 1 && s.rooms) {
-    for (const d of ROOMS) { const r = s.rooms[d.id]; if (r) base.rooms[d.id] = { id: d.id, condition: clampC(r.condition), locked: !!r.locked, furniture: Array.isArray(r.furniture) ? r.furniture : [] }; }
+    for (const d of ROOMS) { const r = s.rooms[d.id]; if (r) base.rooms[d.id] = roomOf(d.id, r); }
     base.signed = !!s.signed; base.signedAt = s.signedAt;
+    // a wing kept from before build mode: its seeded stations count as restored (their screens stay open), the first room opens
+    if (!s.b) { for (const d of ROOMS) { const r = base.rooms[d.id]; if (d.station && !r.locked && r.condition >= 2) r.condition = 3; } base.rooms[FIRST_ROOM].locked = false; }
   } else seedFromLab(base);
   cache = base;
   return cache;
+}
+function roomOf(id: RoomId, r: Partial<FacilityRoom>): FacilityRoom {
+  const out: FacilityRoom = { id, condition: clampC(r.condition), locked: !!r.locked, furniture: Array.isArray(r.furniture) ? r.furniture.map((f) => ({ ...f })) : [] };
+  if (r.finish && typeof r.finish === 'object') out.finish = { ...r.finish };
+  if (r.work && typeof r.work === 'object') out.work = { skip: !!r.work.skip, binned: Array.isArray(r.work.binned) ? [...r.work.binned] : [] };
+  return out;
 }
 const clampC = (c: unknown): Condition => Math.max(0, Math.min(3, Math.round(Number(c) || 0))) as Condition;
 function persist() {
@@ -124,6 +142,16 @@ export function moveFurniture(id: RoomId, uid: string, to: { x: number; z: numbe
   persist();
 }
 export function removeFurniture(id: RoomId, uid: string) { const r = room(id); r.furniture = r.furniture.filter((q) => q.uid !== uid); persist(); }
+/** part B: a finish on one surface (null: back to the room's own) */
+export function setFinish(id: RoomId, part: keyof RoomFinish, key: string | null) {
+  const r = room(id);
+  const f = { ...(r.finish ?? {}) };
+  if (key) f[part] = key; else delete f[part];
+  r.finish = Object.keys(f).length ? f : undefined;
+  persist();
+}
+/** part B: the clearing's state (the skip in, the pieces in it); null when the room is clear */
+export function setWork(id: RoomId, w: RoomWork | null) { const r = room(id); if (w) r.work = { skip: w.skip, binned: [...w.binned] }; else delete r.work; persist(); }
 
 /** a room's stat bonuses: its level times its per-level stats, plus every piece of furniture in it */
 export function roomBonuses(id: RoomId): Bonuses {
@@ -150,8 +178,9 @@ export function loadFacility(data: unknown, merge = true) {
     const r = s.rooms[d.id];
     if (!r) continue;
     const c = cur.rooms[d.id];
-    if (!merge) { cur.rooms[d.id] = { id: d.id, condition: clampC(r.condition), locked: !!r.locked, furniture: [...(r.furniture ?? [])] }; continue; }
-    c.condition = Math.max(c.condition, clampC(r.condition)) as Condition;
+    if (!merge) { cur.rooms[d.id] = roomOf(d.id, r); continue; }
+    if (clampC(r.condition) > c.condition) { c.condition = clampC(r.condition); if (r.work) c.work = roomOf(d.id, r).work; else delete c.work; }
+    if (r.finish && !c.finish) c.finish = { ...r.finish };
     c.locked = c.locked && !!r.locked;
     for (const f of r.furniture ?? []) if (!c.furniture.some((q) => q.uid === f.uid)) c.furniture.push({ ...f });
   }

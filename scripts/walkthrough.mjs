@@ -16,7 +16,7 @@ const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
 let failed = 0, passed = 0;
 /** steps in a full run (main chain + side chain); update when a step is added */
-const EXPECT = 43;
+const EXPECT = 44;
 
 async function session() {
   const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
@@ -321,6 +321,30 @@ const step = async (page, name, fn, arg) => {
     return { ending: document.querySelector('.dbt-end .l5')?.textContent, flags: T.flags().filter((f) => f.startsWith('contract') || f.startsWith('done:')) };
   });
   await page.screenshot({ path: 'scripts/out/walk_end.png' });
+  // the facility (round 26): the first room restored stage by stage, a bunk bought and placed, its rest reaches the unit
+  await step(page, 'facility: restore the first room, place a bunk, the bonus eases tiredness', async () => {
+    const T = window.T;
+    const fac = await import('/src/game/facility.ts'), cat = await import('/src/game/facilityCatalog.ts');
+    const tal = await import('/src/survival/talents.ts'), money = await import('/src/game/economy/money.ts');
+    fac.resetFacility();
+    const id = fac.FIRST_ROOM;
+    money.addDollars(300, 'test');
+    const body = T.p.body;
+    const bare = tal.talentMul(body, 'fatigue');
+    const why = cat.startStage(id);
+    if (why !== '' || !fac.room(id).work?.skip) throw new Error('the clearing did not start: ' + why);
+    let done = false;
+    for (let n = 0; n < cat.debrisCount(id); n++) done = cat.binDebris(id, n);
+    if (!done || fac.room(id).condition !== 1) throw new Error('not cleared: condition ' + fac.room(id).condition);
+    for (const st of ['repair', 'clean']) { const w = cat.startStage(id); if (w !== '') throw new Error(st + ' refused: ' + w); }
+    if (fac.room(id).condition !== 3) throw new Error('not restored');
+    const restored = tal.talentMul(body, 'fatigue');
+    const uid = cat.buyFurniture(id, 'bunk', { x: -1.5, z: 0.75, rot: 0 });
+    if (!uid) throw new Error('the bunk could not be bought');
+    const furnished = tal.talentMul(body, 'fatigue');
+    if (!(restored < bare && furnished < restored)) throw new Error(`tiredness not eased: ${bare} -> ${restored} -> ${furnished}`);
+    return { rest: fac.roomBonuses(id).rest, fatigue: [bare, +restored.toFixed(3), +furnished.toFixed(3)], next: cat.gateOf('unit') };
+  });
   await page.context().close();
 }
 

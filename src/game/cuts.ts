@@ -3,7 +3,7 @@
 export type CutMode = 'full' | 'short' | 'off';
 export const CUT_KINDS: [string, string][] = [
   ['sleep', 'Sleep cut'], ['medical', 'Treating wounds'], ['lock', 'Locks and doors'], ['barricade', 'Barricading'],
-  ['repair', 'Repairs'], ['read', 'Reading'], ['unlink', 'Back to the lab'],
+  ['repair', 'Repairs'], ['read', 'Reading'], ['unlink', 'Back to the lab'], ['restore', 'Facility works'],
 ];
 const KEY = 'noclip.cuts';
 let cache: Record<string, CutMode> | null = null;

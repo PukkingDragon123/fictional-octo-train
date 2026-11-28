@@ -76,7 +76,8 @@ import { TitleHall } from './front/hall';
 import { FrontEnd, type FrontItem } from './front/front';
 import { FacilityMap } from './front/facilityMap';
 import { OfferRoom, runOffer } from './front/offer';
-import { offerSigned, signOffer, room as facRoom, roomDef, type RoomId } from '../../game/facility';
+import { offerSigned, signOffer, screenOpen, roomDef, type RoomId } from '../../game/facility';
+import { Works } from './front/build/works';
 
 // round 21: the rooms' keys (labIcons.ts adds the lattice, the balance, the flask, the spool, the CRT and the cabinet)
 const ACT_ICON: Record<string, IconKind> = {
@@ -149,6 +150,8 @@ class TitleRoom {
   view: View = 'front';
   hall: TitleHall | null = null;
   map: FacilityMap | null = null;
+  /** round 26 part B: the room close-up's works (restoring, build mode) */
+  works: Works | null = null;
   offerRoom: OfferRoom | null = null;
   front: FrontEnd;
   /** the facility map's global floating icons (no words: their names only while hot) */
@@ -199,7 +202,7 @@ class TitleRoom {
     this.stage.onHot = (hh, x, y) => this.hotCaption(hh, x, y);
     this.stage.onPointer = (x, y) => this.pointer(x, y);
     // a tap on nothing while the research lattice is up steps back out of it
-    this.stage.onMiss = () => { if (this.view === 'map') { if (this.map?.focused) void this.mapBack(); return; } if (treeOpen()) (this.research?.lattice as { back?: () => void } | undefined)?.back?.(); else if (this.view === 'research') { if (!this.research?.talent.miss()) this.research?.unfocus(); } };
+    this.stage.onMiss = () => { if (this.view === 'map') { if (this.map?.focused && !this.works?.miss()) void this.mapBack(); return; } if (treeOpen()) (this.research?.lattice as { back?: () => void } | undefined)?.back?.(); else if (this.view === 'research') { if (!this.research?.talent.miss()) this.research?.unfocus(); } };
     this.root.dataset.view = 'front';
     this.root.classList.add('frontend');
     listSaves().then((s) => { this.saves = s; this.build(); }).catch(() => this.build());
@@ -237,6 +240,7 @@ class TitleRoom {
       this.map = map;
       this.stage.add(map);
       map.onRoom = (id) => { void this.enterRoom(id); };
+      this.works = new Works({ root: this.root, stage: this.stage, map, mats, enter: (id) => { void this.intoScreen(id); }, up: () => { void this.mapBack(); } });
       this.mapRes();
       await idleSlice();
       const mon0 = new MonitorRoom(mats); await idleSlice();
@@ -545,6 +549,7 @@ class TitleRoom {
   // ================================================================== frame hook
   private tick(dt: number) {
     this.subject.tick(dt);
+    if (this.view === 'map') this.works?.update(dt);
     this.placeFeedButtons();
     if (this.hotT > 0) { this.hotT -= dt; if (this.hotT <= 0 && !this.stage.hovered && !(document.activeElement as HTMLElement)?.classList?.contains('mr-feed')) this.hotcap.classList.remove('on'); }
     this.tcT -= dt;
@@ -702,7 +707,7 @@ class TitleRoom {
   /** New Game with a facility: a new unit, from unit room 4 (the intake, the talent bench, the link) */
   async newFromTitle() {
     await this.toMap();
-    await this.enterRoom('unit');
+    await this.enterRoom('unit', true);
     if (this.view === 'subject') void this.newGame(true);
   }
   /** back to the title from the map */
@@ -723,18 +728,25 @@ class TitleRoom {
     ambience(null);
     this.front.powerDown(() => ambience('hall'));
   }
-  /** a room pressed on the map: the camera flies down into it; one with a screen cuts into it */
-  async enterRoom(id: RoomId) {
+  /** a room pressed on the map: the camera flies down into it and holds on its close-up, where the works are
+   *  (part B: restoring, build mode) and its screen is one press away; `direct` cuts straight into the screen */
+  async enterRoom(id: RoomId, direct = false) {
     const map = this.map;
     if (!map || this.moving || this.view !== 'map' || this.root.classList.contains('paneled')) return;
-    const st = facRoom(id), def = roomDef(id);
     this.moving = true;
     (document.activeElement as HTMLElement | null)?.blur?.();
     this.stage.hoverKey(null);
     sfx('confirm', 0.6);
     try { await map.focus(id); } finally { this.moving = false; }
     this.buildHud();
-    if (st.locked || !def.screen) { sample('door_locked', 0.5); return; }
+    if (direct && screenOpen(id)) { await this.intoScreen(id); return; }
+    this.works?.open(id);
+  }
+  /** from a room's close-up into its own screen (the lattice, the fab bay, the talent bench, the containment drawer) */
+  async intoScreen(id: RoomId) {
+    const def = roomDef(id);
+    if (this.moving || this.view !== 'map' || !screenOpen(id) || !def.screen) { sample('door_locked', 0.5); return; }
+    this.works?.close();
     this.fromRoom = id;
     const sc = def.screen;
     await this.go(sc.view);
@@ -747,6 +759,7 @@ class TitleRoom {
   /** out of a room's close shot on the map */
   async mapBack() {
     if (!this.map?.focused || this.moving) return;
+    this.works?.close();
     this.moving = true;
     try { await this.map.unfocus(); } finally { this.moving = false; }
     this.buildHud();
@@ -766,7 +779,7 @@ class TitleRoom {
   private onBack() {
     if (this.over.classList.contains('on')) { this.closeOver(); return; }
     if (this.view === 'front' || this.view === 'offer') return;
-    if (this.view === 'map') { if (this.map?.focused) void this.mapBack(); else void this.toFront(); return; }
+    if (this.view === 'map') { if (this.works?.back()) return; if (this.map?.focused) void this.mapBack(); else void this.toFront(); return; }
     if (this.view === 'archive' && this.archive?.back()) return;
     if (this.view === 'subject' && this.subject.face) { this.subject.faceZoom(false); this.buildHud(); return; }
     if (this.research?.bench) return;
@@ -777,7 +790,7 @@ class TitleRoom {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     if (this.view === 'map') {
-      if ((e.key === 'Enter' || e.key === ' ') && !(t && t.tagName === 'BUTTON') && !this.map?.focused) { e.preventDefault(); this.map?.pressSel(); }
+      if ((e.key === 'Enter' || e.key === ' ') && !(t && t.tagName === 'BUTTON')) { e.preventDefault(); if (!this.map?.focused) this.map?.pressSel(); else this.works?.press(); }
       return;
     }
     if (this.view === 'archive' && this.archive && this.archive.state !== 'room') { if (this.archive.key(e)) { e.preventDefault(); e.stopPropagation(); } return; }

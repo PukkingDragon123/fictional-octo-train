@@ -27,6 +27,7 @@ import { stat, addStat } from './profile';
 import { hasUnlock, gateNode, researchNode, setResearchMul } from './research';
 import { treeCategory, treeOffer } from './treeData';
 import { talentSource } from '../survival/talents';
+import { facilityMul, facilityAdd } from './facilityFx';
 import type { SkillKey } from '../survival/traits';
 import { G } from './G';
 
@@ -141,9 +142,9 @@ function totals(): Map<string, number> {
   return (cache = m);
 }
 /** a trade stat's multiplier from every node owned (1 when none) */
-export const profMul = (s: string) => (s === 'carry' ? 1 : totals().get(s) ?? 1);
+export const profMul = (s: string) => (s === 'carry' ? 1 : (totals().get(s) ?? 1) * facilityMul(s));
 /** an additive trade stat's bonus (0 when none) */
-export const profAdd = (s: string) => (s === 'carry' ? totals().get(s) ?? 0 : 0);
+export const profAdd = (s: string) => (s === 'carry' ? (totals().get(s) ?? 0) + facilityAdd(s) : 0);
 // the lattice is this browser's research: its trades apply to the local unit's body (talentMul / talentAdd)
 talentSource((body, s) => {
   const loc = G?.local?.body as unknown;

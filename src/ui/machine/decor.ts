@@ -720,7 +720,10 @@ export type IconKind = 'gear' | 'wrench' | 'play' | 'tape' | 'clipboard' | 'door
   | 'credit'
   // round 25 (the lattice's trades, src/ui/menus/research/tradeIcons.ts): a nailed club, a first-aid tin, a stock
   // pot, a potted seedling, a feed pail
-  | 'club' | 'medkit' | 'pot' | 'sprout' | 'pail';
+  | 'club' | 'medkit' | 'pot' | 'sprout' | 'pail'
+  // round 26 (the facility's works, src/ui/menus/front/build/icons.ts): a bunk, an enamel mug, a pill bottle, a skip,
+  // a paint roller, a mop bucket
+  | 'bunk' | 'mug' | 'pills' | 'skip' | 'roller' | 'mop';
 /** icon models built outside this file (registered before their first sheet is drawn) */
 export interface IconExtra { build(m: Mold, g: THREE.Group, u: number): void; glow?: [number, number, number]; free?: boolean }
 export const ICON_EXTRA = new Map<IconKind, IconExtra>();
