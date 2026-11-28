@@ -28,8 +28,8 @@ export class OfferRoom implements StageRoom {
   cam = new THREE.PerspectiveCamera(40, 16 / 9, 0.03, 40);
   hots: Hot[] = [];
   grade: Grade = {
-    exposure: 1.85, lift: [0.92, 0.97, 1.05], gain: [1.06, 1.0, 0.92], vig: 0.55, sat: 0.9, contrast: 1.14, side: [1, 0, 0.05, 0.35],
-    haze: 0.3, hazeColor: 0x3a4660, ao: 0.9, aoRad: 0.45, scatter: 0.6, bounce: 0.28,
+    exposure: 1.7, lift: [0.9, 0.93, 1.0], gain: [1.07, 1.0, 0.9], vig: 0.6, sat: 1.0, contrast: 1.26, side: [1, 0, 0.05, 0.35],
+    haze: 0.2, hazeColor: 0x4a4038, ao: 1.0, aoRad: 0.45, scatter: 0.65, bounce: 0.34,
     shafts: [new THREE.Vector3(-0.4, 1.9, -D - 0.2), new THREE.Vector3(0.35, 1.25, -0.55)], shaftK: 0.5, shaftColor: 0xb0c4ff,
   };
   calder: GuideRig | null = null;
@@ -39,12 +39,14 @@ export class OfferRoom implements StageRoom {
   private ink: CanvasRenderingContext2D;
   private inkTex: THREE.CanvasTexture;
   private glass: RainGlass;
-  private winLight = new THREE.SpotLight(0x9ab4ff, 16, 12, 0.55, 0.5, 1.4);
-  private lamp = new THREE.SpotLight(0xffc880, 1.3, 4, 0.9, 0.8, 1.8);
-  private lampFill = new THREE.PointLight(0xffb870, 0.9, 4, 2);
-  private roomFill = new THREE.PointLight(0xb8c8e8, 14, 9, 1.5);
-  private wallFill = new THREE.PointLight(0xffd0a0, 7, 6, 1.6);
-  private hemi = new THREE.HemisphereLight(0x8a9cc0, 0x3a2c1c, 1.35);
+  private winLight = new THREE.SpotLight(0x8aa8ff, 13, 12, 0.55, 0.5, 1.4);
+  private lamp = new THREE.SpotLight(0xffc070, 3.2, 4, 0.8, 0.8, 1.8);
+  private lampFill = new THREE.PointLight(0xffb870, 1.4, 4, 2);
+  private roomFill = new THREE.PointLight(0xffd8b0, 2.5, 9, 1.5);
+  private pendant = new THREE.PointLight(0xffb870, 3.4, 6, 1.6);
+  private sconce = new THREE.PointLight(0xffa860, 7, 4.5, 1.7);
+  private wallFill = new THREE.PointLight(0xffd0a0, 6, 5, 1.6);
+  private hemi = new THREE.HemisphereLight(0x8a92a8, 0x3a2a18, 0.75);
   private leak: ReturnType<typeof leakCards>;
   private dust = new Dust(220, new THREE.Box3(new THREE.Vector3(-W + 0.2, 0.2, -D + 0.2), new THREE.Vector3(W - 0.2, H - 0.3, D - 0.3)));
   private dress: Dresser;
@@ -86,11 +88,14 @@ export class OfferRoom implements StageRoom {
     S.add(this.leak.mesh);
     this.winLight.position.set(-0.4, 2.4, -D - 1.6); this.winLight.target.position.set(0.2, 0.6, 0.4);
     this.winLight.castShadow = true; this.winLight.shadow.mapSize.set(1024, 1024); this.winLight.shadow.bias = -0.0008;
-    this.lamp.position.set(0.42, 1.03, -0.62); this.lamp.target.position.set(0.1, 0.78, -0.2);
+    this.lamp.position.set(0.42, 1.03, -0.62); this.lamp.target.position.set(0.3, 0.78, -0.7);
     this.lamp.castShadow = true; this.lamp.shadow.mapSize.set(1024, 1024); this.lamp.shadow.bias = -0.0006;
     this.lampFill.position.set(0.4, 1.15, -0.5);
     this.roomFill.position.set(0.6, H - 0.4, 0.8);
-    this.wallFill.position.set(-1.8, 1.8, 1.6);
+    this.pendant.position.set(-0.75, H - 1.12, 0.35); this.pendant.castShadow = true; this.pendant.shadow.mapSize.set(512, 512); this.pendant.shadow.bias = -0.002;
+    this.sconce.position.set(W - 0.25, 1.9, -0.6);
+    S.add(this.pendant, this.sconce);
+    this.wallFill.position.set(-2.1, 2.1, 0.6);
     S.add(this.roomFill, this.wallFill);
     S.add(this.winLight, this.winLight.target, this.lamp, this.lamp.target, this.lampFill, this.hemi, this.dust.points);
     S.add(this.dress.done());
@@ -140,7 +145,13 @@ export class OfferRoom implements StageRoom {
     b.add('rubber', prism(0.003, 1.4, 4), 0xd8d0b8, at(wx - 0.1, 2.0, wz + 0.12));
     // ceiling, a dead trough, a stain
     b.add('concrete', cbox(W * 2 + 0.3, 0.15, D * 2 + 0.3, 0.01), 0x6a6862, at(0, H + 0.07, 0));
-    b.add('enamel', cbox(0.3, 0.09, 1.2, 0.02), 0x9a968a, at(0.3, H - 0.06, 0.4));
+    b.add('rubber', prism(0.006, 1.0, 4), 0x2a2420, at(-0.75, H - 0.5, 0.35));
+    b.add('paint', lathe([[0.03, 0], [0.06, -0.03], [0.17, -0.1], [0.22, -0.16]], 12), 0x2e5a3a, at(-0.75, H - 1.0, 0.35), { rep: 0.2 });
+    b.add('enamel', lathe([[0.21, -0.158], [0.16, -0.104], [0.055, -0.034], [0.028, -0.004]], 12), 0xf0e8d0, at(-0.75, H - 1.0, 0.35));
+    b.add('lamp', lathe([[0, 0], [0.03, -0.02], [0.034, -0.06], [0, -0.075]], 8), 0xfff0c8, at(-0.75, H - 1.06, 0.35));
+    b.add('brass', cbox(0.08, 0.14, 0.04, 0.01), 0xffffff, at(W - 0.03, 1.85, -0.6));
+    b.add('wood', lathe([[0.06, 0], [0.11, -0.2], [0, -0.2]], 8).scale(1, -1, 1), 0xe8d4a8, at(W - 0.14, 1.93, -0.6));
+    b.add('lamp', lathe([[0, 0], [0.04, 0.02], [0, 0.06]], 6), 0xffe0a8, at(W - 0.14, 1.87, -0.6));
     // her desk: oak, a leather top, drawers; the banker's lamp, files, a telephone, an ashtray, a framed photo face down
     const dz = -0.55;
     b.add('wood', cbox(1.7, 0.06, 0.85, 0.012), 0x6a4426, at(0, 0.76, dz), { grain: 'x' });
@@ -298,10 +309,10 @@ export class OfferRoom implements StageRoom {
     if (this.thunderAt > 0) { this.thunderAt -= dt; if (this.thunderAt <= 0) sample('leviathan_rumble', 0.5, 0.85); }
     const f = this.flash > 0.02 ? this.flash * (0.55 + 0.45 * Math.max(0, Math.sin(tt * 51))) : 0;
     this.flash = Math.max(0, this.flash - dt * 2.4);
-    this.winLight.intensity = 16 + f * 50;
+    this.winLight.intensity = 13 + f * 50;
     this.leak.u.uInt.value = 0.022 * (1 + f * 1.5);
     this.glass.u.uT.value = tt; this.glass.u.uFlash.value = f;
-    this.lamp.intensity = 1.3 * (0.97 + 0.03 * Math.sin(tt * 31));
+    this.lamp.intensity = 3.2 * (0.97 + 0.03 * Math.sin(tt * 31));
     if (full) { this.dress.update(t); this.dust.update(tt, this.winLight.position, this.v.copy(this.winLight.target.position).sub(this.winLight.position).normalize(), Math.cos(0.55), Math.cos(0.25), 40, new THREE.Color(0xc8d8ff), 0.12); }
   }
 }
@@ -380,14 +391,14 @@ export async function runOffer(h: OfferHost): Promise<void> {
     void R.shot(V(0.12, 1.3, 0.8), V(0.02, 1.42, -1.2), 30, 3000);
     await say(5);
     // 4: down to the paper; the unit signs it
-    R.grade.exposure = 1.6;
+    R.grade.exposure = 1.35;
     await R.shot(V(0.05, 1.2, 0.26), V(0.03, 0.8, -0.24), 36, 2200);
     await say(6);
     await sign(h, auto);
     // 5: she takes it; the welcome; the black comes up
     sample('paper', 0.6);
     R.slideTo = 2;
-    R.grade.exposure = 1.85;
+    R.grade.exposure = 1.5;
     void R.shot(V(0.3, 1.38, 1.1), V(0.02, 1.38, -1.3), 34, 2600);
     await wait(1.4);
     await say(7);

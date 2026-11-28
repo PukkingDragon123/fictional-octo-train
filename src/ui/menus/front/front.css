@@ -39,27 +39,36 @@
 .fr.lit .fr-rule { width: min(520px, 60vw); }
 .fr.flash .fr-word span { filter: brightness(1.8) drop-shadow(0 0 18px rgba(200, 220, 255, .8)); transition: filter .08s; }
 
-/* ---- the four choices: floating words, raised, leaning out and warming under the pointer */
-.fr-menu { position: absolute; left: calc(clamp(28px, 8vw, 150px) + 154px); bottom: calc(5.5vh + clamp(24px, 9vh, 110px)); display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
-.fr-item { position: relative; display: block; padding: 4px 28px 6px 0; margin: 0; border: 0; background: none; cursor: pointer; text-align: left; outline: none;
-  font: inherit; font-size: 32px; letter-spacing: .06em; color: #cfc8b6; opacity: 0; transform: translateX(-26px); -webkit-tap-highlight-color: transparent;
-  transition: opacity 1.2s ease calc(var(--n) * 160ms), transform 1.6s cubic-bezier(.2, .8, .2, 1) calc(var(--n) * 160ms), color .35s ease; }
-.fr.menu .fr-item { opacity: .84; transform: none; }
-.fr-t { position: relative; display: inline-block; transition: transform .7s cubic-bezier(.2, .8, .2, 1), text-shadow .5s ease, color .4s;
-  text-shadow: 1px 1px 0 #2a251d, 2px 2px 0 #1c1913, 3px 3px 0 #110f0b, 0 0 2px #000, 4px 9px 12px rgba(0, 0, 0, .65); }
-/* a thin light drawn under the hot word, from its first letter outward */
-.fr-t::after { content: ''; position: absolute; left: 2px; right: -10px; bottom: -6px; height: 2px; transform: scaleX(0); transform-origin: left;
-  background: linear-gradient(90deg, rgba(255, 214, 150, .95), rgba(255, 214, 150, 0)); box-shadow: 0 0 8px rgba(255, 200, 120, .5); transition: transform .8s cubic-bezier(.2, .8, .2, 1); }
-.fr-item:hover, .fr-item:focus-visible, .fr-item:focus { color: #fff4dc; opacity: 1 !important; }
-.fr-item:hover .fr-t, .fr-item:focus .fr-t { transform: translateX(16px) translateY(-1px);
-  text-shadow: 1px 1px 0 #3a2e1e, 2px 2px 0 #271f14, 3px 3px 0 #18130c, 4px 4px 0 #0e0b07, 0 0 18px rgba(255, 196, 120, .35), 6px 12px 14px rgba(0, 0, 0, .7); }
+/* ---- the four choices: big floating words at their own depths, raised, leaning out and lit under the pointer */
+.fr-menu { position: absolute; left: calc(clamp(28px, 8vw, 150px) + 150px); bottom: calc(5.5vh + clamp(28px, 7vh, 90px)); display: flex; flex-direction: column; gap: clamp(6px, 1.6vh, 18px); pointer-events: auto; perspective: 900px; }
+.fr-item { position: relative; display: block; padding: 2px 40px 8px 0; margin: 0; border: 0; background: none; cursor: pointer; text-align: left; outline: none;
+  font: inherit; font-size: 48px; line-height: 1.05; letter-spacing: .05em; color: #d6cfbc; opacity: 0; transform: translateX(-36px); -webkit-tap-highlight-color: transparent;
+  transition: opacity 1.2s ease calc(var(--n) * 170ms), transform 1.8s cubic-bezier(.2, .8, .2, 1) calc(var(--n) * 170ms), color .35s ease; }
+.fr.menu .fr-item { opacity: .9; transform: none; }
+/* the depth each word floats at: nearer words drift further against the hall */
+.fr-p { display: inline-block; transform: translate3d(calc(var(--px, 0) * (-10px - var(--n) * 4px)), calc(var(--py, 0) * (-6px - var(--n) * 2px)), 0) rotateY(calc(var(--px, 0) * 4deg)) rotateX(calc(var(--py, 0) * -3deg)); transform-style: preserve-3d; }
+.fr-t { position: relative; display: inline-block; transform-origin: 0 60%; transition: transform .8s cubic-bezier(.2, .8, .2, 1), text-shadow .5s ease, color .4s, filter .5s;
+  /* the relief: a stepped extrusion down and right, a soft cast shadow on the scene behind */
+  text-shadow: 1px 1px 0 #3a3326, 2px 2px 0 #2a251c, 3px 3px 0 #1d1a13, 4px 4px 0 #13110c, 5px 5px 0 #0c0a07, 0 0 2px #000, 8px 16px 18px rgba(0, 0, 0, .75); }
+/* the lit word: a pool of warm light behind it (no box: a soft glow), a line of light drawn under it */
+.fr-t::before { content: ''; position: absolute; left: -24px; right: -40px; top: -10px; bottom: -14px; z-index: -1; opacity: 0; transform: scaleX(.6); transform-origin: left center;
+  background: radial-gradient(ellipse 62% 60% at 32% 55%, rgba(255, 186, 104, .5), rgba(255, 170, 90, .16) 55%, transparent 76%); filter: blur(5px); transition: opacity .6s ease, transform .9s cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
+.fr-t::after { content: ''; position: absolute; left: 4px; right: -16px; bottom: -8px; height: 3px; transform: scaleX(0); transform-origin: left;
+  background: linear-gradient(90deg, rgba(255, 214, 150, 1), rgba(255, 214, 150, 0)); box-shadow: 0 0 12px rgba(255, 200, 120, .7); transition: transform .9s cubic-bezier(.2, .8, .2, 1); }
+.fr-item:hover, .fr-item:focus-visible, .fr-item:focus { color: #fff6e2; opacity: 1 !important; }
+.fr-item:hover .fr-t, .fr-item:focus .fr-t { transform: translate3d(22px, -7px, 40px) scale(1.1);
+  text-shadow: 1px 1px 0 #4a3a22, 2px 2px 0 #3a2d1a, 3px 3px 0 #2c2213, 4px 4px 0 #20180d, 5px 5px 0 #161009, 6px 6px 0 #0e0a05, 7px 7px 0 #080603, 0 0 22px rgba(255, 190, 110, .6), 12px 24px 22px rgba(0, 0, 0, .8); }
+.fr-item:hover .fr-t::before, .fr-item:focus .fr-t::before { opacity: 1; transform: none; }
 .fr-item:hover .fr-t::after, .fr-item:focus .fr-t::after { transform: scaleX(1); }
+.fr.menu .fr-item:not(:focus):not(:hover) { color: #bdb5a2; }
 .fr-item.hit .fr-t { animation: fr-hit .5s ease-out; }
 @keyframes fr-hit { 0% { filter: brightness(2.2); } 100% { filter: none; } }
 .fr.picked .fr-item:not(.hit) { opacity: 0 !important; transform: translateX(-18px); transition-delay: 0s; transition-duration: .6s; }
 .fr.picked .fr-logo { opacity: 0; transform: translateY(-10px); transition: opacity 1s ease .2s, transform 1.4s ease; }
 .fr.picked .fr-item.hit { opacity: 0 !important; transition: opacity .8s ease .35s; }
 .fr.quick .fr-word span, .fr.quick .fr-crest, .fr.quick .fr-item, .fr.quick .fr-rule { transition-delay: 0s !important; transition-duration: .5s !important; }
+/* the logo floats at the back */
+.fr-logo { translate: calc(var(--px, 0) * -6px) calc(var(--py, 0) * -4px); }
 
 /* ---- the film: grain, vignette, a thin letterbox */
 .fr-film { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; mix-blend-mode: overlay; opacity: .055; pointer-events: none; }
@@ -78,7 +87,7 @@
   .fr-crest { width: 64px; height: 64px; margin-bottom: 10px; }
   .fr-word { font-size: 64px; } .fr-word.b { font-size: 64px; margin-left: 24px; }
   .fr-logo { gap: 14px; } .fr-menu { bottom: calc(5.5vh + 20px); left: calc(clamp(28px, 8vw, 150px) + 78px); }
-  .fr-item { font-size: 32px; }
+  .fr-item { font-size: 32px; padding-right: 24px; }
 }
 @media (prefers-reduced-motion: reduce) { .fr-word span, .fr-item, .fr-crest { transition-duration: .3s !important; transition-delay: 0s !important; animation: none !important; } }
 
@@ -98,3 +107,11 @@
 /* the map's film: a vignette and a cold edge */
 .nx-title.mr[data-view="map"] .mr-stage::before { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(ellipse 85% 80% at 50% 52%, transparent 60%, rgba(0, 0, 0, .5) 100%); }
 .fr:not(.menu) .fr-item, .fr.picked .fr-item { pointer-events: none; }
+
+/* ---- the offer's lines (front/offer.ts on the intake's subtitle strip): set large, on Alagard's 16px grid */
+.of-root .ix-sub { bottom: calc(10vh + 2.6vh); width: min(92vw, 1320px); }
+.of-root .ix-sub-who { font-size: 32px; font-weight: normal; letter-spacing: .2em; color: #e6c48a; margin-bottom: .35em;
+  text-shadow: 1px 1px 0 #2a1d10, 2px 2px 0 #140e08, 0 0 2px #000, 0 3px 10px rgba(0, 0, 0, .9); }
+.of-root .ix-sub-line { font-size: 48px; line-height: 1.2; letter-spacing: .01em; font-weight: normal;
+  text-shadow: 1px 1px 0 #2a251d, 2px 2px 0 #1a1712, 3px 3px 0 #0e0c09, 0 0 2px #000, 0 4px 16px rgba(0, 0, 0, .85); }
+@media (max-width: 900px) { .of-root .ix-sub-line { font-size: 32px; } .of-root .ix-sub-who { font-size: 16px; } }

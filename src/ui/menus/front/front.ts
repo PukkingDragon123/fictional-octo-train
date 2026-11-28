@@ -23,6 +23,7 @@ export class FrontEnd {
   private raf = 0;
   private shown = false;
   private revealT: number[] = [];
+  private ptx = 0; private pty = 0; private px = 0; private py = 0;
   constructor(parent: HTMLElement, private o: { strike?: (k: number) => void } = {}) {
     this.el.className = 'fr';
     this.menu.className = 'fr-menu';
@@ -58,6 +59,8 @@ export class FrontEnd {
     this.el.append(this.logo, this.menu, this.film, this.bars, this.off);
     parent.append(this.el);
     this.grain();
+    // parallax: the logo and each word sit at their own depth over the hall and drift against it with the pointer
+    window.addEventListener('pointermove', (e) => { this.ptx = (e.clientX / innerWidth) * 2 - 1; this.pty = (e.clientY / innerHeight) * 2 - 1; }, { passive: true });
   }
 
   setItems(items: FrontItem[]) {
@@ -68,7 +71,7 @@ export class FrontEnd {
       b.className = 'fr-item';
       b.dataset.k = it.key;
       b.style.setProperty('--n', String(i));
-      b.innerHTML = `<span class="fr-t" data-t="${it.label}">${it.label}</span>`;
+      b.innerHTML = `<span class="fr-p"><span class="fr-t" data-t="${it.label}">${it.label}</span></span>`;
       b.addEventListener('pointerenter', () => { if (document.activeElement !== b) b.focus({ preventScroll: true }); });
       b.addEventListener('focus', () => { if (this.shown) { sfx('tick', 0.5); } });
       b.addEventListener('click', () => {
@@ -136,7 +139,12 @@ export class FrontEnd {
     let last = 0;
     const tick = (now: number) => {
       this.raf = requestAnimationFrame(tick);
-      if (!this.el.isConnected || now - last < 42 || !this.el.classList.contains('on')) return;
+      if (!this.el.isConnected || !this.el.classList.contains('on')) return;
+      // the parallax eases toward the pointer (and breathes a little on its own)
+      const t = now / 1000;
+      this.px += (this.ptx + Math.sin(t * 0.21) * 0.15 - this.px) * 0.06; this.py += (this.pty + Math.sin(t * 0.17) * 0.1 - this.py) * 0.06;
+      this.el.style.setProperty('--px', this.px.toFixed(4)); this.el.style.setProperty('--py', this.py.toFixed(4));
+      if (now - last < 42) return;
       last = now;
       const d = id.data;
       for (let i = 0; i < d.length; i += 4) { const v = Math.random() * 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }

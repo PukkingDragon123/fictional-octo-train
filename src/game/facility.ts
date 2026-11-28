@@ -37,7 +37,7 @@ export interface FacilityState { v: 1; signed: boolean; signedAt?: number; rooms
 export type RoomScreen = { view: 'subject' | 'research' | 'archive' | 'monitor'; act?: string } | null;
 export interface RoomDef {
   id: RoomId; name: string;
-  /** the map cell: column, row (4 x 3) */
+  /** the map cell: column, row (6 x 2: the back row, the front row) */
   cell: [number, number];
   screen: RoomScreen;
   /** what each condition level adds (times the level) */
@@ -53,13 +53,13 @@ export const ROOMS: RoomDef[] = [
   { id: 'lattice', name: 'Research lattice', cell: [2, 0], screen: { view: 'research', act: 'tree' }, perLevel: { research: 2 }, station: 'lattice' },
   { id: 'archive', name: 'Codex archive', cell: [3, 0], screen: { view: 'archive' }, perLevel: { research: 1, storage: 1 }, station: 'archive' },
   { id: 'unit', name: 'Unit room 4', cell: [0, 1], screen: { view: 'subject' }, perLevel: { health: 1 }, open: true },
-  { id: 'vault', name: 'Containment', cell: [1, 1], screen: { view: 'archive', act: 'inhabitants' }, perLevel: { sanity: 1, storage: 1 } },
+  { id: 'vault', name: 'Containment', cell: [4, 0], screen: { view: 'archive', act: 'inhabitants' }, perLevel: { sanity: 1, storage: 1 } },
   { id: 'fab', name: 'Fabrication', cell: [2, 1], screen: { view: 'research', act: 'fab' }, perLevel: { craft: 2 }, station: 'filament' },
-  { id: 'clone', name: 'Clone vat', cell: [3, 1], screen: null, perLevel: { health: 2 }, station: 'clone' },
-  { id: 'workshop', name: 'Workshop', cell: [0, 2], screen: { view: 'research', act: 'talent' }, perLevel: { craft: 1, income: 1 }, station: 'talent' },
-  { id: 'bunks', name: 'Bunks', cell: [1, 2], screen: null, perLevel: { rest: 2, morale: 1 } },
-  { id: 'dress', name: 'Dressing room', cell: [2, 2], screen: null, perLevel: { morale: 2 }, station: 'decorate' },
-  { id: 'canteen', name: 'Canteen', cell: [3, 2], screen: null, perLevel: { morale: 1, health: 1 }, station: 'commissary' },
+  { id: 'clone', name: 'Clone vat', cell: [5, 0], screen: null, perLevel: { health: 2 }, station: 'clone' },
+  { id: 'workshop', name: 'Workshop', cell: [1, 1], screen: { view: 'research', act: 'talent' }, perLevel: { craft: 1, income: 1 }, station: 'talent' },
+  { id: 'bunks', name: 'Bunks', cell: [3, 1], screen: null, perLevel: { rest: 2, morale: 1 } },
+  { id: 'dress', name: 'Dressing room', cell: [4, 1], screen: null, perLevel: { morale: 2 }, station: 'decorate' },
+  { id: 'canteen', name: 'Canteen', cell: [5, 1], screen: null, perLevel: { morale: 1, health: 1 }, station: 'commissary' },
 ];
 export const roomDef = (id: RoomId) => ROOMS.find((r) => r.id === id)!;
 
