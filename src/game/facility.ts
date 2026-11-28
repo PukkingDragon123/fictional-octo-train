@@ -18,11 +18,13 @@
 //   serializeFacility() / loadFacility(data, merge)   the save system's side
 import { bus } from '../core/events';
 
-export type RoomId = 'unit' | 'control' | 'monitors' | 'lattice' | 'archive' | 'vault' | 'fab' | 'clone' | 'workshop' | 'bunks' | 'dress' | 'canteen';
+export type RoomId = 'unit' | 'control' | 'monitors' | 'lattice' | 'archive' | 'vault' | 'fab' | 'clone' | 'workshop' | 'bunks' | 'dress' | 'canteen'
+  // part B: the annex, six plots east of the wing, bought and built as the Institute's prestige grows
+  | 'annex1' | 'annex2' | 'annex3' | 'annex4' | 'annex5' | 'annex6';
 /** 0 derelict (debris, tarps, dead lights) · 1 cleared · 2 repaired · 3 restored */
 export type Condition = 0 | 1 | 2 | 3;
 /** the stats a room or a piece of furniture raises (part B may add more) */
-export type FacilityStat = 'morale' | 'rest' | 'health' | 'sanity' | 'research' | 'craft' | 'storage' | 'income' | 'melee' | 'scan' | 'yield';
+export type FacilityStat = 'morale' | 'rest' | 'health' | 'sanity' | 'research' | 'craft' | 'storage' | 'income' | 'melee' | 'scan' | 'yield' | 'prestige';
 export type Bonuses = Partial<Record<FacilityStat, number>>;
 
 export interface Furniture {
@@ -30,13 +32,15 @@ export interface Furniture {
   kind: string;
   /** room-local metres from the room's centre (x across, z deep), and its turn (radians) */
   x: number; z: number; rot: number;
+  /** part B: standing on a surface (a desk, a shelf) this high; absent on the floor */
+  y?: number;
 }
 /** part B: a room's finishes (src/game/facilityCatalog.ts FINISHES keys; absent: the room's own) */
 export interface RoomFinish { wall?: string; floor?: string; light?: string }
 /** part B: the clearing in progress (the skip is in, these debris pieces are in it) */
 export interface RoomWork { skip: boolean; binned: number[] }
-export interface FacilityRoom { id: RoomId; condition: Condition; locked: boolean; furniture: Furniture[]; finish?: RoomFinish; work?: RoomWork }
-export interface FacilityState { v: 1; b?: 1; signed: boolean; signedAt?: number; rooms: Record<RoomId, FacilityRoom> }
+export interface FacilityRoom { id: RoomId; condition: Condition; locked: boolean; furniture: Furniture[]; finish?: RoomFinish; work?: RoomWork; built?: boolean }
+export interface FacilityState { v: 1; b?: 1; signed: boolean; signedAt?: number; rooms: Record<RoomId, FacilityRoom>; paidAt?: number }
 
 /** where a room leads when the map opens it (title.ts): a menu room and an optional act inside it */
 export type RoomScreen = { view: 'subject' | 'research' | 'archive' | 'monitor'; act?: string } | null;
@@ -51,6 +55,8 @@ export interface RoomDef {
   open?: boolean;
   /** a lab station whose build opens it (src/ui/menus/lab/stations.ts) */
   station?: string;
+  /** part B: an annex plot (an empty lot until a wing is built on it) */
+  plot?: boolean;
 }
 export const ROOMS: RoomDef[] = [
   { id: 'monitors', name: 'Observation', cell: [0, 0], screen: { view: 'monitor' }, perLevel: { sanity: 1 }, open: true },
@@ -65,6 +71,12 @@ export const ROOMS: RoomDef[] = [
   { id: 'bunks', name: 'Bunks', cell: [3, 1], screen: null, perLevel: { rest: 2, morale: 1 } },
   { id: 'dress', name: 'Dressing room', cell: [4, 1], screen: null, perLevel: { morale: 2 }, station: 'decorate' },
   { id: 'canteen', name: 'Canteen', cell: [5, 1], screen: null, perLevel: { morale: 1, health: 1 }, station: 'commissary' },
+  { id: 'annex1', name: 'Annex 1', cell: [6, 1], screen: null, perLevel: {}, plot: true },
+  { id: 'annex2', name: 'Annex 2', cell: [6, 0], screen: null, perLevel: {}, plot: true },
+  { id: 'annex3', name: 'Annex 3', cell: [7, 1], screen: null, perLevel: {}, plot: true },
+  { id: 'annex4', name: 'Annex 4', cell: [7, 0], screen: null, perLevel: {}, plot: true },
+  { id: 'annex5', name: 'Annex 5', cell: [8, 1], screen: null, perLevel: {}, plot: true },
+  { id: 'annex6', name: 'Annex 6', cell: [8, 0], screen: null, perLevel: {}, plot: true },
 ];
 export const roomDef = (id: RoomId) => ROOMS.find((r) => r.id === id)!;
 /** part B: the room a new operator restores first (cheap, open from the first day: it teaches the loop) */
@@ -76,6 +88,15 @@ export function screenOpen(id: RoomId): boolean { const d = roomDef(id), r = roo
 export interface FurnitureDef { kind: string; name: string; stats: Bonuses; rooms?: RoomId[] }
 export const FURNITURE = new Map<string, FurnitureDef>();
 export function registerFurniture(d: FurnitureDef) { FURNITURE.set(d.kind, d); }
+/** part B: kinds made on demand (an exhibit of one inhabitant, a case for one find: 'encl:moon_calf', 'case:pipe') */
+const RESOLVERS: ((kind: string) => FurnitureDef | undefined)[] = [];
+export function furnitureResolver(fn: (kind: string) => FurnitureDef | undefined) { RESOLVERS.push(fn); }
+export function furnitureDef(kind: string): FurnitureDef | undefined {
+  const d = FURNITURE.get(kind);
+  if (d) return d;
+  for (const r of RESOLVERS) { const x = r(kind); if (x) return x; }
+  return undefined;
+}
 
 // ---------------------------------------------------------------- state
 const KEY = 'noclip.facility';
@@ -101,7 +122,7 @@ export function facility(): FacilityState {
   const base = fresh();
   if (s && s.v === 1 && s.rooms) {
     for (const d of ROOMS) { const r = s.rooms[d.id]; if (r) base.rooms[d.id] = roomOf(d.id, r); }
-    base.signed = !!s.signed; base.signedAt = s.signedAt;
+    base.signed = !!s.signed; base.signedAt = s.signedAt; base.paidAt = s.paidAt;
     // a wing kept from before build mode: its seeded stations count as restored (their screens stay open), the first room opens
     if (!s.b) { for (const d of ROOMS) { const r = base.rooms[d.id]; if (d.station && !r.locked && r.condition >= 2) r.condition = 3; } base.rooms[FIRST_ROOM].locked = false; }
   } else seedFromLab(base);
@@ -112,6 +133,7 @@ function roomOf(id: RoomId, r: Partial<FacilityRoom>): FacilityRoom {
   const out: FacilityRoom = { id, condition: clampC(r.condition), locked: !!r.locked, furniture: Array.isArray(r.furniture) ? r.furniture.map((f) => ({ ...f })) : [] };
   if (r.finish && typeof r.finish === 'object') out.finish = { ...r.finish };
   if (r.work && typeof r.work === 'object') out.work = { skip: !!r.work.skip, binned: Array.isArray(r.work.binned) ? [...r.work.binned] : [] };
+  if (r.built) out.built = true;
   return out;
 }
 const clampC = (c: unknown): Condition => Math.max(0, Math.min(3, Math.round(Number(c) || 0))) as Condition;
@@ -131,14 +153,16 @@ export function lockRoom(id: RoomId) { room(id).locked = true; persist(); }
 let uidN = 0;
 export function placeFurniture(id: RoomId, f: Omit<Furniture, 'uid'> & { uid?: string }): string {
   const uid = f.uid ?? Date.now().toString(36) + '-' + (uidN++).toString(36);
-  room(id).furniture.push({ uid, kind: f.kind, x: f.x, z: f.z, rot: f.rot });
+  room(id).furniture.push({ uid, kind: f.kind, x: f.x, z: f.z, rot: f.rot, ...(f.y ? { y: f.y } : {}) });
   persist();
   return uid;
 }
-export function moveFurniture(id: RoomId, uid: string, to: { x: number; z: number; rot?: number }) {
+export function moveFurniture(id: RoomId, uid: string, to: { x: number; z: number; rot?: number; y?: number }, quiet = false) {
   const f = room(id).furniture.find((q) => q.uid === uid);
   if (!f) return;
   f.x = to.x; f.z = to.z; if (to.rot !== undefined) f.rot = to.rot;
+  if (to.y) f.y = to.y; else delete f.y;
+  if (quiet) return;
   persist();
 }
 export function removeFurniture(id: RoomId, uid: string) { const r = room(id); r.furniture = r.furniture.filter((q) => q.uid !== uid); persist(); }
@@ -151,6 +175,12 @@ export function setFinish(id: RoomId, part: keyof RoomFinish, key: string | null
   persist();
 }
 /** part B: the clearing's state (the skip in, the pieces in it); null when the room is clear */
+/** part B: a wing built on an annex plot: a new room, finished and open */
+export function buildWing(id: RoomId) { const r = room(id); r.built = true; r.locked = false; r.condition = 3; persist(); }
+/** part B: the last time the exhibits' takings were paid out */
+export function setPaidAt(t: number) { facility().paidAt = t; persist(); }
+/** part B: persist a batch of quiet changes (a multi-piece move) */
+export function touchFacility() { persist(); }
 export function setWork(id: RoomId, w: RoomWork | null) { const r = room(id); if (w) r.work = { skip: w.skip, binned: [...w.binned] }; else delete r.work; persist(); }
 
 /** a room's stat bonuses: its level times its per-level stats, plus every piece of furniture in it */
@@ -158,7 +188,7 @@ export function roomBonuses(id: RoomId): Bonuses {
   const r = room(id), out: Bonuses = {};
   const add = (b: Bonuses, k = 1) => { for (const [s, v] of Object.entries(b) as [FacilityStat, number][]) out[s] = (out[s] ?? 0) + v * k; };
   if (!r.locked) add(roomDef(id).perLevel, r.condition);
-  for (const f of r.furniture) { const d = FURNITURE.get(f.kind); if (d) add(d.stats); }
+  for (const f of r.furniture) { const d = furnitureDef(f.kind); if (d) add(d.stats); }
   return out;
 }
 export function facilityBonuses(): Bonuses {
@@ -182,6 +212,7 @@ export function loadFacility(data: unknown, merge = true) {
     if (clampC(r.condition) > c.condition) { c.condition = clampC(r.condition); if (r.work) c.work = roomOf(d.id, r).work; else delete c.work; }
     if (r.finish && !c.finish) c.finish = { ...r.finish };
     c.locked = c.locked && !!r.locked;
+    if (r.built) c.built = true;
     for (const f of r.furniture ?? []) if (!c.furniture.some((q) => q.uid === f.uid)) c.furniture.push({ ...f });
   }
   cur.signed = cur.signed || !!s.signed;

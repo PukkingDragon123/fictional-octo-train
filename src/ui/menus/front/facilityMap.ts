@@ -23,8 +23,10 @@ import { sfx, sample } from '../sfx';
 
 const PITCH = 5.1;
 /** what a room's diorama is built from (a change rebuilds it) */
-const sigOf = (id: RoomId) => { const r = facility().rooms[id]; return r.condition + '|' + r.locked + '|' + JSON.stringify(r.furniture) + JSON.stringify(r.finish ?? 0) + JSON.stringify(r.work ?? 0); };
+const sigOf = (id: RoomId) => { const r = facility().rooms[id]; return r.condition + '|' + r.locked + '|' + !!r.built + '|' + JSON.stringify(r.furniture) + JSON.stringify(r.finish ?? 0) + JSON.stringify(r.work ?? 0); };
 const COLS = 6, ROWS = 2;
+/** part B: the annex east of the wing: three more columns of plots on their own slab, past a gap */
+const ACOLS = 3, AGAP = 3.0;
 /** the car park's sodium lamps (x, z) */
 const LAMPS: [number, number][] = [[-8.5, 13.6], [3.5, 13.6], [15.5, 13.6]];
 export interface Pose { pos: THREE.Vector3; look: THREE.Vector3; fov: number }
@@ -53,7 +55,7 @@ export class FacilityMap implements StageRoom {
   private rainPos: Float32Array;
   private home: Pose = { pos: new THREE.Vector3(), look: new THREE.Vector3(0, 0.6, 1.2), fov: 30 };
   private cur: Pose = { pos: new THREE.Vector3(0, 60, 60), look: new THREE.Vector3(0, 0, 0), fov: 30 };
-  private flight: { from: Pose; to: Pose; t: number; dur: number; res: () => void } | null = null;
+  private flight: { from: Pose; to: Pose; t: number; dur: number; res: () => void; arc: number } | null = null;
   private ptr = new THREE.Vector2(); private ptrS = new THREE.Vector2();
   private aspect = 16 / 9; private portrait = false;
   private yaw = 0.26; private pitch = 0.9; private dist = 44;
@@ -72,6 +74,8 @@ export class FacilityMap implements StageRoom {
   readonly camLight = new THREE.PointLight(0xfff0dc, 0, 6, 1.4);
   /** things that ride in front of the camera (build mode's catalogue) */
   readonly camRig = new THREE.Group();
+  /** the focused room's practical lamps (a sconce, an emergency beacon): two real lights, always in the scene */
+  private prac = [new THREE.PointLight(0xffc888, 0, 3.2, 1.6), new THREE.PointLight(0xffc888, 0, 3.2, 1.6)];
 
   constructor(private mats: FMats) {
     const S = this.scene;
@@ -97,6 +101,7 @@ export class FacilityMap implements StageRoom {
     const sec = new THREE.PointLight(0xd8e8ff, 14, 9, 1.6); sec.position.set(-5.2, 2.0, (ROWS * PITCH + 1.2) / 2 + 1.2); S.add(sec);
     S.add(this.moon, this.moon.target, this.hemi, this.work, this.work.target);
     this.camLight.position.set(0.6, 0.9, -0.4); this.camLight.castShadow = false;
+    for (const L of this.prac) { L.castShadow = false; S.add(L); }
     this.cam.add(this.camLight, this.camRig);
     S.add(this.cam);
     // rain: thin pale streaks falling through the whole volume
@@ -195,18 +200,38 @@ export class FacilityMap implements StageRoom {
       b.add('lamp', cbox(0.48, 0.03, 0.26, 0.01), 0xffb050, at(x - 1.0, G + 6.25, z));
       b.add('concrete', lathe([[0, 0], [0.35, 0], [0.3, 0.3], [0, 0.3]], 8), 0x7a7870, at(x, G, z));
     }
+    // ---- part B: the annex ground east of the wing: a raised slab for six plots, its kerb, a chain-link fence, the gap
+    // between (a service yard with a skip and a cabin); the wings rise on it as they are bought
+    {
+      const ax0 = (COLS - 2.5) * PITCH + AGAP - 2.55, ax1 = (COLS + ACOLS - 1 - 2.5) * PITCH + AGAP + 2.55, acx = (ax0 + ax1) / 2, aw = ax1 - ax0;
+      b.add('concrete', cbox(aw, 0.9, D, 0.05), 0x7e7a72, at(acx, -0.57, 0), { rep: 2.2 });
+      b.add('concrete', cbox(aw - 0.1, 0.02, D - 0.1, 0.01), 0x8e8a80, at(acx, -0.11, 0), { rep: 1.6 });
+      for (let r = 0; r <= ROWS; r++) b.add('floor', cbox(aw - 0.4, 0.02, 0.62, 0.004), 0x6e6a60, at(acx, -0.09, (r - ROWS / 2) * PITCH - 0.1));
+      for (let i = 0; i < 13; i++) b.add('metal', prism(0.03, 1.6, 6), 0x5a5e5a, at(ax1 + 0.1, 0.7, -D / 2 + i * (D / 12)));
+      b.add('metal', cbox(0.02, 1.3, D, 0.004), 0x4a4e4a, at(ax1 + 0.1, 0.75, 0));
+      for (let i = 0; i < 9; i++) b.add('metal', prism(0.03, 1.6, 6), 0x5a5e5a, at(ax0 + 0.4 + i * (aw - 0.5) / 8, 0.7, -D / 2 - 0.1));
+      b.add('metal', cbox(aw - 0.4, 1.3, 0.02, 0.004), 0x4a4e4a, at(acx + 0.05, 0.75, -D / 2 - 0.1));
+      // the service yard between: a cabin, a skip, pallets
+      const yx = (X1 + ax0) / 2;
+      b.add('concrete', cbox(ax0 - X1, 0.7, D, 0.02), 0x6a665e, at(yx, -0.6, 0), { rep: 1.4 });
+      b.add('paint', cbox(1.1, 1.0, 2.4, 0.04), 0x4a6a8a, at(yx, 0.25, -2.6));
+      b.add('paint', cbox(1.2, 0.08, 2.5, 0.02), 0x3a3e40, at(yx, 0.78, -2.6));
+      b.add('lamp', cbox(0.02, 0.3, 0.5, 0.004), 0xffe0a0, at(yx + 0.56, 0.45, -2.2));
+      b.add('paint', cbox(0.9, 0.5, 1.4, 0.04), 0xd8a020, at(yx, -0.0, 1.9));
+      for (let i = 0; i < 3; i++) b.add('wood', cbox(0.9, 0.1, 0.9, 0.01), 0xa8865a, at(yx + (i % 2) * 0.05, -0.2 + i * 0.11, 0.2), { grain: 'x' });
+    }
     this.scene.add(b.build(this.mats));
     for (let i = 0; i < 9; i++) this.scene.add(puddle(-14 + ((i * 7.3) % 28), Z1 + 3 + ((i * 3.7) % 9), 1.6 + (i % 3) * 0.9, 1.0 + (i % 2) * 0.8, G + 0.006));
   }
 
   private slotAt(id: RoomId) {
     const d = ROOMS.find((r) => r.id === id)!;
-    return new THREE.Vector3((d.cell[0] - (COLS - 1) / 2) * PITCH, 0, (d.cell[1] - (ROWS - 1) / 2) * PITCH);
+    return new THREE.Vector3((d.cell[0] - (COLS - 1) / 2) * PITCH + (d.cell[0] >= COLS ? AGAP : 0), 0, (d.cell[1] - (ROWS - 1) / 2) * PITCH);
   }
   private place(id: RoomId) {
     const old = this.slots.get(id);
     const st = facility().rooms[id];
-    const d = buildRoom(id, st.condition, st.locked, this.mats, ROOMS.findIndex((r) => r.id === id) + 1, st.furniture, { finish: st.finish, work: st.work, loose: this.loose.has(id) });
+    const d = buildRoom(id, st.condition, st.locked, this.mats, ROOMS.findIndex((r) => r.id === id) + 1, st.furniture, { finish: st.finish, work: st.work, loose: this.loose.has(id), built: st.built });
     const holder = old?.holder ?? new THREE.Group();
     if (old) { holder.remove(old.d.group); old.d.group.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && !m.userData.shared) m.geometry.dispose(); }); }
     holder.position.copy(this.slotAt(id));
@@ -236,7 +261,7 @@ export class FacilityMap implements StageRoom {
   nav(dx: number, dy: number): RoomId {
     const cur = ROOMS.find((r) => r.id === (this.sel ?? this.hot)) ?? ROOMS[0];
     let c = cur.cell[0] + Math.sign(dx), r = cur.cell[1] + Math.sign(dy);
-    c = (c + COLS) % COLS; r = (r + ROWS) % ROWS;
+    c = (c + COLS + ACOLS) % (COLS + ACOLS); r = (r + ROWS) % ROWS;
     const next = ROOMS.find((q) => q.cell[0] === c && q.cell[1] === r) ?? cur;
     this.sel = next.id;
     sfx('tick', 0.45);
@@ -287,9 +312,20 @@ export class FacilityMap implements StageRoom {
   }
 
   // ------------------------------------------------------------------ camera
+  /** the model's framed width: the wing, and the annex up to one column past the last wing built on it */
+  private reach() {
+    let col = COLS;
+    for (const d of ROOMS) if (d.plot && facility().rooms[d.id].built) col = Math.max(col, d.cell[0] + 1);
+    col = Math.min(COLS + ACOLS - 1, col);
+    const x0 = -(COLS * PITCH + 1.2) / 2 - 0.25, x1 = (col - 2.5) * PITCH + AGAP + 2.55;
+    // the camera sits off to the right: the frame's centre leans east so the far plots stay in
+    return { cx: (x0 + x1) / 2 + (col > COLS ? 2.5 : 0), w: x1 - x0 };
+  }
   private homePose(): Pose {
+    const rc = this.reach();
+    this.home.look.x = rc.cx;
     const look = this.home.look;
-    const d = this.dist * (this.portrait ? 1.55 : 1);
+    const d = this.dist * (rc.w / 33) ** 0.95 * (this.portrait ? 1.55 : 1);
     const yaw = this.yaw + this.ptrS.x * 0.05, pitch = this.pitch - this.ptrS.y * 0.03;
     const pos = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(d).add(look);
     return { pos, look: look.clone(), fov: this.home.fov };
@@ -301,22 +337,22 @@ export class FacilityMap implements StageRoom {
     const pos = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(d).add(look);
     return { pos, look, fov: 36 };
   }
-  private fly(to: Pose, ms: number): Promise<void> {
+  private fly(to: Pose, ms: number, arc = 0): Promise<void> {
     this.flight?.res();
-    return new Promise((res) => { this.flight = { from: { pos: this.cur.pos.clone(), look: this.cur.look.clone(), fov: this.cur.fov }, to, t: 0, dur: ms / 1000, res }; });
+    return new Promise((res) => { this.flight = { from: { pos: this.cur.pos.clone(), look: this.cur.look.clone(), fov: this.cur.fov }, to, t: 0, dur: ms / 1000, res, arc }; });
   }
   /** down into a room */
   focus(id: RoomId, ms = 1500): Promise<void> {
     this.focused = id; this.sel = id;
     sample('mn_whoosh', 0.35, 0.8);
-    return this.fly(this.roomPose(id), ms);
+    return this.fly(this.roomPose(id), ms, 2.6);
   }
   /** back up to the whole model */
   unfocus(ms = 1300): Promise<void> {
     if (!this.focused) return Promise.resolve();
     this.focused = null;
     sample('mn_whoosh', 0.25, 0.7);
-    return this.fly(this.homePose(), ms);
+    return this.fly(this.homePose(), ms, -3.2);
   }
   /** jump straight to a room's close shot (coming back out of its screen) */
   snapTo(id: RoomId) { const p = this.roomPose(id); this.cur.pos.copy(p.pos); this.cur.look.copy(p.look); this.cur.fov = p.fov; this.focused = id; this.flight = null; }
@@ -330,6 +366,7 @@ export class FacilityMap implements StageRoom {
   }
   pointer(nx: number, ny: number) { this.ptr.set(nx, ny); }
 
+  private focusK = 0;
   /** the camera's pose this frame, with the shake on it */
   private shook = new THREE.Vector3();
   frame(aspect: number, portrait: boolean) {
@@ -350,6 +387,8 @@ export class FacilityMap implements StageRoom {
       fl.t += dt;
       const e = easeIO(fl.t / fl.dur);
       this.cur.pos.lerpVectors(fl.from.pos, fl.to.pos, e);
+      // a crane move, not a straight zoom: the camera swings round and rises through the middle of the flight
+      if (fl.arc) { const k = Math.sin(e * Math.PI); const side = new THREE.Vector3().subVectors(fl.to.pos, fl.from.pos).cross(new THREE.Vector3(0, 1, 0)).normalize(); this.cur.pos.addScaledVector(side, k * fl.arc).y += k * fl.arc * 0.6; }
       this.cur.look.lerpVectors(fl.from.look, fl.to.look, e);
       this.cur.fov = THREE.MathUtils.lerp(fl.from.fov, fl.to.fov, e);
       if (fl.t >= fl.dur) { this.flight = null; fl.res(); }
@@ -360,6 +399,23 @@ export class FacilityMap implements StageRoom {
       const k = 1 - Math.exp(-dt * (this.shotPose ? 3.2 : 2.2));
       this.cur.pos.lerp(target.pos, k); this.cur.look.lerp(target.look, k); this.cur.fov += (target.fov - this.cur.fov) * k;
     }
+    // the focused room's practicals light up for real, and its ceiling lamp throws shafts through the dust
+    const fs = this.focused ? this.slots.get(this.focused) : null;
+    const pr = fs?.d.practicals ?? [];
+    this.prac.forEach((L, i) => {
+      const p = pr[i];
+      if (!fs || !p || fs.locked) { L.intensity = damp(L.intensity, 0, 4, dt); return; }
+      L.position.copy(p.p).add(fs.holder.position);
+      L.color.setHex(p.color);
+      const want = p.emergency ? 1.6 * Math.max(0, Math.sin(t * 4.2)) : fs.d.powered ? 2.4 * p.k : 0;
+      L.intensity = p.emergency ? want : damp(L.intensity, want, 4, dt);
+    });
+    this.grade.shafts = fs && fs.d.powered ? [fs.holder.position.clone().add(fs.d.light)] : undefined;
+    // the close-up's film grade: a deeper vignette, a touch more contrast, warm highs over cool shadows
+    const gk = this.focusK = damp(this.focusK, this.focused ? 1 : 0, 2, dt);
+    this.grade.vig = 0.42 + gk * 0.2; this.grade.contrast = 1.1 + gk * 0.08; this.grade.scatter = 0.5 - gk * 0.3;
+    this.grade.gain = [1.03 + gk * 0.03, 1.01 + gk * 0.01, 0.98 - gk * 0.03]; this.grade.lift = [0.95 - gk * 0.01, 0.98, 1.04 + gk * 0.03];
+    this.grade.shaftK = 0.22; this.grade.shaftColor = fs ? fs.d.color : 0xfff0d8;
     // a punch of shake (a hammer stroke, a drop): decays fast
     this.shake = Math.max(0, this.shake - dt * 3);
     const sk = this.shake * this.shake * 0.12;
@@ -371,7 +427,7 @@ export class FacilityMap implements StageRoom {
       s.heat = damp(s.heat, on, 6, dt);
       s.lift = damp(s.lift, on * 0.14, 7, dt);
       s.holder.position.y = s.at.y + s.lift;
-      const base = s.locked ? 5.6 : s.cond === 0 ? 5.8 : s.cond === 1 ? 6 : s.cond === 2 ? 8.5 : 11;
+      const base = (s.locked ? 5.6 : s.cond === 0 ? 5.8 : s.cond === 1 ? 6 : s.cond === 2 ? 7.5 : 8) * (s.d.exhibit ? 0.55 : 1);
       let k = 1;
       if (s.cond === 0 || s.locked) { s.flick -= dt; if (s.flick <= 0) s.flick = Math.random() < 0.85 ? 0.3 + Math.random() * 2.5 : -0.06 - Math.random() * 0.1; k = s.flick < 0 ? 0.25 : 1; if (s.flick < -0.2) s.flick = 0; }
       // down in a room, the rest of the model falls back into the dark

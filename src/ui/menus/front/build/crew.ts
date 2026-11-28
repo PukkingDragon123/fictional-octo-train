@@ -10,6 +10,7 @@ import { randomLooks } from '../../../../entities/humanLooks';
 import type { ActionAnim } from '../../../../entities/humanAnim';
 import { makeHeldMesh } from '../../../../items/itemMeshes';
 import { outfitOf } from '../../scene/staff';
+import { worldMaterial } from '../../../../gfx/materials';
 
 export interface Hand {
   rig: HumanRig; pos: THREE.Vector3; yaw: number; goal: THREE.Vector3 | null; speed: number;
@@ -29,7 +30,7 @@ export class Crew {
     const rig = createPreviewRig(app, outfitOf(items), { outline: false });
     (rig as unknown as { setLod?: (n: number) => void }).setLod?.(1);
     rig.skin.castShadow = true;
-    if (tool) { const m = makeHeldMesh(tool); if (m) rig.hold('R', m); }
+    if (tool) { const m = makeHeldMesh(tool); if (m) { m.traverse((o) => { const q = o as THREE.Mesh; if (q.isMesh) q.material = worldMaterial({ noVis: true, noFog: true, noGrid: true }); }); rig.hold('R', m); } }
     rig.root.position.copy(at);
     this.group.add(rig.root);
     const h: Hand = { rig, pos: at.clone(), yaw: 0, goal: null, speed: 1.3, action: '', dur: 1, done: null, face: null };

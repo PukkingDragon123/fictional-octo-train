@@ -13,57 +13,18 @@
 import * as THREE from 'three';
 import type { FMats } from '../../scene/pixtex';
 import { FacetBuilder, at, cbox, prism, lathe, tube } from '../../scene/facet';
-import { registerFurnitureModel } from '../dioramas';
-import { objDef, objectGeometry } from '../../../../world/objects';
-import type { TileObject } from '../../../../world/zone';
+import { registerFurnitureModel, setFurnitureModelResolver } from '../dioramas';
+import { enclosureModel, caseModel, jarModel } from './exhibits';
 import { worldMaterial } from '../../../../gfx/materials';
 import { ModelBuilder } from '../../../../gfx/modelBuilder';
 import { drawPlant } from '../../../../game/economy/plantModels';
-import { makeItemMesh } from '../../../../items/itemMeshes';
-import { loadProp } from '../../props/glb';
 import { extMats, printTex } from './kit';
 import { FURN } from '../../../../game/facilityStores';
 import type { PrintKey } from '../../../../gfx/prints';
 
-const URL_OF = (a: string) => `${import.meta.env.BASE_URL}props/lab/${a}.glb${import.meta.env.VITE_SANDBOXED ? '.txt' : ''}`;
-const lowOf = (mats: FMats) => !!(mats.paint as THREE.MeshLambertMaterial).isMeshLambertMaterial;
+import { world, glb, menuWorldMat, itemModel, centre, shared } from './props3d';
+export { menuWorldMat, itemModel };
 
-/** mark a mesh's geometry as shared (the world's model cache, a glb's): the map never disposes it */
-const shared = (o: THREE.Object3D) => { o.traverse((q) => { q.userData.shared = true; }); return o; };
-/** centre an object on its footprint (x, z) and stand it on y = 0 */
-function centre(o: THREE.Object3D, box = new THREE.Box3().setFromObject(o)): THREE.Object3D {
-  const c = box.getCenter(new THREE.Vector3());
-  o.position.x -= c.x; o.position.z -= c.z; o.position.y -= box.min.y;
-  return o;
-}
-
-/** one of the game's world furniture models (src/content/furniture), on its own state */
-function world(key: string, state: Record<string, unknown> = {}, rot = 0): THREE.Object3D {
-  const g = new THREE.Group();
-  const d = objDef(key);
-  const geo = d ? objectGeometry(d, { uid: 0, key, x: 0, y: 0, rot: 0, state } as unknown as TileObject) : null;
-  if (!geo) return g;
-  const m = new THREE.Mesh(geo, worldMaterial({}));
-  m.castShadow = true; m.receiveShadow = true;
-  m.rotation.y = rot;
-  const inner = new THREE.Group(); inner.add(m);
-  centre(inner);
-  g.add(shared(inner));
-  return g;
-}
-/** a Poly Haven prop (async: the group fills when it has loaded) */
-function glb(a: string, mats: FMats, p: [number, number, number] = [0, 0, 0], ry = 0, s = 1, g = new THREE.Group(), centred = true): THREE.Group {
-  void loadProp(URL_OF(a), lowOf(mats)).then((m) => {
-    m.castShadow = true; m.receiveShadow = true;
-    m.rotation.y = ry; m.scale.setScalar(s);
-    const inner = new THREE.Group(); inner.add(m);
-    if (centred) centre(inner);
-    inner.position.x += p[0]; inner.position.y += p[1]; inner.position.z += p[2];
-    g.add(shared(inner));
-    g.dispatchEvent({ type: 'loaded' } as never);
-  }).catch((e) => console.warn('[facility props]', a, e));
-  return g;
-}
 function facet(mats: FMats, fn: (b: FacetBuilder) => void, extra = false): THREE.Group {
   const b = new FacetBuilder();
   fn(b);
@@ -92,7 +53,7 @@ function armoury(mats: FMats): THREE.Object3D {
   });
   const W = ['pipe', 'machete', 'crowbar', 'fire_axe', 'golf_club'];
   W.forEach((k, i) => {
-    const m = makeItemMesh(k);
+    const m = itemModel(k);
     if (!m) return;
     m.geometry.computeBoundingBox();
     const bb = m.geometry.boundingBox!, size = bb.getSize(new THREE.Vector3());
@@ -127,7 +88,7 @@ function framed(mats: FMats, key: PrintKey): THREE.Object3D {
 function rug(mats: FMats, kind: 'kilim' | 'runner' | 'mat', w: number, d: number): THREE.Object3D {
   const h = kind === 'mat' ? 0.02 : 0.014;
   const geo = new THREE.BoxGeometry(w, h, d);
-  const n = geo.attributes.position.count, col = new Float32Array(n * 3).fill(1);
+  const n = geo.attributes.position.count, col = new Float32Array(n * 3).fill(0.5);
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   const m = new THREE.Mesh(geo, extMats(mats)[kind]);
   m.position.y = h / 2; m.receiveShadow = true;
@@ -169,7 +130,7 @@ function pottedCrop(mats: FMats): THREE.Object3D {
   });
   const mb = new ModelBuilder();
   try { drawPlant(mb, 'thistle', 0, 0.38, 0, 4, false, 2); drawPlant(mb, 'moss', 0.08, 0.38, 0.05, 3, false, 5); } catch { /* the atlas is not up */ }
-  if (!mb.isEmpty) { const m = new THREE.Mesh(mb.build(), worldMaterial({})); m.castShadow = true; m.scale.setScalar(1.25); m.position.y = 0.38 * (1 - 1.25); g.add(m); }
+  if (!mb.isEmpty) { const m = new THREE.Mesh(mb.build(), menuWorldMat()); m.castShadow = true; m.scale.setScalar(1.25); m.position.y = 0.38 * (1 - 1.25); g.add(m); }
   return g;
 }
 
@@ -205,9 +166,28 @@ const MAKE: Record<string, (m: FMats) => THREE.Object3D> = {
   rug_mat: (m) => rug(m, 'mat', 1.4, 0.9),
 };
 for (const k of Object.keys(PRINT)) MAKE[k] = (m) => framed(m, PRINT[k]);
+Object.assign(MAKE, {
+  radio_s: (m: FMats) => glb('radio', m), microscope: (m: FMats) => glb('microscope_old', m), kettle: (m: FMats) => glb('kettle', m),
+  chemset: (m: FMats) => glb('chem_set', m), bunsen: (m: FMats) => glb('bunsen', m), plant_s: (m: FMats) => glb('plant_small', m), toolbox_s: (m: FMats) => glb('toolbox', m),
+  // wall pieces: their backs on the wall (z = 0), facing +Z
+  lamp_w: (m: FMats) => glb('wall_lamp', m, [0, 1.75, 0.08], 0, 1, new THREE.Group(), true),
+  clock_w: (m: FMats) => facet(m, (b) => {
+    b.add('wood', lathe([[0, 0], [0.17, 0], [0.17, 0.04], [0, 0.045]], 16), 0x5a3a20, at(0, 1.85, 0, Math.PI / 2));
+    b.add('enamel', lathe([[0, 0], [0.15, 0], [0, 0.002]], 16), 0xf4f0e4, at(0, 1.85, 0.046, Math.PI / 2));
+    for (let k = 0; k < 12; k++) b.add('rubber', cbox(0.008, 0.026, 0.002, 0.001), 0x14140f, at(Math.sin(k / 12 * Math.PI * 2) * 0.125, 1.85 + Math.cos(k / 12 * Math.PI * 2) * 0.125, 0.05, 0, 0, -k / 12 * Math.PI * 2));
+    b.add('rubber', cbox(0.01, 0.09, 0.003, 0.001), 0x14140f, at(0.02, 1.88, 0.052, 0, 0, -0.5));
+    b.add('paint', cbox(0.005, 0.12, 0.003, 0.001), 0xc8261e, at(-0.03, 1.83, 0.054, 0, 0, 2.2));
+  }),
+  shelf_w: (m: FMats) => facet(m, (b) => {
+    b.add('wood', cbox(0.98, 0.035, 0.24, 0.006), 0x7a5a34, at(0, 1.4, 0.13), { grain: 'x' });
+    for (const x of [-0.4, 0.4]) b.add('metal', cbox(0.025, 0.2, 0.2, 0.004, 0.6), 0x3a3a34, at(x, 1.3, 0.11));
+  }),
+});
 
-/** a kind's model (a crate if it has none) */
+/** a kind's model (a crate if it has none): the stores' and the exhibits ('encl:', 'case:', 'jar:') */
 export function modelOf(kind: string, mats: FMats): THREE.Object3D {
+  const [pre, key] = kind.split(':');
+  if (key) { try { return pre === 'encl' ? enclosureModel(key, mats) : pre === 'jar' ? jarModel(key, mats) : caseModel(key, mats); } catch (e) { console.warn('[exhibit model]', kind, e); } }
   const f = MAKE[kind];
   if (f) { try { return f(mats); } catch (e) { console.warn('[facility model]', kind, e); } }
   return facet(mats, (b) => b.add('wood', cbox(0.5, 0.4, 0.4, 0.02), 0xa88a5a, at(0, 0.2, 0)));
@@ -218,4 +198,5 @@ export function installFurnitureModels() {
   if (done) return;
   done = true;
   for (const f of FURN) registerFurnitureModel(f.kind, (m) => modelOf(f.kind, m));
+  setFurnitureModelResolver((kind, m) => (kind.includes(':') ? modelOf(kind, m) : null));
 }

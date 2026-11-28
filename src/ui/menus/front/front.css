@@ -44,7 +44,11 @@
 .fr-item { position: relative; display: block; padding: 2px 40px 8px 0; margin: 0; border: 0; background: none; cursor: pointer; text-align: left; outline: none;
   font: inherit; font-size: 48px; line-height: 1.05; letter-spacing: .05em; color: #d6cfbc; opacity: 0; transform: translateX(-36px); -webkit-tap-highlight-color: transparent;
   transition: opacity 1.2s ease calc(var(--n) * 170ms), transform 1.8s cubic-bezier(.2, .8, .2, 1) calc(var(--n) * 170ms), color .35s ease; }
-.fr.menu .fr-item { opacity: .9; transform: none; }
+.fr.menu .fr-item { opacity: .9; transform: none; transition-delay: calc(.9s + var(--n) * 170ms), calc(.9s + var(--n) * 170ms), 0s; }
+.fr.menu.quick .fr-item { transition-delay: calc(var(--n) * 120ms), calc(var(--n) * 120ms), 0s; }
+/* round 26 part B: no logo on the menu screen: the crest and the title reveal at boot, then go before the choices */
+.fr.menu .fr-logo { opacity: 0; transform: translateY(-14px) scale(.98); transition: opacity 1s ease, transform 1.6s ease; pointer-events: none; }
+.fr.menu.quick .fr-logo { visibility: hidden; transition: none; }
 /* the depth each word floats at: nearer words drift further against the hall */
 .fr-p { display: inline-block; transform: translate3d(calc(var(--px, 0) * (-10px - var(--n) * 4px)), calc(var(--py, 0) * (-6px - var(--n) * 2px)), 0) rotateY(calc(var(--px, 0) * 4deg)) rotateX(calc(var(--py, 0) * -3deg)); transform-style: preserve-3d; }
 .fr-t { position: relative; display: inline-block; transform-origin: 0 60%; transition: transform .8s cubic-bezier(.2, .8, .2, 1), text-shadow .5s ease, color .4s, filter .5s;

@@ -33,14 +33,20 @@ import { cutMode, cutLen } from '../../../../game/cuts';
 import { room, roomDef, roomBonuses, screenOpen, moveFurniture, FIRST_ROOM, type RoomId, type FacilityStat, type Bonuses } from '../../../../game/facility';
 import {
   stageOf, stageCost, gateOf, canPay, startStage, binDebris, buyFurniture, sellFurniture, applyFinish, debrisCount,
-  FURN, FINISHES, furnSpec, finishSpec, type Cost, type FurnSpec, type FinishSpec, type Stage,
+  FURN, FINISHES, ZOO, furnSpec, purposeOf, prestige, plotCost, plotGate, buildPlot, collectTakings,
+  type Cost, type FurnSpec, type FinishSpec, type Stage,
 } from '../../../../game/facilityCatalog';
+import { tamedKeys } from '../../../../game/facilityFx';
+import { file } from '../../../../game/meridian';
+import { hasItemDef, itemDef } from '../../../../items/item';
+import { touchFacility } from '../../../../game/facility';
+import { itemGeometry } from '../../../../items/itemMeshes';
 import { MAT, banked, type Mat } from '../../../../game/economy/matter';
 import { dollars } from '../../../../game/economy/money';
 import './build.css';
 
 type Mode = 'off' | 'view' | 'clear' | 'build' | 'cine';
-type Tab = 'furniture' | 'decor' | 'finish';
+type Tab = 'furniture' | 'decor' | 'finish' | 'zoo' | 'museum';
 
 export interface WorksHost {
   root: HTMLElement;
@@ -55,9 +61,9 @@ export interface WorksHost {
 
 const STAT_ICON: Record<FacilityStat, IconKind> = {
   rest: 'bunk', health: 'medkit', craft: 'wrench', yield: 'sprout', melee: 'club', scan: 'lens', research: 'flask',
-  morale: 'mug', sanity: 'pills', storage: 'crate', income: 'credit',
+  morale: 'mug', sanity: 'pills', storage: 'crate', income: 'credit', prestige: 'laurel',
 };
-const STAT_ORDER: FacilityStat[] = ['rest', 'health', 'morale', 'sanity', 'craft', 'research', 'scan', 'yield', 'melee', 'storage', 'income'];
+const STAT_ORDER: FacilityStat[] = ['prestige', 'rest', 'health', 'morale', 'sanity', 'craft', 'research', 'scan', 'yield', 'melee', 'storage', 'income'];
 const STAGE_ICON: Record<Stage, IconKind> = { clear: 'skip', repair: 'wrench', clean: 'mop' };
 const STAGE_NAME: Record<Stage, string> = { clear: 'Clear', repair: 'Repair', clean: 'Clean' };
 const SCREEN_ICON: Partial<Record<RoomId, IconKind>> = { monitors: 'crt', control: 'crt', lattice: 'lattice', archive: 'cabinet', unit: 'plug', vault: 'jar', fab: 'spool', workshop: 'scale' };
@@ -69,8 +75,15 @@ const LINE = {
   money: 'We cannot cover that yet. Bring more back from the levels.',
   gate: 'Not that room yet. Finish what you have started.',
   build: 'It is yours now. Make it work for you.',
+  locked: 'We have not brought one of those back yet. Catch one, tame one, bank a sample.',
+  tier: 'The board will not sign for that until the Institute has more to show.',
+  wing: 'The board approved the annex. Fill it with something worth seeing.',
+  plotGate: 'The board wants more to show for itself before it funds another wing.',
+  takings: 'The board sent money. The exhibits are being noticed.',
+  zoo: 'A containment wing. Keep the glass clean and the keepers fed.',
+  museum: 'A museum hall. Everything we brought back, where it can be seen.',
 };
-const RESTORED: Record<RoomId, string> = {
+const RESTORED: Partial<Record<RoomId, string>> = {
   bunks: 'Beds that do not smell of mould. The crews will notice.', unit: 'Unit room four, as it should be.', control: 'The control room breathes again.',
   monitors: 'Every screen lit. Good.', workshop: 'A bench worth working at.', canteen: 'Hot food. Morale is a resource too.', archive: 'The archive is dry. The files will keep.',
   dress: 'Clean lockers. Small things matter.', fab: 'Fabrication is ours again.', lattice: 'The lattice. Handle it with care.', vault: 'Containment holds. Keep it that way.',
@@ -178,12 +191,18 @@ function swatch(f: FinishSpec, mats: FMats): THREE.Object3D {
 }
 
 // ---------------------------------------------------------------- the works
-interface CatItem { key: string; furn?: FurnSpec; fin?: FinishSpec; holder: THREE.Group; spin: THREE.Group; fit: number; x: number; hot: number; tag: HTMLElement; ready: boolean }
-interface Held { kind: string; uid?: string; rot: number; ghost: THREE.Object3D; x: number; z: number; ok: boolean; on: boolean; fromCat: boolean; press: number }
+interface CatItem { key: string; furn?: FurnSpec; fin?: FinishSpec; holder: THREE.Group; spin: THREE.Group; fit: number; x: number; hot: number; tag: HTMLElement; ready: boolean; locked?: boolean; tier?: number; model: THREE.Object3D }
+/** what rides along with a multi-piece move: its offset from the anchor, its turn, its height, its ghost */
+interface Rider { uid: string; kind: string; dx: number; dz: number; rot: number; y?: number; ghost: THREE.Object3D }
+interface Held { kind: string; uid?: string; rot: number; ghost: THREE.Object3D; x: number; z: number; y: number; ok: boolean; on: boolean; fromCat: boolean; press: number; riders: Rider[] }
 interface Fall { p: DebrisPiece; v: THREE.Vector3; rest: THREE.Vector3; bin: boolean; spin: THREE.Vector3; hits: number; slot: number }
-interface Drop { o: THREE.Object3D; t: number; heavy: number; foot: THREE.Vector3 }
+interface Drop { o: THREE.Object3D; t: number; heavy: number; foot: THREE.Vector3; y0: number }
 
-const GHOST_OK = 0x9affa8, GHOST_NO = 0xff6a4a;
+const GHOST_OK = 0x7ad88a, GHOST_NO = 0xd85a3a;
+/** what is not in hand yet: a dark bronze cast of itself */
+const LOCKED_MAT = new THREE.MeshStandardMaterial({ color: 0x2a2620, roughness: 0.45, metalness: 0.6 });
+/** an item with a model the case can show */
+const itemModelOk = (k: string) => { try { return !!itemGeometry(k); } catch { return false; } };
 const _v = new THREE.Vector3(), _r = new THREE.Raycaster();
 
 export class Works {
@@ -221,12 +240,18 @@ export class Works {
   private t = 0;
   private said = new Set<string>();
   private skipCine = false;
+  /** build mode: the grid snap (off: free placement and fine turns) and the pieces picked for a group move */
+  private snap = true;
+  private sel = new Set<string>();
+  private selMarks: THREE.Mesh[] = [];
+  private lb = div('fw-lb');
 
   constructor(private h: WorksHost) {
     installFurnitureModels();
     this.el.append(this.stats, this.tags, this.keys, this.tabs, this.heldKeys);
     this.el.hidden = true;
-    h.root.append(this.el, this.subRoot);
+    this.lb.innerHTML = '<i></i><i></i>';
+    h.root.append(this.el, this.lb, this.subRoot);
     this.subs = new Subs(this.subRoot);
     this.puffs.mesh.userData.noGlow = true; this.sparkP.mesh.userData.noGlow = true; this.arcs.lines.userData.noGlow = true;
     const cv = h.stage.canvas;
@@ -253,8 +278,8 @@ export class Works {
     this.mode = 'view';
     this.el.hidden = false;
     this.map.setHotsOff(true);
-    this.map.shotPose = null;
     this.attachFx();
+    this.viewShot();
     const r = room(id);
     // a clearing left half done: straight back into it
     if (r.work?.skip && r.condition === 0) { void this.beginClear(false); return; }
@@ -278,8 +303,8 @@ export class Works {
   /** Esc: leave the mode (true when it did something) */
   back(): boolean {
     if (this.mode === 'cine') { this.skipCine = true; return true; }
-    if (this.mode === 'build') { if (this.held) { this.cancelHeld(); return true; } this.endBuild(); this.mode = 'view'; this.render(); sfx('back'); return true; }
-    if (this.mode === 'clear') { this.endClear(true); this.mode = 'view'; this.render(); sfx('back'); return true; }
+    if (this.mode === 'build') { if (this.held) { this.cancelHeld(); return true; } if (this.sel.size) { this.clearSel(); return true; } this.endBuild(); this.mode = 'view'; this.viewShot(); this.render(); sfx('back'); return true; }
+    if (this.mode === 'clear') { this.endClear(true); this.mode = 'view'; this.viewShot(); this.render(); sfx('back'); return true; }
     return false;
   }
   /** a press on the room in the close-up (or Enter): into its screen */
@@ -300,6 +325,22 @@ export class Works {
     return true;
   }
   private say(text: string) { this.subs.show('Dr. Calder', text, { mute: true, hold: 2.6 }); }
+  /** the film's bars for a key moment (a flight into a room, a cinematic) */
+  letterbox(on: boolean) { this.lb.classList.toggle('on', on); }
+  /** the room framed whole in the close-up, a little above the keys */
+  private viewShot() { if (this.id) this.map.shotPose = this.map.closePose(this.id, { dist: 9.4, pitch: 0.9, look: new THREE.Vector3(0.05, 0.35, 0.3) }); }
+  /** the exhibits' takings since the map was last open: paid now, a word from Calder */
+  takings() {
+    const r = collectTakings();
+    if (!r.$ && !r.rp) return;
+    sample('tithe_jingle', 0.6) || sample('kiosk_accept', 0.5);
+    this.say(LINE.takings);
+    const t = div('fw-take');
+    t.append(costEl({ $: r.$ }));
+    if (r.rp) { const b = document.createElement('b'); b.className = 'fw-rp'; const ic = mxIcon('flask', 22); if (ic) b.append(ic); b.append('+' + r.rp); t.append(b); }
+    this.h.root.append(t);
+    setTimeout(() => t.classList.add('out'), 3200); setTimeout(() => t.remove(), 4200);
+  }
 
   private attachFx() {
     const f = this.frame;
@@ -328,6 +369,16 @@ export class Works {
       this.keys.append(w);
       return b;
     };
+    if (roomDef(id).plot && !r.built) {
+      const g = plotGate(id), c = plotCost(id);
+      if (g.rooms || g.prestige) {
+        const gg = div('fw-gate');
+        const ic = mxIcon(g.prestige ? 'laurel' : 'key', 18); if (ic) gg.append(ic);
+        const n = document.createElement('b'); n.textContent = String(g.prestige || g.rooms); gg.append(n);
+        key('blueprint', 'Annex', () => { sfx('error', 0.5); this.say(LINE.plotGate); }, gg, 'dim');
+      } else key('blueprint', 'Build wing', () => this.wing(), costEl(c), canPay(c) ? 'warm' : 'dim');
+      return;
+    }
     if (screenOpen(id)) key(SCREEN_ICON[id] ?? 'door', roomDef(id).name, () => this.press(), undefined, 'warm');
     if (st) {
       const gate = gateOf(id);
@@ -345,7 +396,11 @@ export class Works {
     const id = this.id!;
     this.stats.innerHTML = '';
     const b = roomBonuses(id);
-    if (Object.values(b).some((v) => v)) this.stats.append(statsEl(b));
+    const row = Object.values(b).some((v) => v) ? statsEl(b) : div('fw-chips');
+    // what the room has become, by what is in it: a containment wing, a museum hall
+    const pur = purposeOf(room(id).furniture.map((f) => f.kind));
+    if (pur) { const ic = mxIcon(pur === 'zoo' ? 'cage' : 'vitrine', 34); if (ic) { const c = document.createElement('span'); c.className = 'fw-chip fw-pur'; c.append(ic); c.title = pur; row.prepend(c); } }
+    if (row.childElementCount) this.stats.append(row);
   }
 
   // ================================================================== the stages
@@ -552,7 +607,7 @@ export class Works {
     const id = this.id!;
     this.map.hold(id, false);
     this.map.loosen(id, false);
-    this.map.shotPose = null;
+    this.viewShot();
     this.mode = 'view';
     sample('power_off', 0.2);
     this.say(LINE.cleared);
@@ -561,6 +616,8 @@ export class Works {
 
   // ---------------------------------------------------------------- repair and clean: the crew's cinematics
   private crewAt(): Crew { this.crew?.dispose(); this.crew = new Crew(this.frame!); return this.crew; }
+  /** a free spot on the floor near a point (the crew never stands in a bunk) */
+  private spot(x: number, z: number) { return this.freeSpot(x, z, 0.2); }
   private async repairCine() {
     const id = this.id!;
     this.map.hold(id, true);
@@ -569,8 +626,9 @@ export class Works {
     const door = new THREE.Vector3(1.25, 0, -HALF + 0.35);
     const a = crew.hire(['hoodie', 'jeans', 'boots_work', 'gloves_work', 'hard_hat'], 'hammer', door.clone(), 41);
     const b = crew.hire(['janitor_uniform', 'boots_work', 'gloves_work'], 'welding_torch', door.clone().add(new THREE.Vector3(0.2, 0, 0.3)), 77);
-    const wallAt = new THREE.Vector3(-0.5, 0, -HALF + 0.55), lightAt = new THREE.Vector3(0.1, 0, -0.75);
+    const wallAt = this.spot(-0.5, -HALF + 0.45), lightAt = this.spot(0.1, -0.5);
     this.shot({ dist: 6.4, pitch: 0.7, yaw: -0.15, look: new THREE.Vector3(0, 1.0, -0.9) });
+    this.letterbox(true);
     sample('door_open', 0.5);
     await Promise.race([Promise.all([crew.walk(a, wallAt), crew.walk(b, lightAt)]), this.wait(2.2)]);
     crew.arrive();
@@ -604,11 +662,12 @@ export class Works {
     const a = crew.hire(['janitor_uniform', 'boots_work', 'gloves_rubber'], 'mop', door.clone(), 13);
     const b = crew.hire(['hoodie', 'jeans', 'sneakers', 'gloves_rubber'], 'broom', door.clone().add(new THREE.Vector3(0.25, 0, 0.3)), 59);
     this.shot({ dist: 7.0, pitch: 0.95, yaw: 0.1, look: new THREE.Vector3(0, 0.3, 0) });
+    this.letterbox(true);
     sample('door_open', 0.5);
     const grime = this.dio?.grime ?? [];
     const path: [THREE.Vector3, THREE.Vector3][] = [
-      [new THREE.Vector3(-1.2, 0, -0.8), new THREE.Vector3(1.1, 0, 0.6)],
-      [new THREE.Vector3(-1.4, 0, 1.0), new THREE.Vector3(0.6, 0, -1.2)],
+      [this.spot(-1.0, -0.6), this.spot(1.0, 0.8)],
+      [this.spot(-1.2, 1.0), this.spot(0.6, -0.9)],
     ];
     for (let leg = 0; leg < 3 && !this.skipCine; leg++) {
       const pa = leg % 2 ? path[0][1] : path[0][0], pb = leg % 2 ? path[1][1] : path[1][0];
@@ -632,7 +691,43 @@ export class Works {
     this.shot({ dist: 8.2, pitch: 0.86, yaw: 0.05, look: new THREE.Vector3(0, 0.7, -0.3) });
     await Promise.race([Promise.all([crew.walk(a, door), crew.walk(b, door)]), this.wait(1.4)]);
     for (let i = 0; i < 20; i++) { this.map.lightMul = 0.85 + i * 0.0075; await this.wait(0.03); }
-    this.finishCine(RESTORED[id]);
+    this.finishCine(RESTORED[id] ?? LINE.cleared);
+  }
+  /** an annex plot bought: the crew raises the wing (the walls come up out of the slab in dust and sparks) */
+  private async wing() {
+    const id = this.id!;
+    const why = buildPlot(id);
+    if (why === 'money') { sfx('error', 0.6); this.say(LINE.money); return; }
+    if (why === 'gate') { sfx('error', 0.6); this.say(LINE.plotGate); return; }
+    if (why) return;
+    sample('kiosk_accept', 0.5);
+    this.map.hold(id, true);
+    this.beginCine();
+    this.letterbox(true);
+    const crew = this.crewAt();
+    const a = crew.hire(['hoodie', 'jeans', 'boots_work', 'gloves_work', 'hard_hat'], 'hammer', new THREE.Vector3(1.6, 0, 1.8), 23);
+    const b = crew.hire(['janitor_uniform', 'boots_work', 'gloves_work', 'hard_hat'], 'welding_torch', new THREE.Vector3(-1.6, 0, 1.8), 61);
+    this.shot({ dist: 7.6, pitch: 0.62, yaw: 0.25, look: new THREE.Vector3(0, 0.6, -0.2) });
+    await Promise.race([Promise.all([crew.walk(a, new THREE.Vector3(1.0, 0, -1.2)), crew.walk(b, new THREE.Vector3(-1.4, 0, -0.6))]), this.wait(2)]);
+    crew.arrive();
+    crew.work(a, 'hammer', 0.5, new THREE.Vector3(1.0, 0, -HALF)); crew.work(b, 'craft', 1.0, new THREE.Vector3(-HALF, 0, -0.6));
+    // the slab swaps for the new room, which rises out of it
+    this.map.hold(id, false);
+    this.reattach();
+    if (this.crew && this.frame) this.frame.add(this.crew.group);
+    const g = this.dio?.group;
+    sample('slam_hydraulic', 0.6); sample('dmg_crumble', 0.6);
+    for (let i = 0; i <= 24 && g; i++) {
+      const k = i / 24;
+      g.scale.y = 0.04 + 0.96 * (1 - (1 - k) ** 3);
+      if (i % 4 === 0) { this.dust(new THREE.Vector3((Math.random() - 0.5) * 4, 0.1, -HALF + 0.2), 4, 0xa8a090); this.dust(new THREE.Vector3(-HALF + 0.2, 0.1, (Math.random() - 0.5) * 4), 4, 0xa8a090); this.map.shake = 0.3; sample(i % 8 ? 'hammer' : 'weld_crackle', 0.4); }
+      if (i % 6 === 3) this.sparks(new THREE.Vector3(-HALF + 0.3, 1.2 * k, -0.6));
+      await this.wait(0.08);
+    }
+    if (g) g.scale.y = 1;
+    sample('power_on', 0.6);
+    await Promise.race([Promise.all([crew.walk(a, new THREE.Vector3(1.25, 0, -HALF + 0.35)), crew.walk(b, new THREE.Vector3(1.25, 0, -HALF + 0.35))]), this.wait(1.6)]);
+    this.finishCine(LINE.wing);
   }
   private fade(m: THREE.Mesh) {
     const mat = m.material as THREE.Material & { opacity: number };
@@ -646,7 +741,8 @@ export class Works {
   private finishCine(line: string) {
     this.crew?.dispose(); this.crew = null;
     this.map.lightMul = 1;
-    this.map.shotPose = null;
+    this.letterbox(false);
+    this.viewShot();
     this.mode = 'view';
     this.skipCine = false;
     this.say(line);
@@ -666,8 +762,9 @@ export class Works {
     const id = this.id!;
     this.mode = 'build';
     this.map.hold(id, true);
-    this.map.camLight.intensity = 3.2;
-    this.shot({ dist: 8.0, pitch: 1.0, look: new THREE.Vector3(0, -0.5, 0.95) });
+    this.map.camLight.intensity = 0.9;
+    // the room framed whole in the upper part of the screen, the strip of stores floating under it
+    this.shot({ dist: 11.2, pitch: 0.98, look: new THREE.Vector3(0.1, -0.6, 0.85) });
     this.showGrid(true);
     this.fill();
     this.render();
@@ -677,40 +774,80 @@ export class Works {
   private endBuild() {
     if (this.mode !== 'build' && !this.cat.length) return;
     this.cancelHeld();
+    this.clearSel();
     for (const c of this.cat) { c.holder.removeFromParent(); c.tag.remove(); }
     this.cat = []; this.hot = null;
     this.map.camLight.intensity = 0;
     this.showGrid(false);
-    this.map.shotPose = null;
     if (this.id) this.map.hold(this.id, false);
   }
   private renderTabs() {
+    this.tabs.innerHTML = '';
     const tab = (kind: IconKind, name: string, t: Tab) => {
       const b = iconKey(kind, name, () => { if (this.tab === t) return; this.tab = t; this.cancelHeld(); this.fill(); this.renderTabs(); }, { model: 40, nameHover: true, cls: 'fw-ik' + (this.tab === t ? ' on' : '') });
       this.tabs.append(b);
     };
-    this.tabs.innerHTML = '';
-    tab('crate', 'Furniture', 'furniture'); tab('sprout', 'Decor', 'decor'); tab('roller', 'Finishes', 'finish');
-    const done = iconKey('door', 'Done', () => this.back(), { model: 40, nameHover: true, cls: 'fw-ik fw-done' });
-    this.tabs.append(done);
+    tab('crate', 'Furniture', 'furniture'); tab('sprout', 'Decor', 'decor'); tab('roller', 'Finishes', 'finish'); tab('cage', 'Inhabitants', 'zoo'); tab('vitrine', 'Artifacts', 'museum');
+    const sn = iconKey('pin', this.snap ? 'Grid' : 'Free', () => this.toggleSnap(), { model: 40, nameHover: true, cls: 'fw-ik fw-snap' + (this.snap ? ' on' : '') });
+    this.tabs.append(sn);
+    this.tabs.append(iconKey('door', 'Done', () => this.back(), { model: 40, nameHover: true, cls: 'fw-ik fw-done' }));
+  }
+  private toggleSnap() {
+    this.snap = !this.snap;
+    sample('switch', 0.5) || sfx('toggle', 0.5);
+    this.grid && (this.grid.visible = this.snap);
+    if (this.held && this.snap) this.held.rot = Math.round(this.held.rot / (Math.PI / 2)) * (Math.PI / 2);
+    this.renderTabs();
+    this.aim(this.ptr.x, this.ptr.y);
+  }
+  /** what the operator has to show: the inhabitants caught, tamed or sampled; the finds brought back */
+  private zooHas(key: string): boolean {
+    try { const f = file(); return tamedKeys().includes(key) || (f.sampled[key] ?? 0) > 0 || (f.research[key] ?? 0) >= 100; } catch { return false; }
+  }
+  private finds(): string[] {
+    let found: Record<string, number> = {};
+    try { found = file().found ?? {}; } catch { /* none */ }
+    const keys = Object.keys(found).filter((k) => { try { return hasItemDef(k) && !!itemModelOk(k); } catch { return false; } });
+    const val = (k: string) => { try { return (itemDef(k) as { value?: number }).value ?? 0; } catch { return 0; } };
+    return keys.sort((a, b) => val(b) - val(a)).slice(0, 14);
   }
   /** the strip of floating models for the tab */
   private fill() {
     for (const c of this.cat) { c.holder.removeFromParent(); c.tag.remove(); }
     this.cat = []; this.hot = null; this.scroll = this.scrollGoal = 0;
     const rig = this.map.camRig;
-    const list: { key: string; furn?: FurnSpec; fin?: FinishSpec }[] = this.tab === 'finish'
-      ? FINISHES.map((f) => ({ key: f.key, fin: f }))
-      : FURN.filter((f) => f.cat === (this.tab === 'decor' ? 'decor' : 'furniture')).map((f) => ({ key: f.kind, furn: f }));
+    let list: { key: string; furn?: FurnSpec; fin?: FinishSpec; locked?: boolean }[];
+    if (this.tab === 'finish') list = FINISHES.map((f) => ({ key: f.key, fin: f }));
+    else if (this.tab === 'zoo') list = ZOO.map((z) => ({ key: 'encl:' + z.key, furn: furnSpec('encl:' + z.key), locked: !this.zooHas(z.key) })).sort((a, b) => Number(a.locked) - Number(b.locked));
+    else if (this.tab === 'museum') {
+      const jars = ZOO.filter((z) => this.zooHas(z.key)).map((z) => ({ key: 'jar:' + z.key, furn: furnSpec('jar:' + z.key) }));
+      const cases = this.finds().map((k) => ({ key: 'case:' + k, furn: furnSpec('case:' + k) }));
+      list = [...cases, ...jars];
+      if (!list.length) list = ['pipe', 'crowbar', 'flashlight'].map((k) => ({ key: 'case:' + k, furn: furnSpec('case:' + k), locked: true }));
+    } else list = FURN.filter((f) => f.cat === (this.tab === 'decor' ? 'decor' : 'furniture')).map((f) => ({ key: f.kind, furn: f }));
+    // a higher tier of the stores waits for the Institute's prestige
+    const pres = prestige();
+    for (const it of list) if (it.furn?.prestige && pres < it.furn.prestige && !it.locked) { it.locked = true; (it as { tier?: number }).tier = it.furn.prestige - pres; }
     list.forEach((it, i) => {
       const holder = new THREE.Group(), spin = new THREE.Group();
       holder.add(spin);
       const model = it.furn ? modelOf(it.furn.kind, this.h.mats) : swatch(it.fin!, this.h.mats);
       spin.add(model);
-      const c: CatItem = { ...it, holder, spin, fit: 1, x: i * 0.3, hot: 0, tag: div('fw-tag'), ready: false };
+      const c: CatItem = { ...it, holder, spin, fit: 1, x: i * 0.3, hot: 0, tag: div('fw-tag'), ready: false, model };
       const refit = () => {
-        model.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = false; m.receiveShadow = false; } });
+        model.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh) return;
+          m.castShadow = false; m.receiveShadow = false;
+          // what is not in hand yet stands as a dark cast of itself
+          if (c.locked && !m.userData.cast) { m.userData.cast = true; m.material = LOCKED_MAT; }
+        });
+        // measured in its own frame (off the strip, unmoved), then centred on its spin
+        const par = model.parent;
+        par?.remove(model);
+        model.position.set(0, 0, 0); model.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(model);
+        par?.add(model);
         if (box.isEmpty()) return;
         const size = box.getSize(new THREE.Vector3()), cen = box.getCenter(new THREE.Vector3());
         c.fit = 0.2 / Math.max(size.x, size.y * 0.9, size.z, 0.05);
@@ -719,16 +856,31 @@ export class Works {
       };
       refit();
       model.addEventListener('loaded' as never, () => refit());
-      // glb props fill in later: refit when they do
-      setTimeout(refit, 600); setTimeout(refit, 1800);
-      holder.userData.cat = c;
+      setTimeout(refit, 600); setTimeout(refit, 1800); setTimeout(refit, 4000);
       rig.add(holder);
-      // its price, and what it gives, under it
-      if (it.furn) { c.tag.append(costEl(it.furn.cost, true), statsEl(it.furn.stats, true)); c.tag.title = it.furn.name; }
-      else if (it.fin) { c.tag.append(costEl(it.fin.cost, true)); c.tag.title = it.fin.name; const on = this.id && room(this.id).finish?.[it.fin.part] === it.fin.key; if (on) c.tag.classList.add('on'); }
+      this.tagOf(c);
       this.tags.append(c.tag);
       this.cat.push(c);
     });
+  }
+  private tagOf(c: CatItem) {
+    c.tag.innerHTML = '';
+    c.tag.classList.toggle('locked', !!c.locked);
+    if (c.locked) {
+      const g = div('fw-gate'); const ic = mxIcon(c.tier ? 'laurel' : 'key', 16); if (ic) g.append(ic);
+      if (c.tier) { const n = document.createElement('b'); n.textContent = String(c.tier); g.append(n); }
+      c.tag.append(g); c.tag.title = c.furn?.name ?? ''; return;
+    }
+    if (c.furn) { c.tag.append(costEl(c.furn.cost, true), statsEl(c.furn.stats, true)); c.tag.title = c.furn.name; }
+    else if (c.fin) { c.tag.append(costEl(c.fin.cost, true)); c.tag.title = c.fin.name; c.tag.classList.toggle('on', !!this.id && room(this.id).finish?.[c.fin.part] === c.fin.key); }
+  }
+  /** scroll the strip to a store (the keyboard, a test) */
+  focusCat(key: string) {
+    const i = this.cat.findIndex((c) => c.key === key);
+    if (i < 0) return;
+    const cam = this.map.cam, hh = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * 2.1, hw = hh * cam.aspect;
+    const step = Math.min(0.31, (hw * 2 - 0.2) / 7.5);
+    this.scrollGoal = this.scroll = Math.max(0, i * step - hw);
   }
   private layoutCat(dt: number) {
     const cam = this.map.cam, D = 2.1;
@@ -748,7 +900,8 @@ export class Works {
       c.holder.position.set(x, y0 + bob + c.hot * 0.03 + (on ? 0.02 : 0), -D);
       c.holder.scale.setScalar(c.fit * (1 + c.hot * 0.18));
       c.spin.rotation.set(0.42, this.t * 0.45 + i * 0.7 + c.hot * 0.6, 0);
-      // its tag under it
+      // an exhibit lives in the strip too: its inhabitant paces, its find turns
+      if (vis) c.model.traverse((o) => { const tk = o.userData.tick as ((t: number, dt: number) => void) | undefined; if (tk) tk(this.t, dt); });
       const p = c.holder.getWorldPosition(_v);
       const s = this.h.stage.project(p);
       if (s && vis) { c.tag.style.transform = `translate(${Math.round(s.x)}px, ${Math.round(s.y + 34)}px) translateX(-50%)`; c.tag.style.opacity = String(0.82 + c.hot * 0.18); c.tag.hidden = false; }
@@ -765,9 +918,8 @@ export class Works {
       if (!c.holder.visible) continue;
       const hit = _r.intersectObject(c.holder, true)[0];
       if (hit && hit.distance < bd) { bd = hit.distance; best = c; }
-      // or near enough on screen
-      if (!best) { const s = this.h.stage.project(c.holder.getWorldPosition(_v)); if (s && Math.hypot(s.x - x, s.y - y) < 44) best = c; }
     }
+    if (!best) for (const c of this.cat) { if (!c.holder.visible) continue; const s = this.h.stage.project(c.holder.getWorldPosition(_v)); if (s && Math.hypot(s.x - x, s.y - y) < 44) { best = c; break; } }
     return best;
   }
   private showGrid(on: boolean) {
@@ -779,32 +931,51 @@ export class Works {
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
       this.grid = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xe8f0b0, transparent: true, opacity: 0.16, depthWrite: false, toneMapped: false }));
       this.grid.position.y = 0.014; this.grid.renderOrder = 3; this.grid.userData.noGlow = true;
-      this.foot = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: GHOST_OK, transparent: true, opacity: 0.22, depthWrite: false, toneMapped: false }));
+      this.foot = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: GHOST_OK, transparent: true, opacity: 0.22, depthWrite: false }));
       this.foot.rotation.x = -Math.PI / 2; this.foot.renderOrder = 3; this.foot.userData.noGlow = true;
     }
+    this.grid.visible = this.snap;
     f?.add(this.grid);
   }
 
-  // ---------------------------------------------------------------- holding a piece (new from the strip, or one picked up)
-  private pick(kind: string, x: number, y: number, uid?: string, rot = 0) {
-    this.cancelHeld();
-    const ghost = new THREE.Group();
-    const spec = furnSpec(kind);
+  // ---------------------------------------------------------------- holding pieces (new from the strip, one picked up, a group)
+  private ghostOf(kind: string): THREE.Object3D {
     const model = modelOf(kind, this.h.mats);
-    ghost.add(model);
     const tint = () => model.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
-      if (!m.userData.ghost) { m.userData.ghost = true; m.material = new THREE.MeshBasicMaterial({ color: GHOST_OK, transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false }); }
+      if (!m.userData.ghost) { m.userData.ghost = true; m.material = new THREE.MeshBasicMaterial({ color: GHOST_OK, transparent: true, opacity: 0.38, depthWrite: false }); }
       m.castShadow = false; m.renderOrder = 4; m.userData.noGlow = true;
     });
     tint();
     model.addEventListener('loaded' as never, () => tint());
-    setTimeout(tint, 700); setTimeout(tint, 1900);
+    setTimeout(tint, 700); setTimeout(tint, 1900); setTimeout(tint, 4000);
+    return model;
+  }
+  private pick(kind: string, x: number, y: number, uid?: string, rot = 0) {
+    this.cancelHeld();
+    const ghost = new THREE.Group();
+    const spec = furnSpec(kind);
+    ghost.add(this.ghostOf(kind));
     this.frame?.add(ghost);
     if (this.foot) this.frame?.add(this.foot);
-    this.held = { kind, uid, rot: spec?.layer === 'wall' ? 0 : rot, ghost, x: 0, z: 0, ok: false, on: false, fromCat: !uid, press: this.ptr.n };
+    const riders: Rider[] = [];
+    const id = this.id!;
+    if (uid && this.sel.has(uid) && this.sel.size > 1) {
+      // a group move: everything selected rides along at its offset from the piece in hand
+      const a = room(id).furniture.find((q) => q.uid === uid)!;
+      for (const u of this.sel) {
+        if (u === uid) continue;
+        const f = room(id).furniture.find((q) => q.uid === u);
+        if (!f) continue;
+        const g = new THREE.Group(); g.add(this.ghostOf(f.kind)); this.frame?.add(g);
+        riders.push({ uid: u, kind: f.kind, dx: f.x - a.x, dz: f.z - a.z, rot: f.rot, y: f.y, ghost: g });
+        const o = this.furnObj(u); if (o) o.visible = false;
+      }
+    }
+    this.held = { kind, uid, rot: spec?.layer === 'wall' ? 0 : rot, ghost, x: 0, z: 0, y: 0, ok: false, on: false, fromCat: !uid, press: this.ptr.n, riders };
     if (uid) { const o = this.furnObj(uid); if (o) o.visible = false; }
+    this.clearSelMarks();
     sample('dmg_grab', 0.4) || sfx('click', 0.4);
     this.aim(x, y);
     this.renderHeldKeys();
@@ -818,41 +989,47 @@ export class Works {
     const h = this.held;
     if (!h) return;
     h.ghost.removeFromParent();
+    for (const r of h.riders) { r.ghost.removeFromParent(); const o = this.furnObj(r.uid); if (o) o.visible = true; }
     this.foot?.removeFromParent();
     if (h.uid) { const o = this.furnObj(h.uid); if (o) o.visible = true; }
     this.held = null;
     this.heldKeys.innerHTML = '';
+    this.markSel();
   }
   private renderHeldKeys() {
     this.heldKeys.innerHTML = '';
     const h = this.held;
     if (!h) return;
     const spec = furnSpec(h.kind);
-    if (spec?.layer !== 'wall') this.heldKeys.append(iconKey('compass', 'Turn', () => this.turn(1), { model: 34, nameHover: true, cls: 'fw-ik' }));
+    if (spec?.layer !== 'wall' && !h.riders.length) this.heldKeys.append(iconKey('compass', 'Turn', () => this.turn(1), { model: 34, nameHover: true, cls: 'fw-ik' }));
     if (h.uid) this.heldKeys.append(iconKey('skip', 'Remove', () => this.removeHeld(), { model: 34, nameHover: true, cls: 'fw-ik' }));
   }
-  private turn(d: number) {
+  /** a turn: a quarter on the grid, fifteen degrees free (five with Shift) */
+  private turn(d: number, fine = false) {
     const h = this.held;
-    if (!h || furnSpec(h.kind)?.layer === 'wall') return;
-    h.rot = (h.rot + d * Math.PI / 2 + Math.PI * 2) % (Math.PI * 2);
+    if (!h || furnSpec(h.kind)?.layer === 'wall' || h.riders.length) return;
+    const step = this.snap ? Math.PI / 2 : fine ? Math.PI / 36 : Math.PI / 12;
+    h.rot = ((h.rot + d * step) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
     sample('tc_ratchet', 0.4) || sfx('tick', 0.4);
     this.aim(this.ptr.x, this.ptr.y);
   }
-  /** cells a piece covers (its footprint turned), and whether they are free */
-  private fits(kind: string, x: number, z: number, rot: number, uid?: string): boolean {
+  /** a piece's footprint turned to any angle, as the box it fills */
+  private extent(kind: string, rot: number): [number, number] {
+    const sp = furnSpec(kind)!;
+    const c = Math.abs(Math.cos(rot)), s = Math.abs(Math.sin(rot));
+    return [sp.w * c + sp.d * s, sp.w * s + sp.d * c];
+  }
+  /** whether a piece fits here: inside the room, off the fixtures, clear of the other pieces of its layer */
+  private fits(kind: string, x: number, z: number, rot: number, skip: Set<string>, y = 0): boolean {
     const spec = furnSpec(kind), d = this.dio, id = this.id;
     if (!spec || !d || !id) return false;
-    const odd = Math.round(rot / (Math.PI / 2)) % 2 === 1;
-    const w = odd ? spec.d : spec.w, dd = odd ? spec.w : spec.d;
-    const x0 = x - w / 2, x1 = x + w / 2, z0 = z - dd / 2, z1 = z + dd / 2;
     if (spec.layer === 'wall') {
-      // along the north wall (z at the wall) or the west wall (x at the wall)
       const onN = Math.abs(z + HALF) < 0.01;
       const a = onN ? x - spec.w / 2 : z - spec.w / 2, b = a + spec.w;
       if (a < -HALF - 1e-3 || b > HALF + 1e-3) return false;
-      for (let k = Math.floor((a + HALF) / CELL + 1e-3); k < Math.ceil((b + HALF) / CELL - 1e-3); k++) if (d.wall[(onN ? 0 : GN) + k]) return false;
+      for (let k = Math.floor((a + HALF) / CELL + 0.05); k < Math.ceil((b + HALF) / CELL - 0.05); k++) if (d.wall[(onN ? 0 : GN) + k]) return false;
       for (const f of room(id).furniture) {
-        if (f.uid === uid) continue;
+        if (skip.has(f.uid)) continue;
         const s = furnSpec(f.kind);
         if (s?.layer !== 'wall') continue;
         const fN = Math.abs(f.z + HALF) < 0.01;
@@ -862,17 +1039,43 @@ export class Works {
       }
       return true;
     }
+    // a small thing up on a surface only minds the other small things there
+    if (y > 0.05) {
+      for (const f of room(id).furniture) { if (skip.has(f.uid) || !f.y) continue; if (Math.hypot(f.x - x, f.z - z) < 0.2 && Math.abs(f.y - y) < 0.2) return false; }
+      return Math.abs(x) < HALF && Math.abs(z) < HALF;
+    }
+    const [w, dd] = this.extent(kind, rot);
+    const x0 = x - w / 2, x1 = x + w / 2, z0 = z - dd / 2, z1 = z + dd / 2;
     if (x0 < -HALF - 1e-3 || x1 > HALF + 1e-3 || z0 < -HALF - 1e-3 || z1 > HALF + 1e-3) return false;
-    if (spec.layer === 'floor') for (let gz = Math.floor((z0 + HALF) / CELL + 1e-3); gz < Math.ceil((z1 + HALF) / CELL - 1e-3); gz++) for (let gx = Math.floor((x0 + HALF) / CELL + 1e-3); gx < Math.ceil((x1 + HALF) / CELL - 1e-3); gx++) if (d.grid[gz * GN + gx]) return false;
+    const inset = 0.03;
+    if (spec.layer === 'floor') for (let gz = Math.floor((z0 + inset + HALF) / CELL); gz < Math.ceil((z1 - inset + HALF) / CELL); gz++) for (let gx = Math.floor((x0 + inset + HALF) / CELL); gx < Math.ceil((x1 - inset + HALF) / CELL); gx++) if (d.grid[gz * GN + gx]) return false;
     for (const f of room(id).furniture) {
-      if (f.uid === uid) continue;
+      if (skip.has(f.uid) || f.y) continue;
       const s = furnSpec(f.kind);
       if (!s || s.layer === 'wall' || (s.layer === 'rug') !== (spec.layer === 'rug')) continue;
-      const fo = Math.round(f.rot / (Math.PI / 2)) % 2 === 1;
-      const fw = fo ? s.d : s.w, fd = fo ? s.w : s.d;
-      if (f.x - fw / 2 < x1 - 1e-3 && x0 < f.x + fw / 2 - 1e-3 && f.z - fd / 2 < z1 - 1e-3 && z0 < f.z + fd / 2 - 1e-3) return false;
+      const [fw, fd] = this.extent(f.kind, f.rot);
+      if (f.x - fw / 2 < x1 - inset && x0 < f.x + fw / 2 - inset && f.z - fd / 2 < z1 - inset && z0 < f.z + fd / 2 - inset) return false;
     }
     return true;
+  }
+  /** for a small thing: the surface under the pointer (a desk, a shelf, a counter, a bunk), if there is one */
+  private surfaceAt(px: number, py: number): THREE.Vector3 | null {
+    const ray = this.h.stage.rayAt(px, py), d = this.dio, f = this.frame;
+    if (!ray || !d || !f) return null;
+    _r.ray.copy(ray);
+    const hide = this.held ? [this.held.ghost, ...this.held.riders.map((r) => r.ghost)] : [];
+    for (const g of hide) g.visible = false;
+    const hits = _r.intersectObject(d.group, true);
+    for (const g of hide) g.visible = true;
+    for (const hh of hits) {
+      if (hh.object.userData.noGlow || !hh.face) continue;
+      const n = hh.face.normal.clone().transformDirection(hh.object.matrixWorld);
+      const p = hh.point.clone().sub(f.position);
+      if (n.y > 0.7 && p.y > 0.25 && p.y < 2.0 && Math.abs(p.x) < HALF - 0.05 && Math.abs(p.z) < HALF - 0.05) return p;
+      if (n.y > 0.7 && p.y < 0.05) return null;
+      if (n.y <= 0.7) continue;
+    }
+    return null;
   }
   private aim(px: number, py: number) {
     const h = this.held, f = this.frame;
@@ -880,30 +1083,45 @@ export class Works {
     const spec = furnSpec(h.kind)!;
     const q = this.local(px, py, 0);
     const inside = !!q && Math.abs(q.x) < HALF + 0.3 && Math.abs(q.z) < HALF + 0.3;
-    h.on = inside && py < innerHeight * 0.74;
+    h.on = inside && py < innerHeight * 0.76;
     h.ghost.visible = h.on;
+    for (const r of h.riders) r.ghost.visible = h.on;
     if (!h.on || !q) { if (this.foot) this.foot.visible = false; return; }
-    const snap = (v: number, size: number) => { const n = Math.round(size / CELL); const i0 = Math.round((v + HALF) / CELL - n / 2); return Math.max(0, Math.min(GN - n, i0)) * CELL + (n * CELL) / 2 - HALF; };
+    const snapTo = (v: number, size: number) => { const n = Math.max(1, Math.round(size / CELL)); const i0 = Math.round((v + HALF) / CELL - n / 2); return Math.max(0, Math.min(GN - n, i0)) * CELL + (n * CELL) / 2 - HALF; };
+    const fine = (v: number, size: number) => Math.max(-HALF + size / 2, Math.min(HALF - size / 2, Math.round(v / 0.05) * 0.05));
+    h.y = 0;
     if (spec.layer === 'wall') {
       const onN = q.z + HALF <= q.x + HALF;
-      if (onN) { h.x = snap(q.x, spec.w); h.z = -HALF; h.rot = 0; } else { h.x = -HALF; h.z = snap(q.z, spec.w); h.rot = Math.PI / 2; }
+      const along = onN ? q.x : q.z;
+      const v = this.snap ? snapTo(along, spec.w) : fine(along, spec.w);
+      if (onN) { h.x = v; h.z = -HALF; h.rot = 0; } else { h.x = -HALF; h.z = v; h.rot = Math.PI / 2; }
     } else {
-      const odd = Math.round(h.rot / (Math.PI / 2)) % 2 === 1;
-      h.x = snap(q.x, odd ? spec.d : spec.w); h.z = snap(q.z, odd ? spec.w : spec.d);
+      const sur = spec.small ? this.surfaceAt(px, py) : null;
+      if (sur) { h.x = Math.round(sur.x / 0.05) * 0.05; h.z = Math.round(sur.z / 0.05) * 0.05; h.y = sur.y; }
+      else {
+        const [w, d] = this.extent(h.kind, h.rot);
+        if (this.snap) { h.x = snapTo(q.x, w); h.z = snapTo(q.z, d); } else { h.x = fine(q.x, w); h.z = fine(q.z, d); }
+      }
     }
-    h.ok = this.fits(h.kind, h.x, h.z, h.rot, h.uid) && (!!h.uid || canPay(spec.cost));
-    h.ghost.position.set(h.x, 0, h.z);
+    const skip = new Set<string>([...(h.uid ? [h.uid] : []), ...h.riders.map((r) => r.uid)]);
+    h.ok = this.fits(h.kind, h.x, h.z, h.rot, skip, h.y) && (!!h.uid || canPay(spec.cost));
+    for (const r of h.riders) {
+      const ok = this.fits(r.kind, h.x + r.dx, h.z + r.dz, r.rot, skip, r.y ?? 0);
+      r.ghost.position.set(h.x + r.dx, r.y ?? 0, h.z + r.dz); r.ghost.rotation.y = r.rot;
+      if (!ok) h.ok = false;
+    }
+    h.ghost.position.set(h.x, h.y, h.z);
     h.ghost.rotation.y = h.rot;
-    h.ghost.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && m.userData.ghost) (m.material as THREE.MeshBasicMaterial).color.setHex(h.ok ? GHOST_OK : GHOST_NO); });
+    const col = h.ok ? GHOST_OK : GHOST_NO;
+    for (const g of [h.ghost, ...h.riders.map((r) => r.ghost)]) g.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && m.userData.ghost) (m.material as THREE.MeshBasicMaterial).color.setHex(col); });
     const foot = this.foot;
     if (foot) {
       foot.visible = true;
-      const odd = Math.round(h.rot / (Math.PI / 2)) % 2 === 1;
       if (spec.layer === 'wall') {
         foot.rotation.set(0, h.rot, 0); foot.scale.set(spec.w, 0.9, 1);
         foot.position.set(h.x + (h.rot ? 0.012 : 0), 1.55, h.z + (h.rot ? 0 : 0.012));
-      } else { foot.rotation.set(-Math.PI / 2, 0, 0); foot.scale.set(odd ? spec.d : spec.w, odd ? spec.w : spec.d, 1); foot.position.set(h.x, 0.016, h.z); }
-      (foot.material as THREE.MeshBasicMaterial).color.setHex(h.ok ? GHOST_OK : GHOST_NO);
+      } else { foot.rotation.set(-Math.PI / 2, 0, -h.rot); foot.scale.set(spec.w, spec.d, 1); foot.position.set(h.x, h.y + 0.016, h.z); }
+      (foot.material as THREE.MeshBasicMaterial).color.setHex(col);
     }
   }
   private place() {
@@ -917,16 +1135,27 @@ export class Works {
       return;
     }
     let uid = h.uid ?? null;
-    if (uid) moveFurniture(id, uid, { x: h.x, z: h.z, rot: h.rot });
-    else uid = buyFurniture(id, h.kind, { x: h.x, z: h.z, rot: h.rot });
+    const moved: string[] = [];
+    if (uid) {
+      moveFurniture(id, uid, { x: h.x, z: h.z, rot: h.rot, y: h.y }, true);
+      for (const r of h.riders) { moveFurniture(id, r.uid, { x: h.x + r.dx, z: h.z + r.dz, rot: r.rot, y: r.y }, true); moved.push(r.uid); }
+      touchFacility();
+    } else uid = buyFurniture(id, h.kind, { x: h.x, z: h.z, rot: h.rot, y: h.y });
     if (!uid) { sfx('error', 0.5); return; }
-    const kind = h.kind, moved = !!h.uid;
+    const kind = h.kind, bought = !h.uid;
+    const prevPur = purposeOf(room(id).furniture.filter((f) => f.uid !== uid).map((f) => f.kind));
+    h.riders = [];
     this.cancelHeld();
+    this.clearSel();
     this.map.rebuild(id);
-    const o = this.furnObj(uid);
-    const spec = furnSpec(kind)!;
-    if (o) this.drops.push({ o, t: 0, heavy: spec.layer === 'floor' ? Math.min(1, (spec.w * spec.d) / 2) : 0.1, foot: o.position.clone() });
-    if (!moved) sample('kiosk_accept', 0.25);
+    for (const u of [uid, ...moved]) {
+      const o = this.furnObj(u), f = room(id).furniture.find((q) => q.uid === u);
+      const spec = furnSpec(f?.kind ?? kind)!;
+      if (o) this.drops.push({ o, t: 0, heavy: spec.layer === 'floor' && !spec.small ? Math.min(1, (spec.w * spec.d) / 2) : 0.1, foot: o.position.clone(), y0: o.position.y });
+    }
+    if (bought) sample('kiosk_accept', 0.25);
+    const pur = purposeOf(room(id).furniture.map((f) => f.kind));
+    if (pur && pur !== prevPur && !this.said.has('pur:' + id + pur)) { this.said.add('pur:' + id + pur); this.say(LINE[pur]); }
     this.renderStats();
     this.refreshTags();
   }
@@ -934,20 +1163,36 @@ export class Works {
     const h = this.held, id = this.id;
     if (!h?.uid || !id) return;
     const p = new THREE.Vector3(h.x, 0.3, h.z);
-    sellFurniture(id, h.uid);
-    h.uid = undefined;
+    for (const u of [h.uid, ...h.riders.map((r) => r.uid)]) sellFurniture(id, u);
+    h.uid = undefined; h.riders = [];
     this.cancelHeld();
+    this.clearSel();
     this.map.rebuild(id);
     sample('dmg_scrape_metal', 0.4); sample('kiosk_accept', 0.2);
     this.dust(p, 8, 0xa09a88);
     this.renderStats();
     this.refreshTags();
   }
-  private refreshTags() {
-    for (const c of this.cat) {
-      c.tag.innerHTML = '';
-      if (c.furn) c.tag.append(costEl(c.furn.cost, true), statsEl(c.furn.stats, true));
-      else if (c.fin) { c.tag.append(costEl(c.fin.cost, true)); c.tag.classList.toggle('on', !!this.id && room(this.id).finish?.[c.fin.part] === c.fin.key); }
+  private refreshTags() { for (const c of this.cat) this.tagOf(c); }
+  // ---- the multi-select: Shift and a click on placed pieces marks them; picking one up then carries them all
+  private toggleSel(uid: string) {
+    if (this.sel.has(uid)) this.sel.delete(uid); else this.sel.add(uid);
+    sample('cb_tick', 0.4) || sfx('tick', 0.4);
+    this.markSel();
+  }
+  private clearSel() { this.sel.clear(); this.clearSelMarks(); }
+  private clearSelMarks() { for (const m of this.selMarks) m.removeFromParent(); this.selMarks = []; }
+  private markSel() {
+    this.clearSelMarks();
+    const id = this.id, f = this.frame;
+    if (!id || !f) return;
+    for (const u of this.sel) {
+      const p = room(id).furniture.find((q) => q.uid === u);
+      if (!p) continue;
+      const sp = furnSpec(p.kind)!;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(sp.w + 0.1, sp.d + 0.1), new THREE.MeshBasicMaterial({ color: 0xffd870, transparent: true, opacity: 0.3, depthWrite: false }));
+      m.rotation.set(-Math.PI / 2, 0, -p.rot); m.position.set(p.x, (p.y ?? 0) + 0.02, p.z); m.renderOrder = 3; m.userData.noGlow = true;
+      f.add(m); this.selMarks.push(m);
     }
   }
   private finish(f: FinishSpec) {
@@ -958,17 +1203,16 @@ export class Works {
     const snd = f.part === 'light' ? 'switch' : f.mat === 'paint' || f.mat === 'wallpaper' || f.mat === 'stripe' ? 'spray' : f.mat === 'carpet' ? 'carpet_rustle' : f.mat === 'tile' || f.mat === 'check' ? 'glass_clink' : 'wood_hit';
     sample(snd, 0.5); sample('kiosk_accept', 0.2);
     if (f.part === 'light') { this.map.lightMul = 0.2; setTimeout(() => { this.map.lightMul = 1; sample('fluoro_tick', 0.4); }, 120); }
-    else for (let i = 0; i < 6; i++) this.dust(new THREE.Vector3(f.part === 'wall' ? -HALF + 0.3 : (Math.random() - 0.5) * 3, f.part === 'wall' ? 0.5 + Math.random() * 1.5 : 0.05, f.part === 'wall' ? (Math.random() - 0.5) * 3 : (Math.random() - 0.5) * 3), 2, 0xe8e0d0);
+    else for (let i = 0; i < 6; i++) this.dust(new THREE.Vector3(f.part === 'wall' ? -HALF + 0.3 : (Math.random() - 0.5) * 3, f.part === 'wall' ? 0.5 + Math.random() * 1.5 : 0.05, (Math.random() - 0.5) * 3), 2, 0xe8e0d0);
     this.refreshTags();
   }
   private stepBuild(dt: number) {
     this.layoutCat(dt);
-    // the held piece floats a hand above the floor and settles into its spot
     const h = this.held;
-    if (h && h.on) { h.ghost.position.y = 0.06 + Math.sin(this.t * 5) * 0.015; }
+    if (h && h.on) { const lift = 0.06 + Math.sin(this.t * 5) * 0.015; h.ghost.position.y = h.y + lift; for (const r of h.riders) r.ghost.position.y = (r.y ?? 0) + lift; }
     if (h && this.heldKeys.childElementCount) {
       const f = this.frame;
-      const p = f ? this.h.stage.project(_v.set(h.x, 1.0, h.z).add(f.position)) : null;
+      const p = f ? this.h.stage.project(_v.set(h.x, h.y + 1.0, h.z).add(f.position)) : null;
       if (p && h.on) { this.heldKeys.style.transform = `translate(${Math.round(p.x + 60)}px, ${Math.round(p.y - 40)}px)`; this.heldKeys.hidden = false; } else this.heldKeys.hidden = true;
     }
     // drops: a short fall, a thud, a settle
@@ -976,9 +1220,9 @@ export class Works {
       const d = this.drops[i];
       const t0 = d.t; d.t += dt;
       const T = 0.26;
-      if (d.t < T) d.o.position.y = 0.5 * (1 - (d.t / T) ** 2);
-      else if (d.t < T + 0.16) d.o.position.y = Math.sin(((d.t - T) / 0.16) * Math.PI) * 0.025 * (0.4 + d.heavy);
-      else { d.o.position.y = 0; this.drops.splice(i, 1); }
+      if (d.t < T) d.o.position.y = d.y0 + 0.5 * (1 - (d.t / T) ** 2);
+      else if (d.t < T + 0.16) d.o.position.y = d.y0 + Math.sin(((d.t - T) / 0.16) * Math.PI) * 0.025 * (0.4 + d.heavy);
+      else { d.o.position.y = d.y0; this.drops.splice(i, 1); }
       if (t0 < T && d.t >= T) {
         sample(d.heavy > 0.5 ? 'craft_thud' : d.heavy > 0.2 ? 'cube_place' : 'thud_soft', 0.45 + d.heavy * 0.35, 0.9 + Math.random() * 0.2);
         this.map.shake = Math.max(this.map.shake, 0.12 + d.heavy * 0.35);
@@ -997,11 +1241,12 @@ export class Works {
       if (this.held) return;
       const c = this.catAt(e.clientX, e.clientY);
       if (c) {
+        if (c.locked) { sfx('error', 0.5); this.say(c.tier ? LINE.tier : LINE.locked); return; }
         if (c.fin) { this.finish(c.fin); return; }
         this.pick(c.key, e.clientX, e.clientY);
         return;
       }
-      // a placed piece: pick it up
+      // a placed piece: Shift marks it for a group move, a press picks it (and anything marked with it) up
       const ray = this.h.stage.rayAt(e.clientX, e.clientY), d = this.dio;
       if (!ray || !d) return;
       _r.ray.copy(ray);
@@ -1011,10 +1256,15 @@ export class Works {
         while (o && o.userData.furniture === undefined) o = o.parent;
         if (o && o.userData.furniture) {
           const f = room(this.id!).furniture.find((q) => q.uid === o!.userData.furniture);
-          if (f) { this.pick(f.kind, e.clientX, e.clientY, f.uid, f.rot); return; }
+          if (!f) break;
+          if (e.shiftKey) { this.toggleSel(f.uid); return; }
+          if (this.sel.size && !this.sel.has(f.uid)) this.clearSel();
+          this.pick(f.kind, e.clientX, e.clientY, f.uid, f.rot);
+          return;
         }
         break;
       }
+      if (!e.shiftKey && this.sel.size) this.clearSel();
     }
   }
   private move(e: PointerEvent) {
@@ -1041,14 +1291,14 @@ export class Works {
       if (h.press === this.ptr.n && !this.ptr.moved) return;
       // dragged and let go (or a second click): dropped back on the strip, a placed piece goes back (refunded) and a
       // new one is put away; anywhere else it goes down
-      if (e.clientY > innerHeight * 0.78) { if (h.uid) this.removeHeld(); else this.cancelHeld(); return; }
+      if (e.clientY > innerHeight * 0.8) { if (h.uid) this.removeHeld(); else this.cancelHeld(); return; }
       this.place();
     }
   }
   private wheel(e: WheelEvent) {
     if (this.mode !== 'build') return;
     e.preventDefault();
-    if (this.held && e.clientY < innerHeight * 0.74) { this.turn(e.deltaY > 0 ? 1 : -1); return; }
+    if (this.held && e.clientY < innerHeight * 0.76) { this.turn(e.deltaY > 0 ? 1 : -1, e.shiftKey); return; }
     this.scrollGoal += (e.deltaY + e.deltaX) * 0.0012;
   }
   private key(e: KeyboardEvent) {
@@ -1057,10 +1307,12 @@ export class Works {
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     if (this.mode === 'cine' && (e.key === ' ' || e.key === 'Enter')) { this.skipCine = true; e.preventDefault(); e.stopPropagation(); return; }
     if (this.mode !== 'build') return;
-    if (e.key === 'r' || e.key === 'R') { this.turn(1); e.preventDefault(); e.stopPropagation(); }
-    else if ((e.key === 'Delete' || e.key === 'Backspace' || e.key === 'x' || e.key === 'X') && this.held?.uid) { this.removeHeld(); e.preventDefault(); e.stopPropagation(); }
-    else if (e.key === 'q' || e.key === 'Q') { this.scrollGoal -= 0.6; e.stopPropagation(); }
-    else if (e.key === 'e' || e.key === 'E') { this.scrollGoal += 0.6; e.stopPropagation(); }
+    const k = e.key.toLowerCase();
+    if (k === 'r') { this.turn(1, e.shiftKey); e.preventDefault(); e.stopPropagation(); }
+    else if (k === 'g') { this.toggleSnap(); e.preventDefault(); e.stopPropagation(); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace' || k === 'x') && this.held?.uid) { this.removeHeld(); e.preventDefault(); e.stopPropagation(); }
+    else if (k === 'q') { if (this.held) this.turn(-1, e.shiftKey); else this.scrollGoal -= 0.6; e.stopPropagation(); }
+    else if (k === 'e') { if (this.held) this.turn(1, e.shiftKey); else this.scrollGoal += 0.6; e.stopPropagation(); }
   }
 
   // ================================================================== the frame
@@ -1079,7 +1331,7 @@ export class Works {
     const f = this.frame;
     if (f && this.stats.childElementCount) {
       const p = this.h.stage.project(_v.set(-0.4, WALL_H + 0.45, -HALF).add(f.position));
-      if (p) { this.stats.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%)`; this.stats.hidden = false; } else this.stats.hidden = true;
+      if (p) { const y = Math.max(this.mode === 'build' ? 150 : 96, p.y); this.stats.style.transform = `translate(${Math.round(Math.max(200, Math.min(innerWidth - 200, p.x)))}px, ${Math.round(y)}px) translate(-50%, -100%)`; this.stats.hidden = false; } else this.stats.hidden = true;
     }
     this.stats.classList.toggle('dim', this.mode === 'cine');
   }

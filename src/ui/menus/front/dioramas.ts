@@ -18,8 +18,10 @@ import { crtSet, type CrtSpot } from '../monitor/props';
 import { chairModel } from '../roomParts';
 import { puddle } from '../rooms/dress';
 import type { RoomId, Condition, Furniture, RoomFinish, RoomWork } from '../../../game/facility';
-import { finishSpec, debrisCount } from '../../../game/facilityStores';
+import { finishSpec, debrisCount, purposeOf, furnSpec } from '../../../game/facilityStores';
 import { extMats, XREP, type XKey, type XMats } from './build/kit';
+import { dressRoom, type Practical } from './build/dress';
+export type { Practical };
 
 export const HALF = 2, WALL_H = 2.6, CUT_H = 0.34, WT = 0.2;
 /** build mode's grid: cells of CELL metres, GN to a side of the floor */
@@ -46,6 +48,10 @@ export interface Diorama {
   skip: THREE.Object3D | null;
   /** part B: the grime the cleaning takes away (puddles, papers, the burnt patch, stains) */
   grime: THREE.Object3D[];
+  /** part B: the room's practical lamps (room-local), for the close-up's real lights */
+  practicals: Practical[];
+  /** part B: a gallery (a containment wing, a museum hall): the room light dims, the exhibits carry their own */
+  exhibit?: boolean;
 }
 /** a piece of debris: its number (the save's), the object, what it sounds like, its size, where it lies */
 export interface DebrisPiece { n: number; o: THREE.Object3D; kind: 'stone' | 'wood' | 'metal' | 'soft' | 'paper'; r: number; heavy: number; home: THREE.Vector3; binned: boolean }
@@ -55,7 +61,7 @@ const glow = (on: boolean, c: number) => (on ? c : 0x0c0e10);
 
 // ---------------------------------------------------------------- the shell
 interface Skin { floor: FKey | XKey; fc: number; low: FKey | XKey; lc: number; up: FKey | XKey; uc: number; dado?: number }
-const SKIN: Record<RoomId, Skin> = {
+const SKIN = {
   monitors: { floor: 'floor', fc: 0x6e7064, low: 'paint', lc: 0x4e5a44, up: 'paint', uc: 0xb8b29a, dado: 1.1 },
   control: { floor: 'floor', fc: 0x8a8676, low: 'paint', lc: 0x5a6a4a, up: 'paint', uc: 0xc8c0a4, dado: 1.2 },
   lattice: { floor: 'metal', fc: 0x5a5e5c, low: 'paint', lc: 0x3a4a52, up: 'paint', uc: 0x8a9aa0, dado: 1.0 },
@@ -69,10 +75,12 @@ const SKIN: Record<RoomId, Skin> = {
   dress: { floor: 'tile', fc: 0xb8a890, low: 'tile', lc: 0x8aa0a8, up: 'paint', uc: 0xd0c8b4, dado: 1.4 },
   canteen: { floor: 'tile', fc: 0xc8b878, low: 'tile', lc: 0xd0c8a0, up: 'paint', uc: 0xd8d0b8, dado: 1.2 },
 };
+// part B: the annex wings are new builds: sealed concrete, slate and white paint
+for (const id of ['annex1', 'annex2', 'annex3', 'annex4', 'annex5', 'annex6'] as RoomId[]) SKIN[id] = { floor: 'concrete', fc: 0xa8a49a, low: 'paint', lc: 0x5a6470, up: 'paint', uc: 0xdcdad2, dado: 1.1 };
 
 /** the room's own skin with its finishes over it (part B) */
 function skinOf(id: RoomId, f?: RoomFinish): Skin {
-  const s = { ...SKIN[id] };
+  const s = { ...(SKIN as Record<string, Skin>)[id] };
   const fw = finishSpec(f?.wall), ff = finishSpec(f?.floor);
   if (ff) { s.floor = ff.mat as FKey | XKey; s.fc = ff.color; }
   if (fw) {
@@ -206,7 +214,7 @@ function locker(c: Ctx, m: M4, col: number, open = false) {
 }
 
 type Dress = (c: Ctx) => THREE.Vector3;
-const ROOMS: Record<RoomId, Dress> = {
+const ROOMS: Partial<Record<RoomId, Dress>> = {
   monitors: (c) => {
     // a wall of CRTs over a long console, the operator's chair
     for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) {
@@ -430,6 +438,18 @@ const ROOMS: Record<RoomId, Dress> = {
   },
 };
 
+let pool: THREE.Texture | null = null;
+/** a soft round pool of light, as an alpha map */
+function poolMap(): THREE.Texture {
+  if (pool) return pool;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const x = cv.getContext('2d')!;
+  const g = x.createRadialGradient(32, 32, 2, 32, 32, 32);
+  g.addColorStop(0, '#fff'); g.addColorStop(0.45, '#888'); g.addColorStop(1, '#000');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  pool = new THREE.CanvasTexture(cv);
+  return pool;
+}
 // ---------------------------------------------------------------- part B: debris, the skip, occupancy
 let soot: THREE.Texture | null = null;
 /** a soft blotch (soot, a water stain) as an alpha map */
@@ -586,10 +606,64 @@ function occupancy(g: THREE.Object3D): { grid: Uint8Array; wall: Uint8Array } {
 /** part B: a furniture kind's model (room-local, standing on y = 0, facing +Z); unregistered kinds stand as a crate */
 export const FURNITURE_MODELS = new Map<string, (mats: FMats) => THREE.Object3D>();
 export function registerFurnitureModel(kind: string, make: (mats: FMats) => THREE.Object3D) { FURNITURE_MODELS.set(kind, make); }
+/** part B: models for kinds made on demand (the exhibits: 'encl:moon_calf', 'case:pipe') */
+let modelResolver: ((kind: string, mats: FMats) => THREE.Object3D | null) | null = null;
+export function setFurnitureModelResolver(fn: typeof modelResolver) { modelResolver = fn; }
 
-export interface BuildOpts { finish?: RoomFinish; work?: RoomWork; loose?: boolean }
+export interface BuildOpts { finish?: RoomFinish; work?: RoomWork; loose?: boolean; built?: boolean }
+
+// ---------------------------------------------------------------- part B: the annex
+/** a new-built wing, empty: its purpose is what goes in it; two steel columns, a fresh skirting, a fuse board */
+function annexDress(c: Ctx): THREE.Vector3 {
+  const { b } = c;
+  for (const z of [-HALF + 0.12, HALF - 0.12]) b.add('paint', cbox(0.2, WALL_H, 0.2, 0.02), 0x4a5058, at(HALF - 0.12, WALL_H / 2, z));
+  b.add('metal', cbox(0.4, 0.55, 0.12, 0.01), 0x8a8e88, at(-0.6, 1.45, -HALF + 0.06));
+  b.add('lamp', cbox(0.03, 0.03, 0.01, 0.004), 0x6aff8a, at(-0.75, 1.62, -HALF + 0.125));
+  return new THREE.Vector3(0, 0.8, -0.2);
+}
+/** an annex plot before its wing: a fenced construction lot under a site lamp */
+function buildLot(id: RoomId, mats: FMats, seed: number): Diorama {
+  let s = 1 + seed * 7919;
+  const R = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
+  const g = new THREE.Group(); g.name = 'lot:' + id;
+  const b = new FacetBuilder(), ticks: ((t: number, dt: number) => void)[] = [];
+  // the ground: compacted hardcore over a slab, the footings for the walls to come, rebar starters
+  b.add('concrete', jitter(cbox(HALF * 2 + 0.3, 0.12, HALF * 2 + 0.3, 0.02), 0.01, 3), 0x5e5a52, at(0, -0.06, 0), { rep: 0.6 });
+  for (let i = 0; i < 70; i++) { const r = 0.03 + R() * 0.05; b.add('concrete', jitter(cbox(r, r * 0.6, r, r * 0.3), r * 0.3, i), [0x7a766c, 0x6a665e, 0x8a8478][i % 3], at((R() - 0.5) * 4, r * 0.25, (R() - 0.5) * 4, R(), R() * 3, 0)); }
+  b.add('concrete', cbox(HALF * 2, 0.14, 0.3, 0.01), 0x9a968c, at(0, 0.07, -HALF + 0.1));
+  b.add('concrete', cbox(0.3, 0.14, HALF * 2, 0.01), 0x9a968c, at(-HALF + 0.1, 0.07, 0));
+  for (let i = 0; i < 9; i++) { b.add('rust', prism(0.008, 0.5, 4), 0x8a5a3a, at(-HALF + 0.3 + i * 0.45, 0.35, -HALF + 0.1)); b.add('rust', prism(0.008, 0.5, 4), 0x8a5a3a, at(-HALF + 0.1, 0.35, -HALF + 0.3 + i * 0.45)); }
+  // survey stakes with hazard tape round the plot
+  const stakes: [number, number][] = [[-1.95, -1.95], [1.95, -1.95], [1.95, 1.95], [-1.95, 1.95]];
+  for (const [x, z] of stakes) { b.add('wood', cbox(0.05, 0.8, 0.05, 0.006), 0xb89a6a, at(x, 0.4, z)); b.add('paint', cbox(0.055, 0.08, 0.055, 0.004), 0xd83a2a, at(x, 0.78, z)); }
+  for (let i = 0; i < 4; i++) { const [x0, z0] = stakes[i], [x1, z1] = stakes[(i + 1) % 4]; const L = Math.hypot(x1 - x0, z1 - z0); b.add('hazard', cbox(L, 0.06, 0.006, 0.001), 0xffffff, at((x0 + x1) / 2, 0.68 - (i % 2) * 0.02, (z0 + z1) / 2, 0, -Math.atan2(z1 - z0, x1 - x0), 0.01)); }
+  // a pallet of breeze blocks, a sand heap, stacked I-beams, a cement mixer, a tarp over bagged cement
+  b.add('wood', cbox(1.0, 0.12, 0.8, 0.01), 0xa8865a, at(-1.1, 0.06, 0.9), { grain: 'x' });
+  for (let k = 0; k < 18; k++) b.add('concrete', cbox(0.38, 0.19, 0.19, 0.01), 0x9a968c, at(-1.4 + (k % 3) * 0.4, 0.22 + Math.floor(k / 9) * 0.2, 0.62 + (Math.floor(k / 3) % 3) * 0.24), { rep: 0.4 });
+  b.add('sponge', lathe([[0, 0], [0.6, 0], [0.35, 0.22], [0.1, 0.34], [0, 0.35]], 10), 0xc8a870, at(1.0, 0, 1.1));
+  for (let k = 0; k < 4; k++) { b.add('rust', cbox(2.2, 0.03, 0.16, 0.004), 0x6a4a34, at(0.2, 0.04 + k * 0.16, -0.9 + (k % 2) * 0.05)); b.add('rust', cbox(2.2, 0.12, 0.02, 0.004), 0x7a5a40, at(0.2, 0.11 + k * 0.16, -0.9 + (k % 2) * 0.05)); b.add('rust', cbox(2.2, 0.03, 0.16, 0.004), 0x6a4a34, at(0.2, 0.18 + k * 0.16, -0.9 + (k % 2) * 0.05)); }
+  const mx = 1.3, mz = -1.3;
+  b.add('paint', lathe([[0, 0], [0.12, 0], [0.26, 0.18], [0.27, 0.36], [0.16, 0.56], [0.12, 0.6], [0, 0.6]], 12), 0xd86a1a, at(mx, 0.38, mz - 0.15, 0.9, 0.4, 0));
+  b.add('rubber', lathe([[0, 0], [0.11, 0], [0.11, 0.02], [0, 0.02]], 12), 0x1a1a14, at(mx + 0.02, 0.6, mz + 0.38, 0.9, 0.4, 0));
+  for (const sx of [-0.25, 0.25]) b.add('metal', cbox(0.05, 0.6, 0.05, 0.008), 0x3a3a34, at(mx + sx, 0.3, mz));
+  for (const sx of [-0.3, 0.3]) b.add('rubber', prism(0.14, 0.08, 10), 0x1a1a1a, at(mx + sx, 0.14, mz + 0.25, 0, 0, Math.PI / 2));
+  b.add('sponge', jitter(cbox(0.8, 0.45, 0.6, 0.1, 0.1), 0.04, 5), 0x3a5a6a, at(-1.2, 0.22, -1.1, 0, 0.3, 0));
+  // the site lamp on its tripod, lit amber
+  for (let k = 0; k < 3; k++) { const a = k / 3 * Math.PI * 2; b.add('metal', cbox(0.03, 1.7, 0.03, 0.006), 0x2a2a24, at(0.2 + Math.cos(a) * 0.25, 0.8, 1.6 + Math.sin(a) * 0.25, Math.sin(a) * 0.15, 0, -Math.cos(a) * 0.15)); }
+  b.add('metal', cbox(0.36, 0.26, 0.16, 0.02), 0x3a3a34, at(0.2, 1.75, 1.6, -0.5, 0, 0));
+  b.add('lamp', cbox(0.3, 0.2, 0.01, 0.004), 0xffd090, at(0.2, 1.7, 1.52, -0.5, 0, 0));
+  // a cone and a wheelbarrow
+  b.add('paint', lathe([[0, 0], [0.12, 0], [0.03, 0.4], [0, 0.4]], 8), 0xe85a1a, at(1.7, 0, 0.2));
+  b.add('hazard', lathe([[0.075, 0.18], [0.06, 0.24], [0.06, 0.24]], 8), 0xffffff, at(1.7, 0, 0.2));
+  b.add('metal', lathe([[0, 0], [0.2, 0], [0.35, 0.22], [0, 0.22]], 6), 0x4a6a4a, at(-0.2, 0.25, 1.0, 0, 0.6, 0));
+  b.add('rubber', prism(0.12, 0.06, 10), 0x1a1a1a, at(-0.45, 0.12, 0.8, 0, 0.6, Math.PI / 2));
+  g.add(b.build(mats));
+  const grid = new Uint8Array(GN * GN).fill(1), wall = new Uint8Array(GN * 2).fill(1);
+  return { group: g, light: new THREE.Vector3(0.2, 1.9, 1.3), color: 0xffb860, powered: false, focus: new THREE.Vector3(0, 0.5, 0), tick: (t, dt) => { for (const f of ticks) f(t, dt); }, grid, wall, debris: [], skip: null, grime: [], practicals: [{ p: new THREE.Vector3(0.2, 1.5, 1.2), color: 0xffb860, k: 1 }] };
+}
 /** build one room's diorama (room-local: centre of the floor at the origin, the open sides toward +X and +Z) */
 export function buildRoom(id: RoomId, cond: Condition, locked: boolean, mats: FMats, seed = 1, furniture: Furniture[] = [], o: BuildOpts = {}): Diorama {
+  if (id.startsWith('annex') && !o.built) return buildLot(id, mats, seed);
   let s = 1 + seed * 7919;
   const R = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
   const g = new THREE.Group();
@@ -597,7 +671,7 @@ export function buildRoom(id: RoomId, cond: Condition, locked: boolean, mats: FM
   const x = extMats(mats);
   const c: Ctx = { b: new FacetBuilder(), g, R, on: !locked && cond >= 2, cond, ticks: [], mats, x, finish: o.finish, grime: [], gb: new FacetBuilder() };
   shell(c, id);
-  const focus = ROOMS[id](c);
+  const focus = ROOMS[id]?.(c) ?? annexDress(c);
   condition(c, id, locked);
   // the room's own fixtures, before the debris and the furniture: what build mode cannot stand on
   const fixed = new THREE.Group();
@@ -605,6 +679,8 @@ export function buildRoom(id: RoomId, cond: Condition, locked: boolean, mats: FM
   for (const ch of [...g.children]) if (!(ch as THREE.Mesh).userData?.noGlow) fixed.add(ch);
   g.add(fixed);
   const occ = occupancy(g);
+  // the set dressing (pipes, vents, the ceiling's edge, notice boards, clutter) in the space the fixtures leave
+  const practicals = dressRoom({ b: c.b, g, R, cond, on: c.on, mats, grid: occ.grid, wall: occ.wall, ticks: c.ticks, grime: c.grime, locked }, id);
   const pieces: DebrisPiece[] = [];
   let skip: THREE.Object3D | null = null;
   if (cond === 0) debris(c, id, occ.grid, o.work, !!o.loose, pieces);
@@ -612,11 +688,23 @@ export function buildRoom(id: RoomId, cond: Condition, locked: boolean, mats: FM
   for (const f of furniture) {
     const make = FURNITURE_MODELS.get(f.kind);
     let fo: THREE.Object3D;
-    if (make) fo = make(mats);
+    const made = make ? null : modelResolver?.(f.kind, mats) ?? null;
+    if (made) fo = made;
+    else if (make) fo = make(mats);
     else { const fb = new FacetBuilder(); fb.add('wood', cbox(0.5, 0.4, 0.4, 0.02), 0xa88a5a, at(0, 0.2, 0)); fo = fb.build(mats); }
-    fo.position.set(f.x, 0, f.z); fo.rotation.y = f.rot; fo.userData.furniture = f.uid;
-    fo.traverse((q) => { q.userData.furniture = f.uid; });
+    fo.position.set(f.x, f.y ?? 0, f.z); fo.rotation.y = f.rot; fo.userData.furniture = f.uid;
+    fo.traverse((q) => { q.userData.furniture = f.uid; const tk = q.userData.tick as ((t: number, dt: number) => void) | undefined; if (tk) c.ticks.push(tk); });
     g.add(fo);
+  }
+  // a gallery's light: a warm pool of light on the floor round every exhibit, the room's own light turned down
+  const exhibit = !!purposeOf(furniture.map((f) => f.kind));
+  if (exhibit) for (const f of furniture) {
+    if (!/^(encl|case|jar):/.test(f.kind) || f.y) continue;
+    const sp = furnSpec(f.kind);
+    if (!sp) continue;
+    const pool = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: f.kind.startsWith('encl') ? 0xa8c8ff : 0xffd8a0, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, alphaMap: poolMap(), toneMapped: false }));
+    pool.rotation.set(-Math.PI / 2, 0, -f.rot); pool.scale.set(sp.w * 1.7, sp.d * 1.9, 1); pool.position.set(f.x, 0.012, f.z); pool.renderOrder = 2; pool.userData.noGlow = true;
+    g.add(pool);
   }
   if (!c.b.empty) g.add(c.b.build(x as unknown as FMats));
   if (!c.gb.empty) { const gg = c.gb.build(mats); gg.name = 'grime'; g.add(gg); c.grime.push(gg); }
@@ -625,6 +713,6 @@ export function buildRoom(id: RoomId, cond: Condition, locked: boolean, mats: FM
   return {
     group: g, light: new THREE.Vector3(0, WALL_H - 0.35, -0.3), color, powered: c.on, focus,
     tick: (t, dt) => { for (const f of c.ticks) f(t, dt); },
-    grid: occ.grid, wall: occ.wall, debris: pieces, skip, grime: c.grime,
+    grid: occ.grid, wall: occ.wall, debris: pieces, skip, grime: c.grime, practicals, exhibit,
   };
 }

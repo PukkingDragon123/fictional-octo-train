@@ -3,8 +3,10 @@
 // Continue / New Game, New Game / Co-op, Options, Quit. A new game plays THE OFFER (front/offer.ts: Dr. Calder
 // hands the unit a run-down wing; the contract is signed by hand) and then comes down onto THE FACILITY MAP
 // (front/facilityMap.ts), the main menu: every room of the wing as a diorama in its condition
-// (src/game/facility.ts). A room pressed on the map flies the camera into it and cuts into its own screen:
-// the rooms below are those screens. Esc from a room comes back out to the map; Esc on the map, to the title.
+// (src/game/facility.ts). A room pressed on the map flies the camera down into it (a crane move under letterbox
+// bars) and holds on its close-up, the works (front/build/works.ts: restoring it, build mode, the zoo and the
+// museum, the annex): its own screen is one press away there (the rooms below are those screens). Esc from a room
+// comes back out to the map; Esc on the map, to the title.
 //
 // (before round 26) Title screen: THE MONITOR ROOM (monitor/monitorRoom.ts), a dim Meridian
 // observation booth whose bank of CRTs shows three live feeds, the three parts
@@ -673,6 +675,7 @@ class TitleRoom {
       void this.black(false, 1600);
       await this.map.reveal(4200);
       this.focusMap();
+      this.works?.takings();
     } finally { this.moving = false; }
   }
   /** a new game: the offer, then down onto the derelict wing */
@@ -737,7 +740,8 @@ class TitleRoom {
     (document.activeElement as HTMLElement | null)?.blur?.();
     this.stage.hoverKey(null);
     sfx('confirm', 0.6);
-    try { await map.focus(id); } finally { this.moving = false; }
+    this.works?.letterbox(true);
+    try { await map.focus(id); } finally { this.moving = false; this.works?.letterbox(false); }
     this.buildHud();
     if (direct && screenOpen(id)) { await this.intoScreen(id); return; }
     this.works?.open(id);
@@ -761,7 +765,8 @@ class TitleRoom {
     if (!this.map?.focused || this.moving) return;
     this.works?.close();
     this.moving = true;
-    try { await this.map.unfocus(); } finally { this.moving = false; }
+    this.works?.letterbox(true);
+    try { await this.map.unfocus(); } finally { this.moving = false; this.works?.letterbox(false); }
     this.buildHud();
     this.focusMap();
   }

@@ -56,3 +56,13 @@ function all(): Map<string, number> {
 export const facilityMul = (s: string) => (s in ADD ? 1 : all().get(s) ?? 1);
 /** the wing's bonus for an additive stat (carry) */
 export const facilityAdd = (s: string) => (s in ADD ? all().get(s) ?? 0 : 0);
+
+// ---------------------------------------------------------------- inhabitants tamed in the runs (the zoo's stock)
+const TAMED = 'noclip.tamed';
+bus.on('tamed', (_p: unknown, c: { sp?: { key?: string }; species?: string } | undefined) => {
+  const k = c?.sp?.key ?? c?.species;
+  if (!k) return;
+  try { const l = JSON.parse(localStorage.getItem(TAMED) || '[]') as string[]; if (!l.includes(k)) { l.push(k); localStorage.setItem(TAMED, JSON.stringify(l)); } } catch { /* storage blocked */ }
+});
+/** the inhabitants ever tamed on this browser */
+export function tamedKeys(): string[] { try { return JSON.parse(localStorage.getItem(TAMED) || '[]'); } catch { return []; } }

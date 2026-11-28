@@ -1,7 +1,7 @@
 // THE TITLE'S FRONT (round 26): what floats over the hall (front/hall.ts). The crest comes up out of the dark,
 // then LIMBO PHOBIA resolves letter by letter in Alagard (bone white, cut in relief, a phosphor fringe and fine
-// scan lines, a slow light passing over it), the sky flashes as the last letter lands, and the four choices drift
-// in under it: plain floating words, slightly raised, no icons and no frames. Hover or arrow onto one and it
+// scan lines, a slow light passing over it), the sky flashes as the last letter lands, the logo lifts away (no logo
+// on the menu screen: it is a boot reveal only) and the four choices drift in over the hall: plain floating words, slightly raised, no icons and no frames. Hover or arrow onto one and it
 // leans out of the line and warms, with a relay tick. A film layer (grain, vignette, thin letterbox) sits over
 // the whole screen. Any key or click skips the reveal. QUIT on the web fades the wing out to the crest alone.
 //   const f = new FrontEnd(root, { strike })
@@ -98,7 +98,7 @@ export class FrontEnd {
     at(2600, () => { this.el.classList.add('lit'); });
     at(4300, () => { this.o.strike?.(1); sample('dread_hit', 0.4); this.el.classList.add('flash'); });
     at(4700, () => this.el.classList.remove('flash'));
-    at(5200, () => { this.el.classList.add('menu'); this.shown = true; this.focusFirst(); });
+    at(6000, () => { this.el.classList.add('menu'); this.shown = true; this.focusFirst(); });
     // a key or a click skips to the end
     const skip = (e: Event) => {
       if (this.el.classList.contains('menu')) return;
@@ -108,7 +108,7 @@ export class FrontEnd {
     };
     window.addEventListener('keydown', skip, true);
     window.addEventListener('pointerdown', skip, true);
-    at(5300, () => { window.removeEventListener('keydown', skip, true); window.removeEventListener('pointerdown', skip, true); });
+    at(6100, () => { window.removeEventListener('keydown', skip, true); window.removeEventListener('pointerdown', skip, true); });
   }
   /** the words and the logo go (a choice was made); resolves when they are out */
   leave(): Promise<void> {

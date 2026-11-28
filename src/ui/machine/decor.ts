@@ -723,7 +723,9 @@ export type IconKind = 'gear' | 'wrench' | 'play' | 'tape' | 'clipboard' | 'door
   | 'club' | 'medkit' | 'pot' | 'sprout' | 'pail'
   // round 26 (the facility's works, src/ui/menus/front/build/icons.ts): a bunk, an enamel mug, a pill bottle, a skip,
   // a paint roller, a mop bucket
-  | 'bunk' | 'mug' | 'pills' | 'skip' | 'roller' | 'mop';
+  | 'bunk' | 'mug' | 'pills' | 'skip' | 'roller' | 'mop'
+  // the zoo and the museum: a brass laurel medal (prestige), a glass display case, an exhibit enclosure
+  | 'laurel' | 'vitrine' | 'cage';
 /** icon models built outside this file (registered before their first sheet is drawn) */
 export interface IconExtra { build(m: Mold, g: THREE.Group, u: number): void; glow?: [number, number, number]; free?: boolean }
 export const ICON_EXTRA = new Map<IconKind, IconExtra>();

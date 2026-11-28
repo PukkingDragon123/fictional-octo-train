@@ -2,7 +2,7 @@
 // costs (dollars and matter) and the facility stats it raises (src/game/facility.ts FacilityStat; what those do
 // in the runs: src/game/facilityFx.ts). Light on imports, so the effects can register it early; the paying is
 // src/game/facilityCatalog.ts, the models src/ui/menus/front/build/models.ts.
-import { ROOMS, registerFurniture, type Bonuses, type RoomFinish, type RoomId } from './facility';
+import { ROOMS, registerFurniture, furnitureResolver, type Bonuses, type RoomFinish, type RoomId } from './facility';
 
 /** the debris a derelict room holds (the pieces the player carries into the skip) */
 export const debrisCount = (id: RoomId) => 7 + (ROOMS.findIndex((d) => d.id === id) % 3);
@@ -12,7 +12,13 @@ export interface Cost { $: number; m?: Partial<Record<'metal' | 'polymer' | 'fib
 type Matter = Cost['m'];
 
 export type Layer = 'floor' | 'wall' | 'rug';
-export interface FurnSpec { kind: string; name: string; stats: Bonuses; cost: Cost; cat: 'furniture' | 'decor'; layer: Layer; w: number; d: number }
+export interface FurnSpec {
+  kind: string; name: string; stats: Bonuses; cost: Cost; cat: 'furniture' | 'decor' | 'zoo' | 'museum'; layer: Layer; w: number; d: number;
+  /** small enough to stand on a desk, a shelf, a counter (build mode stacks it on whatever surface is under it) */
+  small?: boolean;
+  /** the Institute's prestige it waits for (a higher tier of the stores) */
+  prestige?: number;
+}
 const F = (kind: string, name: string, stats: Bonuses, $: number, m: Matter | undefined, w: number, d: number, cat: FurnSpec['cat'] = 'furniture', layer: Layer = 'floor'): FurnSpec =>
   ({ kind, name, stats, cost: { $, m }, cat, layer, w, d });
 /** the stores: footprints in metres (w across, d deep, before turning) */
@@ -51,10 +57,68 @@ export const FURN: FurnSpec[] = [
   F('rug_kilim', 'Kilim rug', { morale: 1 }, 15, undefined, 1.5, 2.0, 'decor', 'rug'),
   F('rug_runner', 'Wool runner', { rest: 1 }, 18, undefined, 1.0, 2.5, 'decor', 'rug'),
   F('rug_mat', 'Rubber mat', { craft: 1 }, 10, undefined, 1.5, 1.0, 'decor', 'rug'),
+  // small things that stand on surfaces, and more for the walls
+  { ...F('radio_s', 'Wireless', { morale: 1 }, 12, undefined, 0.5, 0.25, 'decor'), small: true },
+  { ...F('microscope', 'Microscope', { research: 1 }, 30, { mineral: 1 }, 0.25, 0.25, 'decor'), small: true },
+  { ...F('kettle', 'Kettle', { morale: 1 }, 8, undefined, 0.25, 0.25, 'decor'), small: true },
+  { ...F('chemset', 'Glassware', { research: 1 }, 20, undefined, 0.5, 0.25, 'decor'), small: true },
+  { ...F('bunsen', 'Burner', { craft: 1 }, 10, undefined, 0.25, 0.25, 'decor'), small: true },
+  { ...F('plant_s', 'Cutting', { sanity: 1 }, 6, undefined, 0.25, 0.25, 'decor'), small: true },
+  { ...F('toolbox_s', 'Toolbox', { craft: 1 }, 15, undefined, 0.5, 0.25, 'decor'), small: true },
+  F('lamp_w', 'Wall lamp', { sanity: 1 }, 12, undefined, 0.5, 0.1, 'decor', 'wall'),
+  F('clock_w', 'Wall clock', { morale: 1 }, 10, undefined, 0.5, 0.1, 'decor', 'wall'),
+  F('shelf_w', 'Wall shelf', { storage: 1 }, 12, undefined, 1.0, 0.1, 'decor', 'wall'),
 ];
+// the stores' higher tiers wait for the Institute's prestige
+const TIER_P: Record<string, number> = { hospbed: 4, hydro: 4, crtbank: 6, labbench: 6, vending: 8, armoury: 10, welder: 4 };
+for (const f of FURN) if (TIER_P[f.kind]) f.prestige = TIER_P[f.kind];
 export const FURN_BY = new Map(FURN.map((f) => [f.kind, f]));
 for (const f of FURN) registerFurniture({ kind: f.kind, name: f.name, stats: f.stats });
-export const furnSpec = (kind: string) => FURN_BY.get(kind);
+
+// ---------------------------------------------------------------- the zoo and the museum of the liminal
+/** an inhabitant that can live in an exhibit enclosure: its threat (prestige), its height (how it fits), its habitat */
+export interface ZooSp { key: string; name: string; threat: number; h: number; hab: 'carpet' | 'straw' | 'moss' | 'tile' | 'water' | 'paper'; mod: string }
+export const ZOO: ZooSp[] = [
+  { key: 'moon_calf', name: 'Moon Calf', threat: 0, h: 0.85, hab: 'straw', mod: 'moon_calf' },
+  { key: 'pale_hen', name: 'Pale Hen', threat: 0, h: 0.52, hab: 'straw', mod: 'pale_hen' },
+  { key: 'hum_possum', name: 'Hum Possum', threat: 0, h: 0.36, hab: 'carpet', mod: 'hum_possum' },
+  { key: 'lumenmoth', name: 'Lumenmoth', threat: 0, h: 0.4, hab: 'moss', mod: 'lumenmoth' },
+  { key: 'tallow_pigeon', name: 'Tallow Pigeon', threat: 0, h: 0.32, hab: 'tile', mod: 'tallow_pigeon' },
+  { key: 'plushkin', name: 'Plushkin', threat: 0, h: 0.42, hab: 'carpet', mod: 'plushkin' },
+  { key: 'carpet_grub', name: 'Carpet Grub', threat: 0, h: 0.16, hab: 'carpet', mod: 'carpet_grub' },
+  { key: 'paper_grazer', name: 'Paper Grazer', threat: 0, h: 0.08, hab: 'paper', mod: 'paper_grazer' },
+  { key: 'spore_rat', name: 'Spore Rat', threat: 2, h: 0.25, hab: 'moss', mod: 'spore_rat' },
+  { key: 'parasite_salamander', name: 'Salamander', threat: 3, h: 0.3, hab: 'water', mod: 'salamander' },
+  { key: 'stilt_gull', name: 'Stilt Gull', threat: 3, h: 1.8, hab: 'water', mod: 'stilt_gull' },
+  { key: 'whip_rat', name: 'Whip Rat', threat: 4, h: 1.4, hab: 'tile', mod: 'whip_rat' },
+  { key: 'battering_hare', name: 'Battering Hare', threat: 4, h: 3.6, hab: 'carpet', mod: 'battering_hare' },
+  { key: 'gaunt_wolf', name: 'Gaunt Wolf', threat: 5, h: 5.6, hab: 'moss', mod: 'gaunt_wolf' },
+];
+export const ZOO_BY = new Map(ZOO.map((z) => [z.key, z]));
+/** an exhibit's kind: 'encl:<inhabitant>' (an enclosure), 'jar:<inhabitant>' (a specimen), 'case:<item>' (a find in a case) */
+export function exhibitSpec(kind: string): FurnSpec | undefined {
+  const [pre, key] = kind.split(':');
+  if (!key) return undefined;
+  if (pre === 'encl') {
+    const z = ZOO_BY.get(key); if (!z) return undefined;
+    return { kind, name: z.name, cat: 'zoo', layer: 'floor', w: 2.0, d: 1.5, prestige: z.threat >= 4 ? 30 : z.threat >= 3 ? 15 : 0, cost: { $: 60 + 35 * z.threat, m: { mineral: 3, metal: 3 + z.threat } }, stats: { prestige: 3 + 2 * z.threat, income: 1 + z.threat, research: 1, morale: 1 } };
+  }
+  if (pre === 'jar') {
+    const z = ZOO_BY.get(key); if (!z) return undefined;
+    return { kind, name: z.name, cat: 'museum', layer: 'floor', w: 0.5, d: 0.5, small: true, cost: { $: 20 + 5 * z.threat, m: { mineral: 1, chem: 1 } }, stats: { prestige: 2 + z.threat, research: 2 } };
+  }
+  if (pre === 'case') return { kind, name: key.replace(/_/g, ' '), cat: 'museum', layer: 'floor', w: 0.75, d: 0.75, cost: { $: 25, m: { mineral: 1, wood: 1 } }, stats: { prestige: 2, income: 1, research: 1 } };
+  return undefined;
+}
+furnitureResolver((kind) => exhibitSpec(kind));
+export const furnSpec = (kind: string) => FURN_BY.get(kind) ?? exhibitSpec(kind);
+/** a room's purpose by what is in it: a containment wing (enclosures), a museum hall (cases and specimens), or its own */
+export function purposeOf(kinds: string[]): 'zoo' | 'museum' | null {
+  const e = kinds.filter((k) => k.startsWith('encl:')).length, m = kinds.filter((k) => k.startsWith('case:') || k.startsWith('jar:')).length;
+  if (e && e * 2 >= m) return 'zoo';
+  if (m >= 2) return 'museum';
+  return null;
+}
 
 export type FinishPart = keyof RoomFinish;
 export interface FinishSpec { key: string; part: FinishPart; name: string; cost: Cost; color: number; mat: string }

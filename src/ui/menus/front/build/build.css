@@ -44,3 +44,19 @@
 .fw-heldkeys[hidden] { display: none; }
 .fw-subs .ix-sub { bottom: calc(15vh + 3.2vh); }
 .fw[data-mode="build"] ~ .fw-subs .ix-sub { bottom: auto; top: 12vh; }
+.fw-chip.fw-pur { margin-right: 6px; }
+.fw-chip.fw-pur canvas { filter: drop-shadow(0 0 8px rgba(255, 220, 140, .45)) drop-shadow(1px 2px 0 rgba(11, 10, 7, .8)); }
+.fw-tag.locked { opacity: .7 !important; }
+.fw-tabs .fw-snap:not(.on) .fi-m, .fw-tabs .fw-snap:not(.on) canvas { filter: saturate(.4) brightness(.75); }
+/* the film's bars for a key moment: a flight into a room, a cinematic */
+.fw-lb { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+.fw-lb i { position: absolute; left: 0; right: 0; height: 0; background: #000; transition: height .9s cubic-bezier(.4, 0, .2, 1); }
+.fw-lb i:first-child { top: 0; } .fw-lb i:last-child { bottom: 0; }
+.fw-lb.on i { height: 9.5vh; }
+/* the exhibits' takings: the coin, the numbers, floating up over the map and fading */
+.fw-take { position: absolute; left: 50%; top: 22vh; transform: translateX(-50%); z-index: 9; display: flex; gap: 22px; align-items: center; pointer-events: none;
+  font-family: var(--font-new); font-size: 30px; text-shadow: 2px 2px 0 #0b0a07, -1px -1px 0 #0b0a07, 1px -1px 0 #0b0a07, -1px 1px 0 #0b0a07; animation: fw-take 3.4s cubic-bezier(.2, .8, .2, 1) both; }
+.fw-take .fw-cost { font-size: 30px; }
+.fw-take .fw-rp { display: inline-flex; align-items: center; gap: 4px; color: #c8f0a0; font-weight: 400; }
+.fw-take.out { opacity: 0; transition: opacity .9s; }
+@keyframes fw-take { from { opacity: 0; transform: translate(-50%, 24px); } 20% { opacity: 1; } to { transform: translate(-50%, -10px); } }
