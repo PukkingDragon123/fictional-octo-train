@@ -7,6 +7,7 @@ import { serializeContainer, deserializeContainer } from '../items/factory';
 import { peekUid, restoreUidCounter, setUidBase } from '../core/rng';
 import type { Player } from '../entities/player';
 import type { Body } from '../survival/body';
+import { serializeFacility, loadFacility } from './facility';
 
 export const SAVE_VERSION = 1;
 
@@ -35,6 +36,8 @@ export interface SaveData {
   checkpoint?: CheckpointInfo;
   /** round 15: how many times a unit has re-entered this world from a checkpoint */
   reentries?: number;
+  /** round 26: the facility the operator is restoring (src/game/facility.ts) */
+  facility?: any;
 }
 /** a held checkpoint: the snapshot lives in the 'saves' store under `id` (no meta row, so it is not a slot of its own) */
 export interface CheckpointInfo { id: string; label: string; zone: string; zoneName: string; at: number; x: number; y: number; day: number }
@@ -155,6 +158,7 @@ export function snapshotGame(name?: string): SaveData {
     lineage: (G as unknown as { lineage?: string }).lineage || id,
     checkpoint: (G as unknown as { checkpoint?: CheckpointInfo | null }).checkpoint || undefined,
     reentries: (G as unknown as { reentries?: number }).reentries || undefined,
+    facility: serializeFacility(),
     playMinutes: (G.playMinutes || 0) + (performance.now() - (G.sessionStart || 0)) / 60000,
   };
 }
@@ -194,5 +198,6 @@ export function restoreAfterLoad(s: SaveData) {
   for (const [zk, f] of Object.entries(s.fires || {})) { const z = G.getZone(zk); z.meta.fires = f; }
   if (s.vehicles) { for (const v of s.vehicles) G.getZone(v.zone); (G as any).vehicles?.load?.(s.vehicles); }
   if (s.debt?.ledger) G.debt?.load?.(s.debt.ledger);
+  if (s.facility) { try { loadFacility(s.facility); } catch (e) { console.warn('facility', e); } }
   if (s.debt?.band && G.band) for (const [id, st] of s.debt.band) if (!G.band.st.has(id)) G.band.st.set(id, st);
 }

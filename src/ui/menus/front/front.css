@@ -1,0 +1,100 @@
+/* THE TITLE'S FRONT (src/ui/menus/front/front.ts): the logo's reveal, the four floating choices, the film layer.
+   Alagard sits on a 16px grid, so every size here is a multiple of 16 (crisp strokes). No boxes, no frames:
+   letters with depth, light and a fringe. */
+.fr { position: absolute; inset: 0; z-index: 6; pointer-events: none; font-family: var(--font-title); color: #e9e3d2; opacity: 0; transition: opacity 1.4s ease; }
+.fr.on { opacity: 1; }
+.fr.gone { opacity: 0; transition: opacity .7s ease; }
+.fr.gone .fr-item { pointer-events: none; }
+
+/* ---- the logo */
+.fr-logo { position: absolute; left: clamp(28px, 8vw, 150px); top: clamp(44px, 13vh, 150px); display: flex; flex-direction: row; align-items: center; gap: 26px; transition: opacity 1s, transform 1.4s; }
+.fr-crest { width: 128px; height: 128px; image-rendering: pixelated; margin: 0; flex: none; opacity: 0; transform: translateY(8px);
+  filter: brightness(.2) drop-shadow(0 0 0 rgba(255, 210, 140, 0)); transition: opacity 2.2s ease, transform 3.2s cubic-bezier(.2, .7, .2, 1), filter 2.6s ease; }
+.fr.crest .fr-crest { opacity: 1; transform: none; filter: brightness(1) drop-shadow(0 0 14px rgba(255, 196, 120, .28)) drop-shadow(3px 4px 0 rgba(0, 0, 0, .6)); }
+.fr.crest .fr-crest { animation: fr-crest-flick 7s 2.4s infinite; }
+@keyframes fr-crest-flick { 0%, 96%, 100% { opacity: 1; } 96.6% { opacity: .55; } 97.2% { opacity: 1; } 97.8% { opacity: .7; } }
+.fr-title { position: relative; display: flex; flex-direction: column; line-height: .9; }
+.fr-word { position: relative; display: flex; font-size: 96px; letter-spacing: .04em; white-space: nowrap;
+  /* the relief: stepped dark extrusion, a soft cast shadow */
+  filter: drop-shadow(1px 1px 0 #3a3226) drop-shadow(1px 1px 0 #241f18) drop-shadow(1px 2px 0 #15120e) drop-shadow(4px 10px 12px rgba(0, 0, 0, .7)); }
+.fr-word.b { font-size: 112px; margin-left: 40px; margin-top: -4px; }
+.fr-word span { display: inline-block; opacity: 0; transform: translateY(.12em) scale(1.06); filter: blur(10px);
+  /* bone white, cut through with fine scan lines, a light passing over it */
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 30%, rgba(255, 246, 220, .95) 46%, rgba(255, 255, 255, 0) 60%) no-repeat,
+              repeating-linear-gradient(to bottom, #f1ebda 0 3px, #b9b19c 3px 4px),
+              linear-gradient(to bottom, #fbf6e8, #cfc5ab 70%, #9e927a);
+  background-size: 300% 100%, 100% 100%, 100% 100%; background-position: 160% 0, 0 0, 0 0;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  transition: opacity 1.1s ease calc(var(--i) * 110ms), transform 1.6s cubic-bezier(.2, .8, .2, 1) calc(var(--i) * 110ms), filter 1.3s ease calc(var(--i) * 110ms); }
+.fr.lit .fr-word span { opacity: 1; transform: none; filter: none; animation: fr-sweep 9s ease-in-out calc(2.4s + var(--i) * 60ms) infinite; }
+@keyframes fr-sweep { 0%, 70% { background-position: 160% 0, 0 0, 0 0; } 100% { background-position: -60% 0, 0 0, 0 0; } }
+/* the phosphor fringe: a red and a cyan ghost a pixel either side, flickering now and then */
+.fr-word::before, .fr-word::after { content: attr(data-t); position: absolute; left: 0; top: 0; letter-spacing: inherit; pointer-events: none; opacity: 0; mix-blend-mode: screen; transition: opacity 2s ease 1.6s; }
+.fr-word::before { color: rgba(255, 60, 40, .55); transform: translateX(-2px); }
+.fr-word::after { color: rgba(60, 220, 255, .45); transform: translateX(2px); }
+.fr.lit .fr-word::before, .fr.lit .fr-word::after { opacity: .5; animation: fr-glitch 6.5s steps(1) 3s infinite; }
+@keyframes fr-glitch { 0%, 91%, 100% { transform: translateX(var(--gx, -2px)); clip-path: none; } 92% { transform: translateX(-7px); clip-path: inset(30% 0 48% 0); } 93% { transform: translateX(5px); clip-path: inset(62% 0 12% 0); } 94% { transform: translateX(-2px); clip-path: none; } }
+.fr-word::after { --gx: 2px; }
+.fr-rule { display: block; height: 2px; width: 0; margin: 22px 0 0 8px; background: linear-gradient(90deg, rgba(232, 200, 140, .9), rgba(232, 200, 140, 0)); box-shadow: 0 0 10px rgba(255, 200, 120, .35); transition: width 2.4s cubic-bezier(.2, .8, .2, 1) 1.2s; }
+.fr.lit .fr-rule { width: min(520px, 60vw); }
+.fr.flash .fr-word span { filter: brightness(1.8) drop-shadow(0 0 18px rgba(200, 220, 255, .8)); transition: filter .08s; }
+
+/* ---- the four choices: floating words, raised, leaning out and warming under the pointer */
+.fr-menu { position: absolute; left: calc(clamp(28px, 8vw, 150px) + 154px); bottom: calc(5.5vh + clamp(24px, 9vh, 110px)); display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+.fr-item { position: relative; display: block; padding: 4px 28px 6px 0; margin: 0; border: 0; background: none; cursor: pointer; text-align: left; outline: none;
+  font: inherit; font-size: 32px; letter-spacing: .06em; color: #cfc8b6; opacity: 0; transform: translateX(-26px); -webkit-tap-highlight-color: transparent;
+  transition: opacity 1.2s ease calc(var(--n) * 160ms), transform 1.6s cubic-bezier(.2, .8, .2, 1) calc(var(--n) * 160ms), color .35s ease; }
+.fr.menu .fr-item { opacity: .84; transform: none; }
+.fr-t { position: relative; display: inline-block; transition: transform .7s cubic-bezier(.2, .8, .2, 1), text-shadow .5s ease, color .4s;
+  text-shadow: 1px 1px 0 #2a251d, 2px 2px 0 #1c1913, 3px 3px 0 #110f0b, 0 0 2px #000, 4px 9px 12px rgba(0, 0, 0, .65); }
+/* a thin light drawn under the hot word, from its first letter outward */
+.fr-t::after { content: ''; position: absolute; left: 2px; right: -10px; bottom: -6px; height: 2px; transform: scaleX(0); transform-origin: left;
+  background: linear-gradient(90deg, rgba(255, 214, 150, .95), rgba(255, 214, 150, 0)); box-shadow: 0 0 8px rgba(255, 200, 120, .5); transition: transform .8s cubic-bezier(.2, .8, .2, 1); }
+.fr-item:hover, .fr-item:focus-visible, .fr-item:focus { color: #fff4dc; opacity: 1 !important; }
+.fr-item:hover .fr-t, .fr-item:focus .fr-t { transform: translateX(16px) translateY(-1px);
+  text-shadow: 1px 1px 0 #3a2e1e, 2px 2px 0 #271f14, 3px 3px 0 #18130c, 4px 4px 0 #0e0b07, 0 0 18px rgba(255, 196, 120, .35), 6px 12px 14px rgba(0, 0, 0, .7); }
+.fr-item:hover .fr-t::after, .fr-item:focus .fr-t::after { transform: scaleX(1); }
+.fr-item.hit .fr-t { animation: fr-hit .5s ease-out; }
+@keyframes fr-hit { 0% { filter: brightness(2.2); } 100% { filter: none; } }
+.fr.picked .fr-item:not(.hit) { opacity: 0 !important; transform: translateX(-18px); transition-delay: 0s; transition-duration: .6s; }
+.fr.picked .fr-logo { opacity: 0; transform: translateY(-10px); transition: opacity 1s ease .2s, transform 1.4s ease; }
+.fr.picked .fr-item.hit { opacity: 0 !important; transition: opacity .8s ease .35s; }
+.fr.quick .fr-word span, .fr.quick .fr-crest, .fr.quick .fr-item, .fr.quick .fr-rule { transition-delay: 0s !important; transition-duration: .5s !important; }
+
+/* ---- the film: grain, vignette, a thin letterbox */
+.fr-film { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; mix-blend-mode: overlay; opacity: .055; pointer-events: none; }
+.fr::before { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 80% 75% at 55% 50%, transparent 55%, rgba(0, 0, 0, .55) 100%), linear-gradient(90deg, rgba(0, 0, 0, .42), transparent 46%); }
+.fr-bars i { position: fixed; left: 0; right: 0; height: 5.5vh; background: #000; transition: transform 1.6s cubic-bezier(.6, 0, .2, 1); }
+.fr-bars i:first-child { top: 0; } .fr-bars i:last-child { bottom: 0; }
+.fr.gone .fr-bars i:first-child { transform: translateY(-100%); } .fr.gone .fr-bars i:last-child { transform: translateY(100%); }
+
+/* ---- QUIT on the web: the wing goes dark, the crest alone */
+.fr-off { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 1.8s ease; z-index: 3; }
+.fr-off .fr-crest { opacity: .0; transition: opacity 3s ease 1.6s; filter: brightness(.55); margin: 0; }
+.fr.dark .fr-off { opacity: 1; pointer-events: auto; cursor: pointer; }
+.fr.dark .fr-off .fr-crest { opacity: .5; transform: none; }
+
+@media (max-width: 760px), (max-height: 560px) {
+  .fr-crest { width: 64px; height: 64px; margin-bottom: 10px; }
+  .fr-word { font-size: 64px; } .fr-word.b { font-size: 64px; margin-left: 24px; }
+  .fr-logo { gap: 14px; } .fr-menu { bottom: calc(5.5vh + 20px); left: calc(clamp(28px, 8vw, 150px) + 78px); }
+  .fr-item { font-size: 32px; }
+}
+@media (prefers-reduced-motion: reduce) { .fr-word span, .fr-item, .fr-crest { transition-duration: .3s !important; transition-delay: 0s !important; animation: none !important; } }
+
+/* ---- round 26: the title room's views (src/ui/menus/title.ts): the front end hides the lab's own furniture */
+.nx-title.mr .tt3-menu, .nx-title.mr .tt3-cap { display: none !important; }
+.nx-title.mr[data-view="monitor"] .mr-hud { display: block; }
+.nx-title.mr[data-view="monitor"] .mr-hud .mr-banner { display: none; }
+.nx-title.mr:is([data-view="front"], [data-view="offer"], [data-view="map"]) .mr-hud,
+.nx-title.mr:is([data-view="front"], [data-view="offer"], [data-view="map"]) .mr-hotcap { display: none; }
+.fm-blk { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 40; }
+.fm-blk.on { opacity: 1; pointer-events: auto; }
+/* the map's global keys: floating icons along the top right, no words until hot */
+.fm-keys { position: absolute; right: max(3vw, 18px); top: calc(2.5vh + 8px); z-index: 6; display: flex; gap: 10px; pointer-events: auto; opacity: 0; transform: translateY(-8px); transition: opacity 1s ease .6s, transform 1.4s cubic-bezier(.2, .8, .2, 1) .6s; }
+.nx-title.mr[data-view="map"] .fm-keys { opacity: 1; transform: none; }
+.nx-title.mr:not([data-view="map"]) .fm-keys { display: none; }
+.nx-title.mr.paneled .fm-keys { visibility: hidden; }
+/* the map's film: a vignette and a cold edge */
+.nx-title.mr[data-view="map"] .mr-stage::before { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(ellipse 85% 80% at 50% 52%, transparent 60%, rgba(0, 0, 0, .5) 100%); }
+.fr:not(.menu) .fr-item, .fr.picked .fr-item { pointer-events: none; }

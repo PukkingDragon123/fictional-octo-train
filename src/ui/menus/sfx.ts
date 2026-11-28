@@ -255,7 +255,14 @@ export function loopSfx(kind: LoopKind): LoopSfx {
 // ---------------------------------------------------------------- the subject room's air: mains hum, the chair's buzz, distant drips
 let amb: { nodes: AudioNode[]; timer: number; out: GainNode } | null = null;
 /** start ('room') or stop (null) the menu ambience */
-export function ambience(kind: 'room' | null) {
+/** round 26: a recorded sample by its engine key (src/audio/sampleManifest.ts) at the UI volume; false when it has none */
+export function sample(key: string, vol = 1, rate = 1): boolean {
+  const ctx = context();
+  if (!ctx || ctx.state !== 'running') return false;
+  return playSample(ctx, key, volume() * vol * 0.9, { rate });
+}
+/** start ('room': the booth; 'hall': the title's derelict hall in the rain; 'map': the facility at night) or stop (null) the menu ambience */
+export function ambience(kind: 'room' | 'hall' | 'map' | null) {
   if (amb) { clearTimeout(amb.timer); try { amb.out.gain.setTargetAtTime(0, amb.out.context.currentTime, 0.3); } catch { /* closed */ } const a = amb; setTimeout(() => a.nodes.forEach((n) => { try { (n as any).stop?.(); n.disconnect(); } catch { /* gone */ } }), 1500); amb = null; }
   if (!kind) return;
   const ctx = context();
@@ -269,6 +276,14 @@ export function ambience(kind: 'room' | null) {
   amb = { nodes, timer: 0, out };
   // a loop that finishes decoding after this ambience was stopped is stopped at once
   const keep = (src: AudioBufferSourceNode) => { if (amb?.out === out) nodes.push(src); else { try { src.stop(); } catch { /* gone */ } } };
+  // round 26: the title's hall and the facility map: rain on tall windows, the tubes' hum, a low score, far thunder
+  if (kind !== 'room' && playSample(ctx, kind === 'hall' ? 'intro_drops' : 'rain', kind === 'hall' ? 0.55 : 0.32, { loop: true, dest: out, onSrc: keep })) {
+    playSample(ctx, 'hum_fluoro', kind === 'hall' ? 0.22 : 0.16, { loop: true, dest: out, onSrc: keep });
+    playSample(ctx, kind === 'hall' ? 'mus_drone' : 'mus_pads', kind === 'hall' ? 0.34 : 0.22, { loop: true, dest: out, onSrc: keep });
+    const far = () => { if (amb?.out !== out) return; playSample(ctx, Math.random() < 0.5 ? 'leviathan_rumble' : 'drip', 0.12 + Math.random() * 0.12, { dest: out, rate: 0.8 + Math.random() * 0.2 }); amb.timer = window.setTimeout(far, 7000 + Math.random() * 9000); };
+    amb.timer = window.setTimeout(far, 4000);
+    return;
+  }
   if (playSample(ctx, 'hum_fluoro', 0.55, { loop: true, dest: out, onSrc: keep })) {
     playSample(ctx, 'obs_room_hum', 0.45, { loop: true, dest: out, onSrc: keep });
     const drip = () => { if (amb?.out !== out) return; playSample(ctx, 'drip', 0.25 + Math.random() * 0.2, { dest: out }); amb.timer = window.setTimeout(drip, 1800 + Math.random() * 5200); };

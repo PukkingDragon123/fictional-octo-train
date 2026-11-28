@@ -21,6 +21,8 @@ export interface SubOpts {
   voice?: ChipVoice | null;
   /** seconds to hold after the last letter */
   hold?: number;
+  /** round 26: no voice (the cinematic lines play over the score alone) */
+  mute?: boolean;
 }
 
 interface Live { el: HTMLDivElement; chars: HTMLSpanElement[]; t: number[]; dur: number; age: number; hold: number; at?: SubOpts['at']; out: number }
@@ -76,7 +78,7 @@ export class Subs {
     const hold = o.hold ?? Math.max(1.1, Math.min(2.6, text.length * 0.045));
     this.cur = { el, chars, t, dur, age: 0, hold, at: o.at, out: -1 };
     // the voice, on the same clock
-    try {
+    if (!o.mute) try {
       const v = o.voice ?? (style === 'self' ? voiceFromApp(G.local?.app, G.local?.id ?? '') : voiceForStyle('guard', who));
       playLine(text, v, null, { shout, vol: style === 'self' ? 0.9 : 1 });
     } catch { /* no audio */ }

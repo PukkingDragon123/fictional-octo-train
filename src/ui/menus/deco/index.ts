@@ -124,7 +124,7 @@ export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unkno
   };
   const fbTimer = setInterval(() => { if (menuRooms().length) { clearInterval(fbTimer); return; } tryFallback(); if (fallbackRoom) clearInterval(fbTimer); }, 700);
   // ---- hidden while a panel / the creator / the game is up
-  const hidden = () => document.hidden || ['lit', 'paneled', 'playing', 'diving'].some((c) => root.classList.contains(c)) || !root.isConnected || !!document.querySelector('.ik3.on, .ik4.on, .ps.on');
+  const hidden = () => document.hidden || ['lit', 'paneled', 'playing', 'diving', 'frontend'].some((c) => root.classList.contains(c)) || !root.isConnected || !!document.querySelector('.ik3.on, .ik4.on, .ps.on');
   // ---- the guide
   const guide = new Guide({
     room: current,
