@@ -49,6 +49,7 @@ import type { Player } from '../../entities/player';
 import type { Zone, TileObject } from '../../world/zone';
 import type { MenuOption } from '../../ui/ui';
 import { itemValue, objectValue, objKeyValue, isRejected } from './values';
+import { shipValuables, freightLeft, freightCap, freightSecs } from '../economy/freight';
 import { voss, bailiff, pick, fmt, L } from './voice';
 import '../../audio/sounds_press';
 import { crtScreen, phosphorText, fontsReady, cssFont, type CrtScreen } from '../../gfx/crt';
@@ -747,11 +748,25 @@ export class HopperSystem implements GameSystem {
     const valued = carried.map((it) => ({ it, v: itemValue(it) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v);
     const vals = valued.filter((x) => (itemDef(x.it.key).tags || []).includes('valuable'));
     if (vals.length) out.push({ label: `Deposit all valuables (${vals.length}) ≈ ${fmt(vals.reduce((s, x) => s + x.v, 0))}`, action: at('Deposit', 1.2, 'pickup', () => this.depositItems(p, o, vals.map((x) => x.it), true)) });
+    // round 27: or send them home: crated in the hatch, up the seam to the lab's delivery dock (src/game/economy/freight.ts)
+    if (vals.length) {
+      const left = freightLeft(), n = Math.min(left, vals.length);
+      out.push({ label: `Freight to the lab (${n}/${vals.length}) · ${left} of ${freightCap()} left this run`, disabled: n ? false : 'the freight line is full this run', action: at('Freight', freightSecs(n), 'pickup', () => this.freight(p, o, vals.map((x) => x.it))) });
+    }
     if (valued.length) out.push({ label: 'Deposit…', sub: valued.slice(0, 14).map((x) => ({ label: `${itemName(x.it)} ≈ ${fmt(x.v)}`, action: at('Deposit', 0.8, 'pickup', () => this.depositItems(p, o, [x.it], true)) })) });
     else out.push({ label: 'Deposit…', disabled: 'nothing worth anything on you' });
     const st = G.band?.get?.(p.id);
     if (st === 'blown' || st === 'lost') out.push({ label: 'Take a replacement band', danger: true, action: at('Refit', 3, 'craft', () => G.band?.refit?.(p)) });
     return out;
+  }
+
+  /** round 27: the valuables crated and sent up the seam to the lab's dock: the hatch hisses, the seam flares */
+  freight(p: Player, o: TileObject, items: Item[]) {
+    const n = shipValuables(p, items);
+    if (!n) return;
+    this.seamFlash(o);
+    G.audio?.at?.('metal_clank', o.x + 1, o.y + 1, 0.7);
+    bus.emit('subtitle', { who: 'PRESS', text: `FREIGHT · ${n} UP THE SEAM · ${freightLeft()} LEFT THIS RUN`, dur: 2.6, style: 'radio' });
   }
 
   /** put carried items onto the plate (they go through like anything else lying there); press = throw the lever after */

@@ -13,11 +13,15 @@
 //   sanity    less panic                                                panic    -2%
 //   storage   a little more carried                                     carry    +0.5 kg
 //   income    the press credits a little more                           sell     +2%
+//   prestige  (round 27: the wing's exhibits) the press credits more     sell     +1%
+//   freight / courier   round 27: the freight line's capacity and speed (read by src/game/economy/freight.ts)
 // Every stat is capped, so a wing of nothing but bunks cannot zero the need to sleep.
 //   facilityMul(stat) / facilityAdd(stat)    the multiplier (1) / the additive bonus (0)
 import { bus } from '../core/events';
 import './facilityStores';
 import { facilityBonuses, type FacilityStat } from './facility';
+// round 27: the facility upgrades researched on the lattice are a bonus source of the facility
+import './facilityTree';
 
 /** per point: [facility stat, change, the cap (lowest or highest multiplier)] */
 const MUL: Record<string, [FacilityStat, number, number][]> = {
@@ -33,7 +37,7 @@ const MUL: Record<string, [FacilityStat, number, number][]> = {
   stress: [['morale', -0.02, 0.6]],
   boredom: [['morale', -0.02, 0.6]],
   panic: [['sanity', -0.02, 0.6]],
-  sell: [['income', 0.02, 1.4]],
+  sell: [['income', 0.02, 1.4], ['prestige', 0.01, 1.3]],
 };
 const ADD: Record<string, [FacilityStat, number, number]> = { carry: ['storage', 0.5, 10] };
 

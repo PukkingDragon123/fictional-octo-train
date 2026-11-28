@@ -22,6 +22,7 @@
 // The fit (chips in sockets, limbs on slots, designs worn) lives in the Meridian
 // file (src/game/meridian.ts) and goes into every new run (src/game/metaRun.ts:
 // applyUnitFit).
+import { nodeCost, costCovered, sumLines, resHave, type ResKey } from './nodeCost';
 import { bus } from '../core/events';
 import { defNode, researchNode, researchNodes, hasUnlock, researchPoints, buyNode, type ResearchNode } from './research';
 import { treeCategories, treeOfferList, treeDataVersion, categoryFor, treeCategory } from './treeData';
@@ -47,7 +48,9 @@ export type IconSpec =
   | { kind: 'item'; key: string; alt?: string[] }
   | { kind: 'chip'; glyph: ChipGlyph; color: number }
   | { kind: 'limb'; key: string }
-  | { kind: 'socket' };
+  | { kind: 'socket' }
+  // round 27: a facility upgrade's model (src/ui/menus/lab/hubModels.ts)
+  | { kind: 'furn'; key: string };
 export type ChipGlyph = 'calm' | 'steady' | 'recall' | 'eye' | 'ear' | 'heart' | 'gut' | 'mule' | 'step';
 
 export interface TreeNode {
@@ -271,7 +274,8 @@ export function syncTree() {
     // the lattice draws a conduit from a requirement that sits on the same branch
     const req = o.requires.map((q) => BY_KEY.get(q)?.key ?? NODES.find((n) => n.rn.includes(q))?.key).filter((q): q is string => !!q && BY_KEY.get(q)!.branch === o.branch);
     const item = [o.item, ...(o.alt ?? [])].find((q) => q && hasItemDef(q));
-    add({ key: o.key, branch: o.branch, row, col, title: o.title, ranks, rn, costs: o.costs, req, icon: item ? { kind: 'item', key: item } : { kind: 'chip', glyph: 'recall', color: 0x9ac8ff }, gives: o.gives, desc: o.desc });
+    const furn = o.item?.startsWith('furn:') ? o.item.slice(5) : '';
+    add({ key: o.key, branch: o.branch, row, col, title: o.title, ranks, rn, costs: o.costs, req, icon: furn ? { kind: 'furn', key: furn } : item ? { kind: 'item', key: item } : { kind: 'chip', glyph: 'recall', color: 0x9ac8ff }, gives: o.gives, desc: o.desc });
     for (const k of rn) placed.add(k);
   };
   for (const o of treeOfferList()) {
@@ -328,7 +332,17 @@ export function nodeState(n: TreeNode): NodeState {
   const rn = researchNode(n.rn[r]);
   if (rn?.requires?.some((q) => !hasUnlock(q) && !plan.some((p) => BY_KEY.get(p.node)?.rn[p.rank - 1] === q))) return 'locked';
   if (rn?.gate && !rn.gate()) return 'locked';
-  return pointsLeft() >= n.costs[r] ? 'open' : 'poor';
+  if (pointsLeft() < n.costs[r]) return 'poor';
+  // round 27: the stores (matter, delivered valuables) must cover it too, over what the plan already spends
+  return costCovered(nodeCost(n.rn[r]), stagedLines()) ? 'open' : 'poor';
+}
+/** round 27: the stores the staged plan spends */
+const stagedLines = () => sumLines(...plan.map((p) => nodeCost(BY_KEY.get(p.node)?.rn[p.rank - 1] ?? '')));
+/** round 27: the next rank's stores, each with what is held (the reader shows them: icons, held / needed) */
+export function nextCost(n: TreeNode): { r: ResKey; n: number; have: number }[] {
+  const r = rankOf(n);
+  if (r >= n.ranks) return [];
+  return nodeCost(n.rn[r]).map((l) => ({ ...l, have: resHave(l.r) }));
 }
 export function stage(k: string): boolean {
   const n = BY_KEY.get(k);

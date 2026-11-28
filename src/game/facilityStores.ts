@@ -1,7 +1,7 @@
 // THE WING'S STORES (round 26, part B): the furniture and the finishes a room can be given, as data: what each
 // costs (dollars and matter) and the facility stats it raises (src/game/facility.ts FacilityStat; what those do
 // in the runs: src/game/facilityFx.ts). Light on imports, so the effects can register it early; the paying is
-// src/game/facilityCatalog.ts, the models src/ui/menus/front/build/models.ts.
+// round 26's build mode (retired in round 27), the models src/ui/menus/front/build/models.ts (the lab hub's upgrades use them).
 import { ROOMS, registerFurniture, furnitureResolver, type Bonuses, type RoomFinish, type RoomId } from './facility';
 
 /** the debris a derelict room holds (the pieces the player carries into the skip) */

@@ -1,3 +1,6 @@
+// (round 27: the facility map and free build mode are gone from the menus; the facility grows through upgrades
+// researched on the lattice's Facility deck, src/game/facilityTree.ts, a bonus source below. The room state stays
+// for saves that have it.)
 // THE FACILITY (round 26): the run-down wing of the Meridian Institute of Liminality that Dr. Calder offers the
 // operator at the start of a new game. It is a list of rooms, each with a CONDITION (0 derelict, 1 cleared,
 // 2 repaired, 3 restored), a LOCK, the FURNITURE placed in it and the STAT BONUSES both give. The title's
@@ -24,7 +27,9 @@ export type RoomId = 'unit' | 'control' | 'monitors' | 'lattice' | 'archive' | '
 /** 0 derelict (debris, tarps, dead lights) · 1 cleared · 2 repaired · 3 restored */
 export type Condition = 0 | 1 | 2 | 3;
 /** the stats a room or a piece of furniture raises (part B may add more) */
-export type FacilityStat = 'morale' | 'rest' | 'health' | 'sanity' | 'research' | 'craft' | 'storage' | 'income' | 'melee' | 'scan' | 'yield' | 'prestige';
+export type FacilityStat = 'morale' | 'rest' | 'health' | 'sanity' | 'research' | 'craft' | 'storage' | 'income' | 'melee' | 'scan' | 'yield' | 'prestige'
+  // round 27: the transport line (src/game/economy/freight.ts): valuables per run, the hatch's speed
+  | 'freight' | 'courier';
 export type Bonuses = Partial<Record<FacilityStat, number>>;
 
 export interface Furniture {
@@ -191,9 +196,13 @@ export function roomBonuses(id: RoomId): Bonuses {
   for (const f of r.furniture) { const d = furnitureDef(f.kind); if (d) add(d.stats); }
   return out;
 }
+/** round 27: other sources of facility stats (the facility upgrades researched on the lattice, src/game/facilityTree.ts) */
+const SOURCES: (() => Bonuses)[] = [];
+export function bonusSource(fn: () => Bonuses) { SOURCES.push(fn); }
 export function facilityBonuses(): Bonuses {
   const out: Bonuses = {};
   for (const d of ROOMS) for (const [s, v] of Object.entries(roomBonuses(d.id)) as [FacilityStat, number][]) out[s] = (out[s] ?? 0) + v;
+  for (const src of SOURCES) for (const [s, v] of Object.entries(src()) as [FacilityStat, number][]) out[s] = (out[s] ?? 0) + v;
   return out;
 }
 

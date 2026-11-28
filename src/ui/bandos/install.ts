@@ -149,11 +149,16 @@ function run(o: InstallOpts) {
   raf = requestAnimationFrame(frame);
 }
 
+// round 27: the lattice's hopper takes a node's stores before it lights: the next install waits until it has
+let holdUntil = 0;
+export function deferInstall(ms: number) { holdUntil = performance.now() + ms; }
 // any research unlock plays it: the skill tree hands over its socket and icon first (installFor)
 bus.on('researchUnlocked', (key: string) => {
   const n = researchNode(key);
   if (!n) return;
   if (G.local && (G.local.body?.dead || document.body.classList.contains('noclip-cine'))) return;
   const p = pending; pending = null;
-  playInstall({ title: n.title.charAt(0) + n.title.slice(1).toLowerCase(), icon: p?.icon ?? 'gear', gives: n.desc, from: p?.from ?? null, onDone: p?.onDone, key });
+  const go = () => playInstall({ title: n.title.charAt(0) + n.title.slice(1).toLowerCase(), icon: p?.icon ?? 'gear', gives: n.desc, from: p?.from ?? null, onDone: p?.onDone, key });
+  const wait = holdUntil - performance.now();
+  if (wait > 0) setTimeout(go, wait); else go();
 });

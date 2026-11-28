@@ -1,14 +1,4 @@
-// Round 26: the title opens on THE HALL (front/hall.ts), a cinematic dolly down a derelict corridor of the
-// Meridian Institute in the rain, with the logo's reveal and four floating words over it (front/front.ts):
-// Continue / New Game, New Game / Co-op, Options, Quit. A new game plays THE OFFER (front/offer.ts: Dr. Calder
-// hands the unit a run-down wing; the contract is signed by hand) and then comes down onto THE FACILITY MAP
-// (front/facilityMap.ts), the main menu: every room of the wing as a diorama in its condition
-// (src/game/facility.ts). A room pressed on the map flies the camera down into it (a crane move under letterbox
-// bars) and holds on its close-up, the works (front/build/works.ts: restoring it, build mode, the zoo and the
-// museum, the annex): its own screen is one press away there (the rooms below are those screens). Esc from a room
-// comes back out to the map; Esc on the map, to the title.
-//
-// (before round 26) Title screen: THE MONITOR ROOM (monitor/monitorRoom.ts), a dim Meridian
+// Title screen: THE MONITOR ROOM (monitor/monitorRoom.ts), a dim Meridian
 // observation booth whose bank of CRTs shows three live feeds, the three parts
 // of the lab: the CODEX ARCHIVE (rooms/archive.ts: five cabinets of files, the
 // projection table and its holograms), the CONTROL ROOM (rooms/research.ts:
@@ -39,11 +29,11 @@ import { intakeForm, unitOutfit } from './intake';
 import { h, esc, optionsPanel, controlsPanel, applyGfx, confirmDialog, FocusNav, sfx, type OptionsApi } from './common';
 import { SubjectRoom } from './room3d';
 import { installRetroKit } from './retroKit';
-import { ambience, sample } from './sfx';
+import { ambience } from './sfx';
 import { plateBtn } from './btnKit';
 import { terminal, crtAct, type Terminal } from './terminal';
 import './float.css';
-import { gearCluster, type GearButton, type GearCluster } from './gears3d';
+import { gearButton, gearCluster, type GearButton, type GearCluster } from './gears3d';
 import '../../world/zones';
 import '../../game/worldOps';
 import './noir.css';
@@ -60,7 +50,8 @@ import { SubjectView } from './rooms/subject';
 import { registerMenuRoom, setActiveMenuRoom, type MenuRoomId } from './menuRooms';
 import { installLabProps } from './props/labProps';
 import { installDecoAndGuide, onBuildMode } from './deco';
-import { runTour, runLabIntro, tourRunning, type TourHost, type IntroHost } from './guide/tour';
+import { pixIconEl, type PixKind } from './deco/pixIcons';
+import { runTour, runLabIntro, labIntroWanted, tourSeen, tourRunning, type TourHost, type IntroHost } from './guide/tour';
 import { currentGuide } from './guide/guide';
 import { flag } from './deco/store';
 import { isLoading } from '../loading';
@@ -71,26 +62,25 @@ import { fundTag } from './lab/fund';
 import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePanel, type PanelHost } from './research/panel';
 import * as THREE from 'three';
 import { mxOk } from '../machine/core';
-import type { MxFrame } from '../machine/kit';
-import type { MxDecor, IconKind } from '../machine/decor';
-import { iconKey, iconBanner } from './iconKey';
-import { TitleHall } from './front/hall';
-import { FrontEnd, type FrontItem } from './front/front';
-import { FacilityMap } from './front/facilityMap';
-import { OfferRoom, runOffer } from './front/offer';
-import { offerSigned, signOffer, screenOpen, roomDef, type RoomId } from '../../game/facility';
-import { Works } from './front/build/works';
+import { mxFrame, mxSkinKey, panelSpec, type MxFrame } from '../machine/kit';
+import { mxIconAnim, mxMount, type MxDecor, type IconKind } from '../machine/decor';
+import { iconKey } from './iconKey';
+import { HubUpgrades } from './lab/upgrades';
+import { DeliveryDock } from './lab/dock';
+import { pixSprite } from '../floatIcon';
 
+// round 18: the keys' icons are detailed 2D pixel art (deco/pixIcons.ts), bigger, the hot frame lit under the pointer
+const TITLE_ICON: Record<string, PixKind> = { continue: 'play', new: 'plug', free: 'reel', coop: 'radio', load: 'clipboard', controls: 'joystick', about: 'dossier' };
 // round 21: the rooms' keys (labIcons.ts adds the lattice, the balance, the flask, the spool, the CRT and the cabinet)
 const ACT_ICON: Record<string, IconKind> = {
   tree: 'lattice', talent: 'scale', process: 'flask', req: 'ledger', press: 'credit', fab: 'spool', file: 'dossier',
-  inhabitants: 'jar', items: 'wrench', places: 'map', anomalies: 'siren', research: 'clipboard', new: 'plug', free: 'reel',
+  inhabitants: 'jar', items: 'wrench', places: 'map', anomalies: 'siren', research: 'clipboard', new: 'plug',
 };
 const ROOM_ICON: Record<FeedKey, IconKind> = { archive: 'cabinet', research: 'crt', subject: 'plug' };
 // round 22: the short names floating under the icons
 const SHORT: Record<string, string> = {
   tree: 'Research', talent: 'Talents', process: 'Samples', req: 'Requisition', press: 'Press', fab: 'Fab bay', file: 'File',
-  inhabitants: 'Inhabitants', items: 'Items', places: 'Places', anomalies: 'Anomalies', research: 'Files', new: 'New unit', free: 'Release',
+  inhabitants: 'Inhabitants', items: 'Items', places: 'Places', anomalies: 'Anomalies', research: 'Files', new: 'New unit',
 };
 const ROOM_SHORT: Record<FeedKey, string> = { archive: 'Archive', research: 'Control', subject: 'Unit room' };
 
@@ -123,7 +113,7 @@ const idleSlice = () => new Promise<void>((res) => {
 });
 
 interface Item { key: string; label: string; sub: string; act: () => void; size?: 'lg' | 'md' | 'sm' }
-type View = 'front' | 'map' | 'offer' | 'monitor' | FeedKey;
+type View = 'monitor' | FeedKey;
 type Acting = { actions: { key: string; label: string; run: () => void }[]; pointer(nx: number, ny: number): void };
 
 /** the room's camera hooks */
@@ -139,7 +129,8 @@ class TitleRoom {
   hotcap = h('div', 'mr-hotcap');
   feedNav = h('div', 'mr-feeds');
   // the Institute banner across the top of the booth (the UI kit, round 15c)
-  hud = (() => { const d = h('div', 'mr-hud'); const bn = iconBanner({ booth: 4 }); bn.classList.add('mr-banner'); d.append(bn); return d; })();
+  // (round 27: no banner: no crest or wordmark on any menu screen)
+  hud = h('div', 'mr-hud');
   foot = h('div', 'tt3-foot kf', '<span>arrows · enter · esc · 1 2 3 feeds</span><span>Observation · Meridian Institute of Liminality</span>');
   over = h('div', 'nx-over');
   room: SubjectRoom;
@@ -149,19 +140,7 @@ class TitleRoom {
   research: ResearchLab | null = null;
   archive: CodexArchive | null = null;
   subject: SubjectView;
-  view: View = 'front';
-  hall: TitleHall | null = null;
-  map: FacilityMap | null = null;
-  /** round 26 part B: the room close-up's works (restoring, build mode) */
-  works: Works | null = null;
-  offerRoom: OfferRoom | null = null;
-  front: FrontEnd;
-  /** the facility map's global floating icons (no words: their names only while hot) */
-  mapKeys = h('div', 'fm-keys');
-  /** a black for the cinematic cuts */
-  blk = h('div', 'fm-blk');
-  /** the map room the last screen was entered from (back comes out over it) */
-  private fromRoom: RoomId = 'monitors';
+  view: View = 'monitor';
   saves: SaveMeta[] = [];
   nav: FocusNav | null = null;
   overNav: FocusNav | null = null;
@@ -182,11 +161,10 @@ class TitleRoom {
   constructor(g: Game) {
     this.g = g;
     // (round 16: the title is only its menu: no key line or footer under it)
-    this.root.append(this.stageHost, this.subjHost, this.menu, this.feedNav, this.hud, this.mapKeys, this.hotcap, this.over, this.blk);
-    this.front = new FrontEnd(this.root, { strike: (k) => this.hall?.strike(k) });
+    this.root.append(this.stageHost, this.subjHost, this.menu, this.feedNav, this.hud, this.hotcap, this.over);
     document.body.append(this.root);
     // what the decorator hides while building / shopping
-    for (const e of [this.menu, this.feedNav, this.hud, this.hotcap, this.foot, this.mapKeys]) e.setAttribute('data-deco-hide', '');
+    for (const e of [this.menu, this.feedNav, this.hud, this.hotcap, this.foot]) e.setAttribute('data-deco-hide', '');
     this.fx = new CrtFx(this.root);
     // the subject room first (its frame runs before the stage's each animation frame: the feed copy relies on it)
     this.room = new SubjectRoom(this.subjHost);
@@ -204,9 +182,8 @@ class TitleRoom {
     this.stage.onHot = (hh, x, y) => this.hotCaption(hh, x, y);
     this.stage.onPointer = (x, y) => this.pointer(x, y);
     // a tap on nothing while the research lattice is up steps back out of it
-    this.stage.onMiss = () => { if (this.view === 'map') { if (this.map?.focused && !this.works?.miss()) void this.mapBack(); return; } if (treeOpen()) (this.research?.lattice as { back?: () => void } | undefined)?.back?.(); else if (this.view === 'research') { if (!this.research?.talent.miss()) this.research?.unfocus(); } };
-    this.root.dataset.view = 'front';
-    this.root.classList.add('frontend');
+    this.stage.onMiss = () => { if (treeOpen()) (this.research?.lattice as { back?: () => void } | undefined)?.back?.(); else if (this.view === 'research') { if (!this.research?.talent.miss()) this.research?.unfocus(); } };
+    this.root.dataset.view = 'monitor';
     listSaves().then((s) => { this.saves = s; this.build(); }).catch(() => this.build());
     this.build();
     window.addEventListener('keydown', this.onKey, true);
@@ -228,28 +205,16 @@ class TitleRoom {
       // comes up on it, and the control room and the archive follow one idle slice at a time (their tubes show
       // snow until their feeds are live). A dive into one before it is up waits for it (go()).
       const mats = facetMats(this.stage.low);
-      // round 26: the title's hall first (the title comes up on it), then the facility map, then the rooms
-      const hall = new TitleHall(mats); await breath();
-      this.hall = hall;
-      this.stage.add(hall); this.stage.show('hall');
+      const mon0 = new MonitorRoom(mats); await breath();
+      this.monitor = mon0;
+      this.stage.add(mon0); this.stage.show('monitor');
+      mon0.setFeedTexture('subject', this.subject.tex, false);
+      mon0.onFeed = (k) => { void this.go(k); };
       await this.stage.warm(breath);
       await breath();
       this.readyRes();
       // (not while the loading screen is still playing out: it gets every frame until it is gone)
       for (let k = 0; k < 200 && isLoading(); k++) await new Promise((r) => setTimeout(r, 100));
-      await idleSlice();
-      const map = new FacilityMap(mats); await idleSlice();
-      this.map = map;
-      this.stage.add(map);
-      map.onRoom = (id) => { void this.enterRoom(id); };
-      this.works = new Works({ root: this.root, stage: this.stage, map, mats, enter: (id) => { void this.intoScreen(id); }, up: () => { void this.mapBack(); } });
-      this.mapRes();
-      await idleSlice();
-      const mon0 = new MonitorRoom(mats); await idleSlice();
-      this.monitor = mon0;
-      this.stage.add(mon0);
-      mon0.setFeedTexture('subject', this.subject.tex, false);
-      mon0.onFeed = (k) => { void this.go(k); };
       await idleSlice();
       lab0 = new ResearchLab(mats); await idleSlice();
       arc0 = new CodexArchive(mats); await idleSlice();
@@ -261,17 +226,33 @@ class TitleRoom {
     } catch (e) { console.warn('title rooms', e); }
     this.building = false;
     this.readyRes();
-    this.mapRes();
     this.labRes();
   }
-  private mapRes: () => void = () => {};
-  readonly mapReady = new Promise<void>((r) => { this.mapRes = r; });
   /** the control room and the archive are built (they come after the title is up) */
   private labRes: () => void = () => {};
   readonly labReady = new Promise<void>((r) => { this.labRes = r; });
+  /** round 27: the facility upgrades standing in the rooms (lab/upgrades.ts) and the delivery dock (lab/dock.ts) */
+  private hub: HubUpgrades[] = [];
+  dock: DeliveryDock | null = null;
   private buildRoomsNow(mon: MonitorRoom, lab: ResearchLab, arc: CodexArchive) {
     this.monitor = mon; this.research = lab; this.archive = arc;
     this.stage.add(mon); this.stage.add(lab); this.stage.add(arc);
+    try {
+      const mats = facetMats(this.stage.low);
+      this.hub = [
+        new HubUpgrades({ room: 'research', floor: { x0: -3.5, x1: 3.5, z0: -2.9, z1: 3.2 }, ceil: 3.05, troughs: [[-1.6, -0.5], [1.8, -0.5]] }, lab.scene, mats),
+        new HubUpgrades({ room: 'archive', floor: { x0: -3.8, x1: 3.8, z0: -3.5, z1: 3.3 }, ceil: 3.5, troughs: [[-2.2, -0.6], [2.2, -0.6]] }, arc.scene, mats),
+        new HubUpgrades({ room: 'monitor', floor: { x0: -2.6, x1: 2.6, z0: -2.0, z1: 2.7 }, ceil: 2.75, troughs: [[-1.4, -0.4], [1.4, -0.4]] }, mon.scene, mats),
+        new HubUpgrades({ room: 'subject', floor: { x0: -3.3, x1: 3.3, z0: -2.3, z1: 4.0 }, ceil: 3.6, troughs: [[-1.5, -1.2], [1.5, -1.2]] }, this.room.scene, mats),
+      ];
+      this.dock = new DeliveryDock(mats, arc.hots, { x: 2.25, z: -0.35, ry: -0.55 });
+      arc.scene.add(this.dock.group);
+      // a press on the dock steps the archive's camera up to it (and back)
+      const A = arc as unknown as { pose: unknown; state: string };
+      const roomPose = A.pose, dockPose = { pos: new THREE.Vector3(0.95, 2.2, 1.05), look: new THREE.Vector3(2.25, 0.6, -0.35), fov: 44 };
+      this.dock.onPress = () => { if (A.state === 'room') A.pose = A.pose === dockPose ? roomPose : dockPose; };
+    } catch (e) { console.warn('hub upgrades', e); }
+    this.stage.show('monitor');
     mon.setFeedTexture('subject', this.subject.tex, false);
     mon.onFeed = (k) => { void this.go(k); };
     // round 19: the lab from zero (src/ui/menus/lab): a build site in the control room funds its station
@@ -308,6 +289,7 @@ class TitleRoom {
       registerMenuRoom({ id, scene: r.scene, camera: r.cam, deco: r.deco, floor: r.floor, surfaces: r.surfaces, guideSpot: r.guideSpot, host: this.stageHost, pick: (x, y) => this.pickFloor(x, y, r.floor.y, r.surfaces) });
     installLabProps();
     reg('monitor', mon); reg('research', lab); reg('archive', arc);
+    setActiveMenuRoom('monitor');
     this.buildFeedButtons();
     // the decorator (blueprint mode, collectibles) and the researcher guide; build mode gets a shot of the floor
     // round 18: the corner keys jump straight to the codex, the lattice and the guided tour
@@ -320,6 +302,11 @@ class TitleRoom {
       },
     });
     // the first visit: Dr. Calder shows the unit round once the booth is up
+    const first = setInterval(() => {
+      // (round 22: a browser that has not had the lab introduction gets it on its first New unit instead)
+      if (tourSeen() || labIntroWanted()) { clearInterval(first); return; }
+      if (this.live && this.view === 'monitor' && this.tourReady()) { clearInterval(first); void this.startTour(); }
+    }, 1500);
     onBuildMode((id) => { mon.setBuild(id === 'monitor'); lab.setBuild(id === 'research'); arc.setBuild(id === 'archive'); });
   }
   // ================================================================== the guided tour (guide/tour.ts)
@@ -329,7 +316,7 @@ class TitleRoom {
     const box = new THREE.Box3(), c = new THREE.Vector3(), q = new THREE.Vector3(), boxes = new Map<string, THREE.Box3>();
     return {
       go: async (r) => {
-        await this.go(r);
+        if (r === 'monitor') await this.back(); else await this.go(r);
         // the tube's warm-up (crtfx) runs past the cut: wait for the picture to settle before she speaks
         const fx = this.fx as unknown as { runs?: unknown[] };
         for (let k = 0; k < 40 && (fx.runs?.length ?? 0) > 0; k++) await new Promise((res) => setTimeout(res, 100));
@@ -439,7 +426,7 @@ class TitleRoom {
   private navOpts() {
     return {
       onBack: () => this.onBack(), onTab: (d: -1 | 1) => this.channel(d),
-      onArrow: (dx: number, dy: number) => { if (this.view === 'map' && this.map && !this.map.focused && !this.root.classList.contains('paneled')) { const id = this.map.nav(dx, dy); this.stage.hoverKey('room:' + id); return true; } const A = this.archive; if (this.view === 'archive' && A?.state === 'holo' && dx) { A.flip(dx); return true; } return false; },
+      onArrow: (dx: number) => { const A = this.archive; if (this.view === 'archive' && A?.state === 'holo' && dx) { A.flip(dx); return true; } return false; },
     };
   }
 
@@ -447,29 +434,131 @@ class TitleRoom {
     this.live = true;
     this.root.classList.add('on');
     this.nav = new FocusNav(this.root, this.navOpts());
-    ambience('hall');
-    this.build();
-    // the logo's reveal once the hall is up and the loading screen has gone
-    void this.ready.then(async () => { for (let k = 0; k < 300 && isLoading(); k++) await new Promise((r) => setTimeout(r, 100)); if (this.view === 'front') this.front.reveal(!!navigator.webdriver && !/[?&]reveal\b/.test(location.search)); });
+    this.focusKey(this.lastKey);
+    ambience('room');
+    this.menu.classList.add('in');
   }
 
   // ================================================================== the menu words
   private build() {
-    // round 26: the title's four floating words (front/front.ts). With a facility (a signed offer or a save):
-    // Continue (to the map), New Game (a new unit, from unit room 4); without: New Game (the offer), Co-op.
-    const prog = this.saves.length > 0 || offerSigned();
-    const items: FrontItem[] = [
-      prog ? { key: 'continue', label: 'Continue', act: () => void this.toMap() } : { key: 'new', label: 'New Game', act: () => void this.offer() },
-      prog ? { key: 'new', label: 'New Game', act: () => void this.newFromTitle() } : { key: 'coop', label: 'Co-op', act: () => this.coop() },
-      { key: 'options', label: 'Options', act: () => this.options() },
-      { key: 'quit', label: 'Quit', act: () => this.quit() },
-    ];
-    this.front.setItems(items.map((it) => ({ ...it, act: () => { if (this.busy || this.moving) return; it.act(); } })));
-    if (this.live && this.view === 'front' && this.front.el.classList.contains('menu')) this.front.focusFirst();
-    if (this.view === 'map') this.buildHud();
+    const last = this.saves[0];
+    const pt = this.portrait();
+    const items: Item[] = [];
+    if (last) items.push({ key: 'continue', label: 'Go out', sub: `back in as ${last.character} · day ${Math.floor(last.hours / 24) + 1}`, act: () => this.play(last), size: 'lg' });
+    items.push({ key: 'new', label: 'New unit', sub: 'to unit room 4 · the link rig · pay the debt', act: () => this.newGame(true), size: 'lg' });
+    items.push({ key: 'free', label: 'Release', sub: 'free survival · no contract · no band', act: () => this.newGame(false), size: pt ? 'md' : 'lg' });
+    items.push({ key: 'coop', label: 'Co-op', sub: 'call another cell · host or dial in', act: () => this.coop(), size: pt ? 'sm' : 'md' });
+    if (this.saves.length) items.push({ key: 'load', label: 'Case files', sub: `${this.saves.length} unit${this.saves.length === 1 ? '' : 's'} on file`, act: () => this.loads(), size: pt ? 'sm' : 'md' });
+    items.push({ key: 'controls', label: 'Controls', sub: 'keys · touch · gamepad', act: () => this.controls(), size: pt ? 'sm' : 'md' });
+    items.push({ key: 'about', label: 'About', sub: 'what this place is', act: () => this.about(), size: pt ? 'sm' : 'md' });
+    // the desktop build: a clean way back to the desktop (everything is already saved)
+    if (isDesktop()) items.push({ key: 'quit', label: 'Quit', sub: 'back to the desktop', act: () => desktopQuit(), size: pt ? 'sm' : 'md' });
+    // a rebuild (the saves came in) keeps the console's housing and its little things: only the keys are replaced
+    for (const c of [...this.menu.children]) if (!c.matches('.mxf-cv, .mxd, .tt-pro')) c.remove();
+    this.menu.classList.add('ft-menu');
+    if (!mxOk()) this.menu.append(this.cap);
+    this.btns.clear();
+    // round 21: the way in stays a worded key; the rest are square keys three to a row, each with its little
+    // model turning on the cap and its name floating beside it only while hot
+    let row: HTMLElement | null = null;
+    const TITLE_3D: Record<string, IconKind> = { free: 'reel', coop: 'walkie', load: 'clipboard', controls: 'joystick', about: 'dossier', quit: 'door' };
+    items.forEach((it, i) => {
+      if (mxOk() && TITLE_3D[it.key]) {
+        const k = iconKey(TITLE_3D[it.key], it.label, () => this.activate(it), { model: pt ? 40 : 46, sound: 'key', cls: 'ft-item tt-ik', aria: `${it.label} — ${it.sub}` });
+        k.dataset.k = it.key;
+        k.style.setProperty('--ft-i', String(i));
+        k.addEventListener('focus', () => { this.lastKey = it.key; this.beacon?.alert(false); });
+        if (!row || row.childElementCount >= 3) { row = h('div', 'tt-ikrow'); this.menu.append(row); }
+        row.append(k);
+        k.style.setProperty('--ik-push', (2 - (row.childElementCount - 1)) * ((pt ? 72 : 76) + 8) + 'px');
+        this.btns.set(it.key, k);
+        return;
+      }
+      const b = h('button', `ft-item ft-${it.size ?? 'md'}`, `<span class="ft-ptr" aria-hidden="true"></span><span class="ft-lab">${esc(it.label)}</span>`) as HTMLButtonElement;
+      b.type = 'button';
+      b.dataset.k = it.key;
+      b.style.setProperty('--ft-i', String(i));
+      b.setAttribute('aria-label', `${it.label} — ${it.sub}`);
+      b.addEventListener('focus', () => { this.lastKey = it.key; if (!mxOk()) this.caption(it, b); });
+      b.addEventListener('pointerenter', () => { if (document.activeElement !== b) { b.focus({ preventScroll: true }); sfx('tick', 0.4); } });
+      b.addEventListener('click', () => this.activate(it));
+      this.menu.append(b);
+      this.btns.set(it.key, b);
+      // round 16: the words are keys on the observation desk's console, each with its little model
+      if (mxOk()) {
+        // one size of key (the way in a little bigger), its own little 3D model that sways while the key is hot,
+        // the cap sinks with a clunk and the lamp lights (src/ui/machine/kit.ts mxSkinKey)
+        const go = it.key === 'new' || it.key === 'continue';
+        b.classList.toggle('ft-lg', go); b.classList.toggle('ft-md', !go); b.classList.remove('ft-sm');
+        b.style.width = (pt ? (go ? 244 : 228) : (go ? 276 : 248)) + 'px';
+        b.style.height = (pt ? (go ? 48 : 44) : (go ? 54 : 48)) + 'px';
+        const ic = pixIconEl(TITLE_ICON[it.key] ?? 'gear', pt ? 1.25 : 1.5, b);
+        ic.classList.add('ft-pxi', 'mxi-cv');
+        b.append(ic);
+        mxSkinKey(b, { tone: go ? 'yellow' : 'olive', lamp: go ? 'green' : 'amber', sound: 'key', seed: 40 + i });
+        if (go) b.classList.add('ink-d');
+        b.addEventListener('focus', () => this.beacon?.alert(go));
+      }
+    });
+    // round 22 (load time): a rebuild keeps the same gear (each new one is a WebGL context of its own: seconds on a slow GPU)
+    let gb = this.gear;
+    if (!gb) {
+      const gi: Item = { key: 'options', label: 'Settings', sub: 'sound · picture · interface', act: () => this.options() };
+      const g = gearButton('Settings', () => this.activate(gi), { aria: 'Settings — sound · picture · interface' });
+      g.dataset.k = 'options';
+      g.classList.add('tt4-gear');
+      g.addEventListener('focus', () => { this.lastKey = 'options'; if (!mxOk()) this.caption(gi, g); });
+      gb = g;
+    }
+    this.menu.append(gb);
+    this.btns.set('options', gb);
+    this.gear = gb;
+    if (mxOk()) this.machine(pt);
+    if (this.live) { this.menu.classList.add('in'); if (this.view === 'monitor') this.focusKey(this.btns.has(this.lastKey) ? this.lastKey : 'new'); }
   }
   private beacon: MxDecor | null = null;
+  private mxf: MxFrame | null = null;
+  /** round 16: the menu as a console on the desk: an enamel housing, a beacon on its hood that turns while the
+   * way in is lit, a spanner on a peg and the specimen jar beside it, watching the pointer */
+  private machine(pt: boolean) {
+    this.menu.classList.add('mx');
+    if (this.mxf) return; // built once: a rebuild of the keys must not flash the housing
+    // no nameplate (the keys say enough): lamps, a vent, the hazard foot, glands and cables
+    this.mxf = mxFrame(this.menu, (w, hh) => panelSpec(w, hh, { seed: 71, lamps: ['green', 'amber', 'red'], glands: 2, hazard: true, top: 44, bot: 26, toggles: 2, knobs: 1 }), { pad: 16, grow: pt ? { l: 14, t: 48, r: 14, b: 28 } : { l: 20, t: 50, r: 22, b: 30 } });
+    this.beacon = mxMount(this.menu, 'beacon', { right: pt ? 18 : 30, top: pt ? -84 : -92, z: 3 }, { col: 'amber', s: 1.3, alert: this.lastKey === 'new' || this.lastKey === 'continue' });
+    // the prologue is the cassette on the console's hood: press it to play the first link again
+    const tape = pixSprite('tape', 30);
+    if (tape) {
+      const pb = h('button', 'tt-pro') as HTMLButtonElement;
+      pb.type = 'button';
+      pb.setAttribute('aria-label', 'Prologue — the first link, again');
+      pb.title = 'Prologue';
+      pb.append(tape.cv);
+      for (const ev of ['focus', 'pointerenter']) pb.addEventListener(ev, () => { tape.hot(true); if (ev === 'pointerenter') sfx('tick', 0.35); });
+      for (const ev of ['blur', 'pointerleave']) pb.addEventListener(ev, () => tape.hot(false));
+      pb.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (this.busy || this.room.busy || this.moving) return;
+        sfx('key', 0.7);
+        import('../../game/prologue').then((m) => m.replayPrologue()).catch((err) => console.warn('prologue', err));
+      });
+      pb.style.left = (pt ? 4 : 2) + 'px'; pb.style.top = (pt ? -44 : -46) + 'px';
+      this.menu.append(pb);
+    }
+    if (!pt) {
+      // (Specimen 07 sits on the booth's desk now: monitor/eyeJar.ts)
+      mxMount(this.menu, 'gauge', { right: 10, bottom: 92, z: 3 }, { label: 'LINK' });
+    }
+  }
   private focusKey(k: string) { requestAnimationFrame(() => (this.btns.get(k) ?? this.feedBtns.get(k as FeedKey))?.focus({ preventScroll: true })); }
+  private caption(it: { sub: string }, b: HTMLElement) {
+    if (this.cap.parentElement !== this.menu) this.menu.append(this.cap);
+    this.cap.innerHTML = `<small>${esc(it.sub)}</small>`;
+    const cy = b.offsetHeight / 2;
+    this.cap.style.top = this.portrait() ? '' : Math.round(b.offsetTop + cy) + 'px';
+    this.cap.style.left = this.portrait() ? '' : Math.round(b.offsetLeft + b.offsetWidth + 34) + 'px';
+    this.cap.classList.remove('in'); void this.cap.offsetWidth; this.cap.classList.add('in');
+  }
   private busy = false;
   private activate(it: Item) {
     if (this.busy || this.room.busy || this.moving) return;
@@ -541,9 +630,7 @@ class TitleRoom {
   private pointer(x: number, y: number) {
     const nx = (x / window.innerWidth) * 2 - 1, ny = (y / window.innerHeight) * 2 - 1;
     const r = this.roomOf(this.view);
-    if (this.view === 'front') this.hall?.pointer(nx, ny);
-    else if (this.view === 'map') this.map?.pointer(nx, ny);
-    else if (this.view === 'monitor') this.monitor?.pointer(nx, ny);
+    if (this.view === 'monitor') this.monitor?.pointer(nx, ny);
     else (r as Acting | null)?.pointer(nx, ny);
   }
   private roomOf(v: View) { return v === 'monitor' ? this.monitor : v === 'research' ? this.research : v === 'archive' ? this.archive : null; }
@@ -551,7 +638,8 @@ class TitleRoom {
   // ================================================================== frame hook
   private tick(dt: number) {
     this.subject.tick(dt);
-    if (this.view === 'map') this.works?.update(dt);
+    for (const u of this.hub) u.update(dt);
+    if (this.dock) { this.dock.update(dt, performance.now() / 1000); if (this.view === 'archive' && !this.moving && this.dock.waiting && !this.dock.busy) this.dock.arrive(); }
     this.placeFeedButtons();
     if (this.hotT > 0) { this.hotT -= dt; if (this.hotT <= 0 && !this.stage.hovered && !(document.activeElement as HTMLElement)?.classList?.contains('mr-feed')) this.hotcap.classList.remove('on'); }
     this.tcT -= dt;
@@ -566,11 +654,10 @@ class TitleRoom {
 
   // ================================================================== moving between rooms
   /** into a room: dive into its tube from the monitors, or switch channel from another room */
-  async go(k: FeedKey | 'monitor') {
-    if (this.moving || this.view === k) return;
+  async go(k: FeedKey) {
+    if (this.moving || this.view === k || !this.monitor) return;
     // round 22: the control room and the archive are built after the title is up; a dive waits for them
-    if (!this.monitor || (k !== 'subject' && !this.research)) { this.moving = true; try { await this.labReady; } finally { this.moving = false; } if (this.view === k) return; }
-    if (!this.monitor) return;
+    if (k !== 'subject' && !this.research) { this.moving = true; try { await this.labReady; } finally { this.moving = false; } if (this.view === k) return; }
     // round 19: the codex archive has to be built (funded) first; its monitor shows the tag
     if (k === 'archive' && !built('archive')) {
       const calder = (t: string) => { (window as unknown as { __deco?: { guide?: { now?: (t: string) => void } } }).__deco?.guide?.now?.(t); };
@@ -583,7 +670,7 @@ class TitleRoom {
     this.hotcap.classList.remove('on');
     const mon = this.monitor;
     try {
-      if (this.view === 'monitor' && k !== 'monitor') {
+      if (this.view === 'monitor') {
         sfx('confirm');
         (document.activeElement as HTMLElement | null)?.blur?.();
         this.root.classList.add('diving');
@@ -595,18 +682,12 @@ class TitleRoom {
         sfx('shutter', 0.6);
         await this.fx.play('snow', 240);
         tube.snow = 0;
-      } else if (this.view === 'map' || this.view === 'front' || this.view === 'offer') {
-        // round 26: out of the map's close shot on the room, a hard cut through a flash of static
-        sfx('shutter', 0.5);
-        await this.fx.play('snow', 260);
       } else {
         sfx('relay', 0.8);
-        const i = ORDER.indexOf(k as FeedKey);
-        await this.fx.play('snow', 420, i >= 0 ? `CH ${i + 1}` : undefined);
+        const i = ORDER.indexOf(k);
+        await this.fx.play('snow', 420, `CH ${i + 1}`);
       }
-      const was = this.view;
       this.enter(k);
-      if (was === 'map' || was === 'front' || was === 'offer') ambience('room');
       sfx('hum', 0.5);
       await this.fx.play('on', 520);
     } finally {
@@ -620,8 +701,6 @@ class TitleRoom {
     if (k !== 'archive') this.archive?.leave();
     this.view = k;
     this.root.dataset.view = k;
-    // round 26: the title, the offer and the map are the front end: the lab's corner keys and its guide stay out of them
-    this.root.classList.toggle('frontend', k === 'front' || k === 'map' || k === 'offer');
     if (k === 'subject') {
       this.subject.setMode('full');
       this.stage.paused = true;
@@ -632,149 +711,29 @@ class TitleRoom {
     } else {
       this.subject.setMode('feed');
       this.stage.paused = false;
-      this.stage.show(k === 'front' ? 'hall' : k);
+      this.stage.show(k);
     }
-    setActiveMenuRoom(k === 'front' || k === 'map' || k === 'offer' ? null : k);
+    setActiveMenuRoom(k);
     this.buildHud();
   }
-  /** back out of a room's screen: the picture collapses and the map's camera rises out of that room's diorama */
+  /** back to the monitor room: the picture collapses, the camera pulls out of the tube */
   async back() {
-    if (this.moving || this.view === 'map' || this.view === 'front' || this.view === 'offer' || !this.map) return;
+    if (this.moving || this.view === 'monitor' || !this.monitor) return;
     this.moving = true;
+    const from = this.view as FeedKey;
     try {
       sfx('back');
       await this.fx.play('off', 420);
-      this.enter('map');
-      this.map.snapTo(this.fromRoom);
+      this.enter('monitor');
+      const p = this.monitor.back(from);
       void this.fx.play('on', 320);
-      ambience('map');
-      await this.map.unfocus(1500);
-      this.focusMap();
+      await p;
+      this.focusKey(from);
     } finally { this.moving = false; }
   }
-
-  // ================================================================== round 26: the front, the offer, the map
-  private black(on: boolean, ms = 800): Promise<void> {
-    this.blk.style.transition = `opacity ${ms}ms ease`;
-    this.blk.classList.toggle('on', on);
-    return new Promise((r) => setTimeout(r, ms));
-  }
-  /** from the title onto the facility map (the descent) */
-  async toMap() {
-    if (this.moving) return;
-    this.moving = true;
-    try {
-      void this.front.leave();
-      sample('mn_whoosh', 0.3, 0.6);
-      await this.black(true, 1100);
-      await this.mapReady;
-      if (!this.map) return;
-      this.front.hide();
-      this.enter('map');
-      ambience('map');
-      void this.black(false, 1600);
-      await this.map.reveal(4200);
-      this.focusMap();
-      this.works?.takings();
-    } finally { this.moving = false; }
-  }
-  /** a new game: the offer, then down onto the derelict wing */
-  async offer() {
-    if (this.moving) return;
-    this.moving = true;
-    try {
-      void this.front.leave();
-      await this.black(true, 1200);
-      if (!this.offerRoom) {
-        const r = new OfferRoom(facetMats(this.stage.low));
-        this.offerRoom = r;
-        this.stage.add(r);
-        void r.load();
-      }
-      this.front.hide();
-      this.enter('offer');
-      this.blk.style.transition = 'none'; this.blk.classList.remove('on');
-      await runOffer({ room: this.offerRoom, root: this.root, rayAt: (x, y) => this.stage.rayAt(x, y) });
-      signOffer();
-      this.blk.style.transition = 'none'; this.blk.classList.add('on');
-      await this.mapReady;
-      this.enter('map');
-      ambience('map');
-      this.build();
-      await new Promise((r) => setTimeout(r, 600));
-      void this.black(false, 2200);
-      await this.map!.reveal(5200);
-      this.focusMap();
-    } finally { this.moving = false; }
-  }
-  /** New Game with a facility: a new unit, from unit room 4 (the intake, the talent bench, the link) */
-  async newFromTitle() {
-    await this.toMap();
-    await this.enterRoom('unit', true);
-    if (this.view === 'subject') void this.newGame(true);
-  }
-  /** back to the title from the map */
-  async toFront() {
-    if (this.moving) return;
-    this.moving = true;
-    try {
-      sfx('back');
-      await this.black(true, 900);
-      this.enter('front');
-      ambience('hall');
-      this.front.back();
-      await this.black(false, 1400);
-    } finally { this.moving = false; }
-  }
-  quit() {
-    if (isDesktop()) { desktopQuit(); return; }
-    ambience(null);
-    this.front.powerDown(() => ambience('hall'));
-  }
-  /** a room pressed on the map: the camera flies down into it and holds on its close-up, where the works are
-   *  (part B: restoring, build mode) and its screen is one press away; `direct` cuts straight into the screen */
-  async enterRoom(id: RoomId, direct = false) {
-    const map = this.map;
-    if (!map || this.moving || this.view !== 'map' || this.root.classList.contains('paneled')) return;
-    this.moving = true;
-    (document.activeElement as HTMLElement | null)?.blur?.();
-    this.stage.hoverKey(null);
-    sfx('confirm', 0.6);
-    this.works?.letterbox(true);
-    try { await map.focus(id); } finally { this.moving = false; this.works?.letterbox(false); }
-    this.buildHud();
-    if (direct && screenOpen(id)) { await this.intoScreen(id); return; }
-    this.works?.open(id);
-  }
-  /** from a room's close-up into its own screen (the lattice, the fab bay, the talent bench, the containment drawer) */
-  async intoScreen(id: RoomId) {
-    const def = roomDef(id);
-    if (this.moving || this.view !== 'map' || !screenOpen(id) || !def.screen) { sample('door_locked', 0.5); return; }
-    this.works?.close();
-    this.fromRoom = id;
-    const sc = def.screen;
-    await this.go(sc.view);
-    if ((this.view as View) !== sc.view || !sc.act) return;
-    // the room's own act once its screen is up (the lattice, the fab bay, the talent bench, the containment drawer)
-    await new Promise((r) => setTimeout(r, 400));
-    const acts = sc.view === 'archive' ? this.archive?.actions : this.research?.actions;
-    acts?.find((a) => a.key === sc.act)?.run();
-  }
-  /** out of a room's close shot on the map */
-  async mapBack() {
-    if (!this.map?.focused || this.moving) return;
-    this.works?.close();
-    this.moving = true;
-    this.works?.letterbox(true);
-    try { await this.map.unfocus(); } finally { this.moving = false; this.works?.letterbox(false); }
-    this.buildHud();
-    this.focusMap();
-  }
-  private focusMap() { (document.activeElement as HTMLElement | null)?.blur?.(); }
-
   /** Q / E in a room: the next channel */
   private channel(d: -1 | 1) {
-    if (this.view === 'monitor' || this.view === 'map' || this.view === 'front' || this.view === 'offer' || this.root.classList.contains('lit') || this.research?.bench || this.research?.talent.active || treeOpen()) return;
+    if (this.view === 'monitor' || this.root.classList.contains('lit') || this.research?.bench || this.research?.talent.active || treeOpen()) return;
     // in the archive Q / E run along the drawers, or along the files in the projection
     const A = this.archive;
     if (this.view === 'archive' && A && A.state !== 'room') { if (A.state === 'holo') A.nextFile(d); else A.nextDrawer(d); return; }
@@ -783,21 +742,15 @@ class TitleRoom {
   }
   private onBack() {
     if (this.over.classList.contains('on')) { this.closeOver(); return; }
-    if (this.view === 'front' || this.view === 'offer') return;
-    if (this.view === 'map') { if (this.works?.back()) return; if (this.map?.focused) void this.mapBack(); else void this.toFront(); return; }
     if (this.view === 'archive' && this.archive?.back()) return;
     if (this.view === 'subject' && this.subject.face) { this.subject.faceZoom(false); this.buildHud(); return; }
     if (this.research?.bench) return;
-    void this.back();
+    if (this.view !== 'monitor') void this.back();
   }
   private onKey = (e: KeyboardEvent) => {
-    if (!this.live || tourRunning() || this.view === 'front' || this.view === 'offer' || this.root.classList.contains('lit') || this.root.classList.contains('playing') || this.over.classList.contains('on') || panelOpen() || treeOpen() || this.research?.bench || this.research?.talent.active) return;
+    if (!this.live || tourRunning() || this.root.classList.contains('lit') || this.root.classList.contains('playing') || this.over.classList.contains('on') || panelOpen() || treeOpen() || this.research?.bench || this.research?.talent.active) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
-    if (this.view === 'map') {
-      if ((e.key === 'Enter' || e.key === ' ') && !(t && t.tagName === 'BUTTON')) { e.preventDefault(); if (!this.map?.focused) this.map?.pressSel(); else this.works?.press(); }
-      return;
-    }
     if (this.view === 'archive' && this.archive && this.archive.state !== 'room') { if (this.archive.key(e)) { e.preventDefault(); e.stopPropagation(); } return; }
     if (e.key >= '1' && e.key <= String(ORDER.length)) { e.preventDefault(); void this.go(ORDER[Number(e.key) - 1]); }
     else if (e.key === '0' && this.view !== 'monitor') { e.preventDefault(); void this.back(); }
@@ -806,22 +759,11 @@ class TitleRoom {
   // ================================================================== the room HUD
   private buildHud() {
     const hud = this.hud;
-    const bn = hud.querySelector('.mr-banner');
     hud.innerHTML = '';
-    if (bn) hud.append(bn);
     this.hudCam = null;
-    this.mapKeys.innerHTML = '';
-    if (this.view === 'map') { this.feedNav.hidden = true; this.buildMapKeys(); return; }
-    if (this.view === 'front' || this.view === 'offer') { this.feedNav.hidden = true; return; }
-    if (this.view === 'monitor') {
-      // round 26: the booth is one room of the facility now; the way back out is a floating map
-      this.feedNav.hidden = false;
-      const b = iconKey('map', 'Facility', () => { if (!this.moving) void this.back(); }, { model: this.portrait() ? 40 : 50, cls: 'mr-ik home warm', hint: 'Esc' });
-      const bar = h('div', 'mr-bar ikk-row'); bar.append(b); hud.append(bar);
-      return;
-    }
+    if (this.view === 'monitor') { this.feedNav.hidden = false; return; }
     this.feedNav.hidden = true;
-    const k = this.view as FeedKey, i = ORDER.indexOf(k), f = FEEDS[i];
+    const k = this.view, i = ORDER.indexOf(k), f = FEEDS[i];
     // the camera's own overlay: its number, the record lamp, the clock (the room's name is on the hover of its key)
     const cam = h('div', 'mr-cam', `<b>${esc(f.cam)}</b><span class="rec" aria-label="recording"></span><span class="tc"></span>`);
     cam.setAttribute('aria-label', f.name);
@@ -841,7 +783,6 @@ class TitleRoom {
     const roomActs: { key: string; label: string; run: () => void }[] = k === 'subject'
       ? [
         { key: 'new', label: 'New unit', run: () => this.newGame(true) },
-        { key: 'free', label: 'Release', run: () => this.newGame(false) },
         { key: 'face', label: this.subject.face ? 'Whole room' : 'The face', run: () => { this.subject.faceZoom(!this.subject.face); sfx('servo', 0.5); this.buildHud(); } },
       ]
       : ((this.roomOf(k) as Acting | null)?.actions ?? []);
@@ -853,30 +794,10 @@ class TitleRoom {
     const pf = FEEDS.find((q) => q.key === prev)!, nf = FEEDS.find((q) => q.key === next)!;
     const arrow = (b: HTMLElement, d: 'l' | 'r') => { b.append(h('span', 'ikk-arr ' + d)); return b; };
     if (prev !== next) bar.append(arrow(key(ROOM_ICON[prev], ROOM_SHORT[prev], 'prev', () => void this.go(prev), { hint: 'Q', tone: 'dark', at: 'bottom' }), 'l'));
-    bar.append(key('map', 'Facility', 'home', () => void this.back(), { hint: 'Esc', tone: 'yellow', at: 'bottom' }));
+    bar.append(key('crt', 'Monitors', 'home', () => void this.back(), { hint: 'Esc', tone: 'yellow', at: 'bottom' }));
     bar.append(arrow(key(ROOM_ICON[next], ROOM_SHORT[next], 'next', () => void this.go(next), { hint: 'E', tone: 'dark', at: 'bottom' }), 'r'));
     hud.append(acts, bar);
     requestAnimationFrame(() => (acts.querySelector('button') as HTMLElement | null ?? bar.querySelector('.home') as HTMLElement | null)?.focus({ preventScroll: true }));
-  }
-  /** round 26: the map's global keys, floating icons with no words (a name only while hot): back to the title,
-   *  the last case, the case files, co-op, the controls, the options; down in a room, the way back up */
-  private buildMapKeys() {
-    const row = this.mapKeys;
-    const pt = this.portrait();
-    const key = (kind: IconKind, name: string, fn: () => void, cls = '') => {
-      const b = iconKey(kind, name, () => { if (!this.moving) fn(); }, { model: pt ? 36 : 42, nameHover: true, cls: 'fm-k ' + cls });
-      b.style.setProperty('--ik-i', String(row.childElementCount));
-      row.append(b);
-      return b;
-    };
-    if (this.map?.focused) { key('map', 'Back', () => void this.mapBack(), 'warm'); return; }
-    key('door', 'Title', () => void this.toFront());
-    const last = this.saves[0];
-    if (last) key('play', 'Resume', () => this.play(last), 'warm');
-    if (this.saves.length) key('clipboard', 'Case files', () => this.loads());
-    key('walkie', 'Co-op', () => this.coop());
-    key('joystick', 'Controls', () => this.controls());
-    key('gear', 'Options', () => this.options());
   }
   /** a tap on a part of the unit: the lights come on and the creator starts at that part */
   private subjectTap(e: PointerEvent) {
@@ -914,7 +835,7 @@ class TitleRoom {
     this.term = null;
     this.root.classList.remove('paneled');
     sfx('back');
-    if (this.view === 'front') this.front.focusFirst(); else this.focusKey(this.lastKey);
+    this.focusKey(this.lastKey);
   }
 
   /** settings: the pages hang on a gear train; turn a gear (click, Q / E) to change page */
@@ -956,8 +877,9 @@ class TitleRoom {
     return r;
   }
   private async newGame(directives: boolean, part?: string) {
-    // (round 26: the offer opens a new game now, front/offer.ts; the lab introduction tour returns with the rooms)
-    const lift: (() => void) | null = null;
+    // round 22: a new game's first unit wakes in unit room 4 and Dr. Calder walks the operator round the lab first
+    let lift: (() => void) | null = null;
+    if (directives && !part && labIntroWanted()) { sfx('confirm'); lift = await this.labIntro(); }
     // the very first unit: the prologue (the link, the intake drag, the wake and Dr. Calder's lesson)
     if (directives && !part && !navigator.webdriver) {
       const P = await import('../../game/prologue');

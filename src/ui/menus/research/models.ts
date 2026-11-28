@@ -12,6 +12,8 @@
 // Every model comes with its meshes and their base materials; matFor() gives
 // the lit / dim / dark / hot variants the lattice swaps on a node's state.
 import * as THREE from 'three';
+import { hubModel } from '../lab/hubModels';
+import type { FMats } from '../scene/pixtex';
 import { worldMaterial } from '../../../gfx/materials';
 import { itemGeometry } from '../../../items/itemMeshes';
 import { hasItemDef } from '../../../items/item';
@@ -95,12 +97,26 @@ export function nodeModel(n: TreeNode): Exhibit {
   return f();
 }
 
+// ---------------------------------------------------------------- round 27: a facility upgrade's model (lab/hubModels.ts)
+let MATS: FMats | null = null;
+/** the room kit's materials (the lattice hands them over: the facility's models are built from it) */
+export function setExhibitMats(m: FMats) { MATS = m; }
+function furnParts(kind: string) {
+  if (!MATS) return [];
+  const o = hubModel(kind, MATS, true);
+  o.updateMatrixWorld(true);
+  const out: { geo: THREE.BufferGeometry; mat: THREE.Material; pre: THREE.Matrix4 }[] = [];
+  o.traverse((q) => { const m = q as THREE.Mesh; if (m.isMesh && !Array.isArray(m.material)) out.push({ geo: m.geometry, mat: m.material, pre: m.matrixWorld.clone() }); });
+  return out;
+}
+
 function buildParts(n: TreeNode) {
   const ic = n.icon;
   if (ic.kind === 'item') { const k = [ic.key, ...(ic.alt ?? [])].find((q) => hasItemDef(q) && itemGeometry(q)); return k ? itemParts(k) : []; }
   if (ic.kind === 'limb') return limbParts(ic.key);
   if (ic.kind === 'cos') return cosParts(ic.key);
   if (ic.kind === 'chip') return chipParts(ic.glyph, ic.color);
+  if (ic.kind === 'furn') return furnParts(ic.key);
   return socketParts();
 }
 

@@ -28,10 +28,12 @@ import { objDef, objectGeometry } from '../../../world/objects';
 import { worldMaterial } from '../../../gfx/materials';
 import type { TileObject } from '../../../world/zone';
 import type { TreeNode } from '../../../game/unitTree';
+import { isFacBranch } from '../../../game/facilityTree';
+import { hubModel } from '../lab/hubModels';
 // the combat clips (cb_*) are registered with the animator when this loads; the menu does not load the fight otherwise
 import '../../../combat/anims';
 
-export type SetKey = 'combat' | 'medic' | 'weld' | 'bench' | 'cook' | 'garden' | 'pen' | 'store' | 'lab' | 'grow';
+export type SetKey = 'combat' | 'medic' | 'weld' | 'bench' | 'cook' | 'garden' | 'pen' | 'store' | 'lab' | 'grow' | 'fac';
 /** what the unit does: an action clip (the animator's names), its length, the rest between, and where it lands */
 export interface Act { name: string; dur: number; rest?: number; full?: string; hit?: number; two?: boolean; weapon?: string; alt?: string }
 export interface Shot { set: SetKey; act: Act; held?: string[]; heldL?: string[]; variant?: string }
@@ -110,6 +112,8 @@ export function shotFor(n: TreeNode): Shot {
   if (br === 'p_handler') return /milk|breed/.test(k) ? { set: 'pen', act: { name: 'craft', dur: 1.6, full: 'kneel' }, held: [], variant: 'milk' } : { set: 'pen', act: { name: 'pour', dur: 2.6 }, held: ['bucket'] };
   if (br === 'p_scavenger' || br === 'survival') return { set: 'store', act: { name: 'loot', dur: 1.8 }, heldL: ['flashlight'] };
   if (br === 'device') return { set: 'lab', act: { name: 'scanner', dur: 3 }, held: ['data_probe', 'multimeter'] };
+  // round 27: a facility upgrade stands in a bay of the lab, new, on taped floor; a unit checks it off a clipboard
+  if (isFacBranch(br)) return { set: 'fac', act: { name: 'read', dur: 2.8, rest: 0.6 }, held: ['clipboard', 'notebook'], variant: n.icon.kind === 'furn' ? n.icon.key : '' };
   if (br === 'design') return { set: 'store', act: { name: 'emote:flex', dur: 3 } };
   return { set: 'lab', act: { name: k.endsWith('focus') || k.endsWith('lucid') ? 'read' : 'mix', dur: 2.6 }, held: ['notebook'] };
 }
@@ -235,9 +239,45 @@ export class ActionPreview implements StageView {
     } else if (this.patient) this.patient.root.visible = false;
     if (set.dummy) { set.dummy.g.visible = s.variant !== 'down' && s.variant !== 'bag'; set.dummy.down.visible = s.variant === 'down'; set.dummy.bag.visible = s.variant === 'bag'; }
     if (s.set === 'pen') { const kind = V?.beasts ?? 'moon_calf'; if (kind === 'moon_calf') this.ensureCalf(set); this.showBeasts(set, kind); }
+    if (s.set === 'fac') this.showFac(set, s.variant ?? '');
     for (const p of this.puffs) p.m.visible = false;
     this.spark.length = 0;
     if (this.thrown) this.thrown.visible = false;
+  }
+
+  // ---- round 27: the facility bay's model (lab/hubModels.ts), fitted to the taped square
+  private facModels = new Map<string, THREE.Object3D>();
+  private facShown: THREE.Object3D | null = null;
+  private showFac(set: SetV, kind: string) {
+    if (this.facShown) this.facShown.visible = false;
+    if (!kind) return;
+    let o = this.facModels.get(kind);
+    if (!o) {
+      o = new THREE.Group();
+      const m = hubModel(kind, this.mats);
+      m.traverse((q) => { const me = q as THREE.Mesh; if (me.isMesh) { me.castShadow = true; me.receiveShadow = true; } });
+      o.add(m); o.position.set(0.35, 0, -0.55); o.rotation.y = -0.35;
+      o.userData.fitted = false;
+      set.g.add(o);
+      this.facModels.set(kind, o);
+    }
+    o.visible = true;
+    this.facShown = o;
+    this.fitFac(o);
+  }
+  /** big models (the van, the lift) shrink to the bay; a Poly Haven prop is fitted once it has loaded */
+  private fitFac(o: THREE.Object3D) {
+    if (o.userData.fitted) return;
+    const m = o.children[0]; if (!m) return;
+    m.scale.setScalar(1);
+    const box = new THREE.Box3().setFromObject(m);
+    if (box.isEmpty()) return;
+    const sz = box.getSize(new THREE.Vector3());
+    const k = Math.min(1.6, 2.1 / Math.max(sz.x, sz.z), 2.0 / Math.max(0.05, sz.y));
+    m.scale.setScalar(k);
+    const b2 = new THREE.Box3().setFromObject(m), c = b2.getCenter(new THREE.Vector3());
+    m.position.x -= c.x - o.position.x; m.position.z -= c.z - o.position.z; m.position.y -= b2.min.y;
+    o.userData.fitted = true;
   }
 
   /** 3D mode: drag to turn round the scene, the wheel to move in */
@@ -249,6 +289,7 @@ export class ActionPreview implements StageView {
     const set = this.cur, s = this.shot, a = this.actor;
     if (!set || !s || !a) return;
     this.t = t;
+    if (this.facShown?.visible && !this.facShown.userData.fitted) this.fitFac(this.facShown);
     // the action loop: the clip, then a breath, then again
     const A = s.act, cyc = A.dur + (A.rest ?? 0);
     this.actT += dt;
@@ -551,6 +592,7 @@ const OUTFIT: Record<SetKey, string[]> = {
   pen: ['hoodie', 'jeans', 'boots_work'],
   store: ['hoodie', 'jeans', 'sneakers'],
   lab: ['lab_coat', 'slacks', 'dress_shoes'],
+  fac: ['hoodie', 'jeans', 'boots_work', 'gloves_work'],
   grow: ['hoodie', 'jeans', 'boots_work', 'gloves_rubber'],
 };
 
@@ -1064,6 +1106,33 @@ const BUILD: Record<SetKey, Builder> = {
       c.glb('radio', [1.6, 1.155, -1.0], -90);
       set.at.set(-0.2, 0.0, -0.86); set.yaw = 0; set.look.set(-0.05, 1.12, -0.45); set.cam.set(0.9, 0.45, 2.15); set.fov = 38;
       set.pracK = (t) => 0.9 + Math.sin(t * 31) * 0.05;
+    },
+  },
+  // ---- round 27, A FACILITY BAY: a bright corner of the lab, the new piece on a taped square of fresh floor, crates
+  // it came in, a pallet jack, a work lamp on a stand; the unit in coveralls checks it off on a clipboard
+  fac: {
+    shell: { w: 4.6, d: 3.8, wall: 0xb8c4b8, floor: 'floor', floorCol: 0xb0b8b0, tileCol: 0xe8ece4, wains: 1.3 },
+    light: { key: [1.4, 2.6, 1.6], keyAt: [0.2, 0.6, -0.5], keyCol: 0xfff6ea, keyI: 36, fill: [-1.6, 2.0, 1.4], fillCol: 0xd8e4ff, fillI: 7, prac: [1.5, 1.7, -1.4], pracCol: 0xffe8c0, pracI: 2.2, pracDist: 4 },
+    make(c) {
+      const { b, set } = c;
+      const cx = 0.35, cz = -0.55, hw = 1.25, hd = 1.15;
+      // the taped square, a sheet of fresh epoxy inside it
+      for (const [x, z, w, d] of [[cx, cz - hd, hw * 2, 0.06], [cx, cz + hd, hw * 2, 0.06], [cx - hw, cz, 0.06, hd * 2], [cx + hw, cz, 0.06, hd * 2]] as [number, number, number, number][]) b.add('hazard', cbox(w, 0.006, d, 0.002), 0xffffff, at(x, 0.004, z), { rep: 0.2 });
+      b.add('floor', cbox(hw * 2 - 0.08, 0.004, hd * 2 - 0.08, 0.001), 0xd8e0d8, at(cx, 0.002, cz), { rep: 0.8 });
+      // the crates it came in, stencilled, one prised open with its lid against it
+      for (const [x, z, s, r] of [[-1.55, -1.3, 0.55, 0.2], [-1.6, -0.7, 0.42, -0.15], [-1.5, -1.3, 0.38, 0.5]] as [number, number, number, number][]) {
+        const y = x === -1.5 ? 0.55 + 0.19 : s / 2;
+        b.add('wood', cbox(s, s, s * 0.9, 0.01), 0xb08a52, at(x, y, z, 0, r));
+        b.add('paint', cbox(s + 0.004, 0.06, s * 0.9 + 0.004, 0.003), 0x3a5a3a, at(x, y + s * 0.15, z, 0, r));
+      }
+      b.add('wood', cbox(0.6, 0.03, 0.5, 0.006), 0xa07a46, at(-1.2, 0.3, -0.25, 0.2, 0.4, 1.2));
+      // a work lamp on a tripod, aimed at the piece
+      for (let i = 0; i < 3; i++) b.add('metal', prism(0.012, 1.5, 6), C.dark, at(1.75 + Math.cos(i * 2.1) * 0.18, 0.72, -1.55 + Math.sin(i * 2.1) * 0.18, 0, 0, Math.cos(i * 2.1) * 0.12));
+      b.add('paint', cbox(0.26, 0.2, 0.16, 0.02), 0xd8a030, at(1.6, 1.65, -1.45, 0, 0.9, 0.3));
+      b.add('lamp', cbox(0.2, 0.14, 0.01, 0.004), 0xfff0d0, at(1.55, 1.63, -1.38, 0, 0.9, 0.3));
+      c.glb('shelves', [-1.95, 0, 0.6], 90);
+      c.glb('storage_cart', [1.9, 0, 0.9], -60);
+      set.at.set(-0.95, 0, 0.35); set.yaw = 0.9; set.look.set(0.15, 0.85, -0.45); set.cam.set(1.25, 1.05, 3.4); set.fov = 42;
     },
   },
 };

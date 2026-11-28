@@ -64,18 +64,24 @@ export function hasUnlock(key: string): boolean {
   return !!n && n.cost <= 0 && !n.requires?.length && !n.gate;
 }
 
-export function canBuy(key: string): boolean {
+/** round 27: what a node costs besides its RP (materials and valuables: src/game/nodeCost.ts registers it) */
+let extra: { ok: (key: string) => boolean; pay: (key: string) => boolean } = { ok: () => true, pay: () => true };
+export function setNodeExtra(x: typeof extra) { extra = x; }
+/** the RP, the requirements and the gate allow it (the materials aside) */
+export function canResearch(key: string): boolean {
   const n = NODES.get(key);
   if (!n || hasUnlock(key)) return false;
   if (n.requires?.some((r) => !hasUnlock(r))) return false;
   if (n.gate && !n.gate()) return false;
   return researchPoints() >= n.cost;
 }
+export function canBuy(key: string): boolean { return canResearch(key) && extra.ok(key); }
 
 export function buyNode(key: string): boolean {
   if (!canBuy(key)) return false;
   const n = NODES.get(key)!;
   if (!spendResearch(n.cost, 'node:' + key)) return false;
+  if (!extra.pay(key)) { addStat('rp', n.cost); return false; }
   unlock('rp:' + key);
   bus.emit('researchUnlocked', key);
   return true;

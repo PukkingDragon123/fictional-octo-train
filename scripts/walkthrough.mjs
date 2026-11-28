@@ -321,29 +321,28 @@ const step = async (page, name, fn, arg) => {
     return { ending: document.querySelector('.dbt-end .l5')?.textContent, flags: T.flags().filter((f) => f.startsWith('contract') || f.startsWith('done:')) };
   });
   await page.screenshot({ path: 'scripts/out/walk_end.png' });
-  // the facility (round 26): the first room restored stage by stage, a bunk bought and placed, its rest reaches the unit
-  await step(page, 'facility: restore the first room, place a bunk, the bonus eases tiredness', async () => {
+  // the facility (round 27): a valuable freighted home from the press to the lab's dock, then a facility upgrade
+  // researched on the lattice, paid in RP and stores (matter off the press's bank, the valuable off the dock), its bonus
+  // reaching the unit
+  await step(page, 'facility: freight a valuable home, research an upgrade with its stores, the bonus eases tiredness', async () => {
     const T = window.T;
-    const fac = await import('/src/game/facility.ts'), cat = await import('/src/game/facilityCatalog.ts');
-    const tal = await import('/src/survival/talents.ts'), money = await import('/src/game/economy/money.ts');
-    fac.resetFacility();
-    const id = fac.FIRST_ROOM;
-    money.addDollars(300, 'test');
-    const body = T.p.body;
-    const bare = tal.talentMul(body, 'fatigue');
-    const why = cat.startStage(id);
-    if (why !== '' || !fac.room(id).work?.skip) throw new Error('the clearing did not start: ' + why);
-    let done = false;
-    for (let n = 0; n < cat.debrisCount(id); n++) done = cat.binDebris(id, n);
-    if (!done || fac.room(id).condition !== 1) throw new Error('not cleared: condition ' + fac.room(id).condition);
-    for (const st of ['repair', 'clean']) { const w = cat.startStage(id); if (w !== '') throw new Error(st + ' refused: ' + w); }
-    if (fac.room(id).condition !== 3) throw new Error('not restored');
-    const restored = tal.talentMul(body, 'fatigue');
-    const uid = cat.buyFurniture(id, 'bunk', { x: -1.5, z: 0.75, rot: 0 });
-    if (!uid) throw new Error('the bunk could not be bought');
-    const furnished = tal.talentMul(body, 'fatigue');
-    if (!(restored < bare && furnished < restored)) throw new Error(`tiredness not eased: ${bare} -> ${restored} -> ${furnished}`);
-    return { rest: fac.roomBonuses(id).rest, fatigue: [bare, +restored.toFixed(3), +furnished.toFixed(3)], next: cat.gateOf('unit') };
+    const fr = await import('/src/game/economy/freight.ts'), cost = await import('/src/game/nodeCost.ts');
+    const research = await import('/src/game/research.ts'), matter = await import('/src/game/economy/matter.ts'), tal = await import('/src/survival/talents.ts');
+    await import('/src/game/facilityTree.ts');
+    const it = window.__dev.newItem('gold_watch'); T.p.inv.add(it); T.emitInv();
+    const d0 = fr.dock().length;
+    if (fr.shipValuables(T.p, [it]) !== 1 || fr.dock().length !== d0 + 1 || T.p.containerOf(it)) throw new Error('the watch was not freighted');
+    research.grantResearch(10, 'test'); matter.bankMatter({ metal: 4, fibre: 4 });
+    const body = T.p.body, bare = tal.talentMul(body, 'fatigue');
+    // the bunks wait for the cots; without the stores the lattice refuses
+    if (research.canBuy('fq_bunk')) throw new Error('the bunks were open before the cots');
+    if (!research.buyNode('fq_cot')) throw new Error('cots refused: ' + JSON.stringify(cost.costShort(cost.nodeCost('fq_cot'))));
+    const gold0 = fr.dockCount('v_gold'), kg0 = matter.banked('metal');
+    if (!research.buyNode('fq_bunk')) throw new Error('bunks refused: ' + JSON.stringify(cost.costShort(cost.nodeCost('fq_bunk'))));
+    if (fr.dockCount('v_gold') !== gold0 - 1 || !(matter.banked('metal') < kg0)) throw new Error('the stores were not spent');
+    const after = tal.talentMul(body, 'fatigue');
+    if (!(after < bare)) throw new Error(`tiredness not eased: ${bare} -> ${after}`);
+    return { fatigue: [bare, +after.toFixed(3)], dock: fr.dock().length, freightLeft: fr.freightLeft(), metal: matter.banked('metal') };
   });
   await page.context().close();
 }
