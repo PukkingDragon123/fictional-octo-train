@@ -21,7 +21,8 @@
   keys, tiles or button frames (the green machine-kit icon keys were rejected); the icon and its text float free.
 - Never use the eye icon anywhere (rejected); monitors use the CRT set, scanning uses the lens.
 - The title opens on four plain floating text choices (no icons, no frames) over a cinematic scene; deeper menus use floating
-  icons. The facility starts derelict and the player rebuilds it room by room (build mode, furniture that raises stats).
+  icons. No logo on the menu screens (only a brief reveal at boot). The facility starts derelict and the player rebuilds it
+  room by room with free building (furniture that raises stats), growing it into a zoo/museum of the liminal.
 - Never use a row of progress dots/pips (tutorial or tour step dots, hold-to-skip dots); rejected everywhere.
 - No plain "UI blocks": no flat rectangles of colour holding text or buttons. Every element is a designed object
   (detailed pixel art, a 3D prop, or something in the scene). Choices and prompts float as styled, slightly 3D text.
